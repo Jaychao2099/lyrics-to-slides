@@ -15,7 +15,7 @@
 
 ```bash
 # 克隆倉庫
-git clone https://github.com/yourusername/lyrics-to-slides.git
+git clone https://github.com/Jaychao2099/lyrics-to-slides.git
 
 # 進入項目目錄
 cd lyrics-to-slides
