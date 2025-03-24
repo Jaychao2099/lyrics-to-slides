@@ -1,0 +1,497 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>歌曲投影片生成器</title>
+  <!-- 避免FOUC (Flash of unstyled content) -->
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      font-family: 'Microsoft JhengHei', Arial, sans-serif;
+      background-color: #f5f5f5;
+      color: #333;
+      height: 100vh;
+      overflow: hidden;
+    }
+    
+    /* 淺色/深色主題切換 */
+    @media (prefers-color-scheme: dark) {
+      body {
+        background-color: #1e1e1e;
+        color: #e8e8e8;
+      }
+    }
+    
+    /* 載入畫面 */
+    #loading {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      flex-direction: column;
+      background-color: #f5f5f5;
+      z-index: 9999;
+      transition: opacity 0.5s ease;
+    }
+    
+    /* 深色模式下的載入畫面 */
+    @media (prefers-color-scheme: dark) {
+      #loading {
+        background-color: #1e1e1e;
+      }
+      
+      #loading h1 {
+        color: #e8e8e8;
+      }
+      
+      .spinner {
+        border-top-color: #4a4a4a;
+      }
+    }
+    
+    #loading h1 {
+      margin-top: 20px;
+      font-size: 24px;
+      color: #333;
+    }
+    
+    .spinner {
+      width: 50px;
+      height: 50px;
+      border: 3px solid rgba(150, 150, 150, 0.2);
+      border-radius: 50%;
+      border-top-color: #999;
+      animation: spin 1s ease-in-out infinite;
+    }
+    
+    @keyframes spin {
+      to {
+        transform: rotate(360deg);
+      }
+    }
+    
+    /* 隱藏載入畫面 */
+    .loaded #loading {
+      opacity: 0;
+      pointer-events: none;
+    }
+    
+    /* 主應用容器 */
+    #app {
+      height: 100vh;
+      opacity: 0;
+      transition: opacity 0.5s ease;
+    }
+    
+    .loaded #app {
+      opacity: 1;
+    }
+  </style>
+  <!-- 延遲加載主樣式表 -->
+  <link rel="stylesheet" href="./styles/main.css" media="print" onload="this.media='all'">
+</head>
+<body>
+  <!-- 載入畫面 -->
+  <div id="loading">
+    <div class="spinner"></div>
+    <h1>載入中...</h1>
+  </div>
+  
+  <!-- 主應用容器 -->
+  <div id="app">
+    <!-- 標題欄 -->
+    <header class="title-bar">
+      <div class="title">歌曲投影片生成器</div>
+      <div class="window-controls">
+        <button id="min-button" class="window-control" title="最小化">–</button>
+        <button id="max-button" class="window-control" title="最大化">□</button>
+        <button id="close-button" class="window-control" title="關閉">✕</button>
+      </div>
+    </header>
+    
+    <!-- 主布局 -->
+    <div class="main-container">
+      <!-- 側邊欄 -->
+      <aside class="sidebar">
+        <div class="project-info">
+          <h2 id="project-name">未命名項目</h2>
+          <div class="project-meta">
+            <div id="song-title">尚未設置歌曲</div>
+            <div id="artist-name">未知藝人</div>
+          </div>
+        </div>
+        
+        <nav class="main-nav">
+          <button class="nav-item active" data-section="lyrics">
+            <span class="icon">🎵</span>
+            <span class="label">歌詞編輯</span>
+          </button>
+          <button class="nav-item" data-section="slides">
+            <span class="icon">🖼️</span>
+            <span class="label">投影片設計</span>
+          </button>
+          <button class="nav-item" data-section="preview">
+            <span class="icon">👁️</span>
+            <span class="label">預覽</span>
+          </button>
+          <button class="nav-item" data-section="export">
+            <span class="icon">📤</span>
+            <span class="label">匯出</span>
+          </button>
+          <button class="nav-item" data-section="settings">
+            <span class="icon">⚙️</span>
+            <span class="label">設定</span>
+          </button>
+        </nav>
+        
+        <div class="sidebar-footer">
+          <button id="new-project-btn" class="action-button">
+            <span class="icon">📄</span>
+            <span class="label">新項目</span>
+          </button>
+          <button id="open-project-btn" class="action-button">
+            <span class="icon">📂</span>
+            <span class="label">開啟項目</span>
+          </button>
+          <button id="save-project-btn" class="action-button">
+            <span class="icon">💾</span>
+            <span class="label">保存項目</span>
+          </button>
+        </div>
+      </aside>
+      
+      <!-- 主內容區 -->
+      <main class="content">
+        <!-- 將在JS中動態載入各區塊內容 -->
+        <div id="section-container">
+          <!-- 歌詞編輯區塊 -->
+          <section id="lyrics-section" class="active-section">
+            <div class="section-header">
+              <h2>歌詞編輯</h2>
+              <div class="section-actions">
+                <button id="search-lyrics-btn" class="action-button primary">
+                  <span class="icon">🔍</span>
+                  <span class="label">搜尋歌詞</span>
+                </button>
+                <button id="import-lyrics-btn" class="action-button">
+                  <span class="icon">📄</span>
+                  <span class="label">匯入文字</span>
+                </button>
+              </div>
+            </div>
+            
+            <div class="lyrics-container">
+              <div id="lyrics-editor" class="lyrics-editor"></div>
+              <div class="lyrics-tools">
+                <button id="add-paragraph-btn" title="新增段落">➕</button>
+                <button id="split-paragraph-btn" title="分割段落">✂️</button>
+                <button id="merge-paragraphs-btn" title="合併段落">🔗</button>
+                <button id="remove-paragraph-btn" title="刪除段落">🗑️</button>
+              </div>
+            </div>
+          </section>
+          
+          <!-- 投影片設計區塊 -->
+          <section id="slides-section" class="section">
+            <div class="section-header">
+              <h2>投影片設計</h2>
+              <div class="section-actions">
+                <button id="generate-all-images-btn" class="action-button primary">
+                  <span class="icon">🖼️</span>
+                  <span class="label">生成所有背景</span>
+                </button>
+                <button id="select-template-btn" class="action-button">
+                  <span class="icon">📐</span>
+                  <span class="label">選擇範本</span>
+                </button>
+              </div>
+            </div>
+            
+            <div class="slides-container">
+              <div class="slides-list" id="slides-list"></div>
+              <div class="slide-editor">
+                <div class="slide-preview" id="slide-preview"></div>
+                <div class="slide-properties">
+                  <h3>投影片屬性</h3>
+                  <div class="property-group">
+                    <label>背景</label>
+                    <div class="background-options">
+                      <button id="select-color-btn" class="action-button small">顏色</button>
+                      <button id="generate-image-btn" class="action-button small">生成圖片</button>
+                      <button id="upload-image-btn" class="action-button small">上傳圖片</button>
+                    </div>
+                  </div>
+                  <div class="property-group">
+                    <label>文字位置</label>
+                    <div class="text-position-options">
+                      <button data-position="top" class="position-btn">上</button>
+                      <button data-position="center" class="position-btn active">中</button>
+                      <button data-position="bottom" class="position-btn">下</button>
+                    </div>
+                  </div>
+                  <div class="property-group">
+                    <label>文字對齊</label>
+                    <div class="text-align-options">
+                      <button data-align="left" class="align-btn">左</button>
+                      <button data-align="center" class="align-btn active">中</button>
+                      <button data-align="right" class="align-btn">右</button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </section>
+          
+          <!-- 預覽區塊 -->
+          <section id="preview-section" class="section">
+            <div class="section-header">
+              <h2>預覽</h2>
+              <div class="section-actions">
+                <button id="start-preview-btn" class="action-button primary">
+                  <span class="icon">▶️</span>
+                  <span class="label">開始播放</span>
+                </button>
+                <select id="preview-speed">
+                  <option value="0.5">0.5x 速度</option>
+                  <option value="1" selected>1x 速度</option>
+                  <option value="1.5">1.5x 速度</option>
+                  <option value="2">2x 速度</option>
+                </select>
+              </div>
+            </div>
+            
+            <div class="preview-container">
+              <div class="preview-controls">
+                <button id="prev-slide-btn">◀</button>
+                <span id="slide-counter">0 / 0</span>
+                <button id="next-slide-btn">▶</button>
+              </div>
+              <div class="preview-frame" id="preview-frame"></div>
+            </div>
+          </section>
+          
+          <!-- 匯出區塊 -->
+          <section id="export-section" class="section">
+            <div class="section-header">
+              <h2>匯出</h2>
+            </div>
+            
+            <div class="export-container">
+              <div class="export-options">
+                <div class="option-group">
+                  <h3>格式</h3>
+                  <div class="format-options">
+                    <label>
+                      <input type="radio" name="export-format" value="pptx" checked>
+                      <span>PowerPoint (PPTX)</span>
+                    </label>
+                    <label>
+                      <input type="radio" name="export-format" value="pdf">
+                      <span>PDF</span>
+                    </label>
+                    <label>
+                      <input type="radio" name="export-format" value="images">
+                      <span>圖片</span>
+                    </label>
+                  </div>
+                </div>
+                
+                <div class="option-group">
+                  <h3>品質</h3>
+                  <div class="quality-options">
+                    <label>
+                      <input type="radio" name="export-quality" value="low">
+                      <span>低 (較小檔案)</span>
+                    </label>
+                    <label>
+                      <input type="radio" name="export-quality" value="medium" checked>
+                      <span>中 (平衡)</span>
+                    </label>
+                    <label>
+                      <input type="radio" name="export-quality" value="high">
+                      <span>高 (較大檔案)</span>
+                    </label>
+                  </div>
+                </div>
+                
+                <div class="option-group">
+                  <h3>輸出位置</h3>
+                  <div class="output-location">
+                    <input type="text" id="output-path" readonly>
+                    <button id="browse-output-btn" class="action-button small">瀏覽...</button>
+                  </div>
+                </div>
+              </div>
+              
+              <div class="export-actions">
+                <button id="export-btn" class="action-button primary large">
+                  <span class="icon">📤</span>
+                  <span class="label">匯出投影片</span>
+                </button>
+                <div class="export-progress" style="display: none;">
+                  <progress id="export-progress-bar" value="0" max="100"></progress>
+                  <span id="export-progress-text">0%</span>
+                </div>
+              </div>
+            </div>
+          </section>
+          
+          <!-- 設定區塊 -->
+          <section id="settings-section" class="section">
+            <div class="section-header">
+              <h2>設定</h2>
+            </div>
+            
+            <div class="settings-container">
+              <div class="settings-group">
+                <h3>應用程式</h3>
+                <div class="setting-item">
+                  <label for="theme-select">主題</label>
+                  <select id="theme-select">
+                    <option value="light">淺色</option>
+                    <option value="dark">深色</option>
+                    <option value="system">跟隨系統</option>
+                  </select>
+                </div>
+                <div class="setting-item">
+                  <label for="language-select">語言</label>
+                  <select id="language-select">
+                    <option value="zh-TW">繁體中文</option>
+                    <option value="zh-CN">簡體中文</option>
+                    <option value="en">English</option>
+                  </select>
+                </div>
+                <div class="setting-item checkbox">
+                  <label>
+                    <input type="checkbox" id="auto-update-check" checked>
+                    <span>自動檢查更新</span>
+                  </label>
+                </div>
+              </div>
+              
+              <div class="settings-group">
+                <h3>投影片</h3>
+                <div class="setting-item">
+                  <label for="resolution-select">預設解析度</label>
+                  <select id="resolution-select">
+                    <option value="16:9">16:9 (1920x1080)</option>
+                    <option value="4:3">4:3 (1024x768)</option>
+                    <option value="custom">自訂</option>
+                  </select>
+                </div>
+                <div class="custom-resolution" style="display: none;">
+                  <div class="setting-item">
+                    <label for="custom-width">寬度</label>
+                    <input type="number" id="custom-width" min="640" max="3840" value="1920">
+                  </div>
+                  <div class="setting-item">
+                    <label for="custom-height">高度</label>
+                    <input type="number" id="custom-height" min="480" max="2160" value="1080">
+                  </div>
+                </div>
+              </div>
+              
+              <div class="settings-group">
+                <h3>API 金鑰</h3>
+                <div class="setting-item">
+                  <label for="openai-api-key">OpenAI API 金鑰</label>
+                  <div class="api-key-input">
+                    <input type="password" id="openai-api-key">
+                    <button id="toggle-openai-key" class="action-button small">顯示</button>
+                  </div>
+                </div>
+                <div class="setting-item">
+                  <label for="stability-api-key">Stability AI API 金鑰</label>
+                  <div class="api-key-input">
+                    <input type="password" id="stability-api-key">
+                    <button id="toggle-stability-key" class="action-button small">顯示</button>
+                  </div>
+                </div>
+                <p class="api-note">注意：API 金鑰僅保存在本地，不會傳送到其他地方。圖像生成服務可能產生費用，請參閱相關服務的定價說明。</p>
+              </div>
+              
+              <div class="settings-actions">
+                <button id="reset-settings-btn" class="action-button">重設為預設值</button>
+                <button id="save-settings-btn" class="action-button primary">保存設定</button>
+              </div>
+            </div>
+          </section>
+        </div>
+      </main>
+    </div>
+    
+    <!-- 彈出對話框容器 -->
+    <div id="dialog-container" class="dialog-overlay" style="display: none;">
+      <!-- 對話框內容將動態生成 -->
+    </div>
+  </div>
+  
+  <!-- 腳本 -->
+  <script src="./scripts/renderer.js" defer></script>
+  <script>
+    // 在DOM載入後，顯示應用程序
+    document.addEventListener('DOMContentLoaded', () => {
+      // 模擬載入時間
+      setTimeout(() => {
+        document.body.classList.add('loaded');
+      }, 1000);
+      
+      // 監聽標題欄按鈕
+      const minButton = document.getElementById('min-button');
+      const maxButton = document.getElementById('max-button');
+      const closeButton = document.getElementById('close-button');
+      
+      if (minButton) {
+        minButton.addEventListener('click', () => {
+          window.electronAPI.send('minimize-window');
+        });
+      }
+      
+      if (maxButton) {
+        maxButton.addEventListener('click', () => {
+          window.electronAPI.send('maximize-window');
+        });
+      }
+      
+      if (closeButton) {
+        closeButton.addEventListener('click', () => {
+          window.electronAPI.send('close-window');
+        });
+      }
+      
+      // 監聽側邊欄導航
+      const navItems = document.querySelectorAll('.nav-item');
+      const sections = document.querySelectorAll('.section, .active-section');
+      
+      navItems.forEach(item => {
+        item.addEventListener('click', () => {
+          // 移除所有導航項目的活動狀態
+          navItems.forEach(navItem => navItem.classList.remove('active'));
+          
+          // 添加當前項目的活動狀態
+          item.classList.add('active');
+          
+          // 顯示相應的內容區塊
+          const sectionId = item.getAttribute('data-section');
+          sections.forEach(section => {
+            section.classList.remove('active-section');
+            section.classList.add('section');
+          });
+          
+          const targetSection = document.getElementById(`${sectionId}-section`);
+          if (targetSection) {
+            targetSection.classList.remove('section');
+            targetSection.classList.add('active-section');
+          }
+        });
+      });
+    });
+  </script>
+</body>
+</html> 

@@ -1,28 +1,62 @@
 {
   "name": "lyrics-to-slides",
-  "version": "0.1.0",
-  "private": true,
-  "main": "main.js",
+  "version": "1.0.0",
+  "description": "將歌曲轉換為精美投影片的桌面應用程式",
+  "main": "src/main/index.js",
+  "scripts": {
+    "start": "electron .",
+    "dev": "electron . --dev",
+    "build": "electron-builder",
+    "build:win": "electron-builder --win",
+    "build:mac": "electron-builder --mac",
+    "test": "jest"
+  },
+  "keywords": [
+    "lyrics",
+    "slides",
+    "presentation",
+    "music",
+    "electron",
+    "ai"
+  ],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "electron": "^28.2.0",
+    "electron-builder": "^24.9.1",
+    "jest": "^29.7.0"
+  },
   "dependencies": {
-    "electron": "^28.2.1",
+    "axios": "^1.6.2",
+    "better-sqlite3": "^9.2.2",
+    "electron-log": "^5.0.1",
+    "electron-store": "^8.1.0",
+    "electron-updater": "^6.1.7",
+    "marp-core": "^3.9.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
-    "@marp-team/marp-core": "^3.8.0",
-    "@marp-team/marpit": "^2.6.1",
-    "axios": "^1.6.2",
-    "tailwindcss": "^3.3.5"
+    "tailwindcss": "^3.4.0"
   },
-  "devDependencies": {
-    "@types/react": "^18.2.15",
-    "@types/react-dom": "^18.2.7",
-    "@vitejs/plugin-react": "^4.0.4",
-    "electron-builder": "^24.6.4",
-    "typescript": "^5.0.2",
-    "vite": "^4.4.9"
-  },
-  "scripts": {
-    "dev": "vite",
-    "start": "electron .",
-    "build": "vite build && electron-builder"
+  "build": {
+    "appId": "com.lyricsslides.app",
+    "productName": "歌曲投影片生成器",
+    "mac": {
+      "category": "public.app-category.productivity",
+      "target": [
+        "dmg"
+      ],
+      "icon": "assets/icons/icon.icns"
+    },
+    "win": {
+      "target": [
+        "nsis",
+        "portable"
+      ],
+      "icon": "assets/icons/icon.ico"
+    },
+    "directories": {
+      "buildResources": "assets",
+      "output": "dist"
+    }
   }
-}
+} 
