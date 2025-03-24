@@ -143,10 +143,10 @@ class LyricsModule {
   }
   
   /**
-   * 打開歌詞搜索對話框
+   * 打開搜索歌詞對話框
    */
   openSearchDialog() {
-    // 創建並顯示搜索對話框
+    // 創建對話框內容
     const dialogContent = `
       <div class="dialog-header">
         <h3>搜尋歌詞</h3>
@@ -155,23 +155,27 @@ class LyricsModule {
       <div class="dialog-body">
         <div class="search-form">
           <div class="form-group">
-            <label for="song-title">歌曲名稱</label>
-            <input type="text" id="song-title" placeholder="輸入歌曲名稱" required>
+            <label for="search-song-title">歌曲名稱</label>
+            <input type="text" id="search-song-title" placeholder="輸入歌曲名稱" required>
           </div>
           <div class="form-group">
-            <label for="artist-name">藝人名稱 (選填)</label>
-            <input type="text" id="artist-name" placeholder="輸入藝人名稱">
+            <label for="search-artist-name">藝人名稱 (選填)</label>
+            <input type="text" id="search-artist-name" placeholder="輸入藝人名稱">
           </div>
           <div class="form-group">
             <label>搜尋來源</label>
             <div class="search-sources">
               <label class="checkbox-label">
-                <input type="checkbox" id="source-mojim" checked>
+                <input type="checkbox" name="search-source" value="mojim" checked>
                 <span>Mojim</span>
               </label>
               <label class="checkbox-label">
-                <input type="checkbox" id="source-musixmatch" checked>
+                <input type="checkbox" name="search-source" value="musixmatch" checked>
                 <span>Musixmatch</span>
+              </label>
+              <label class="checkbox-label">
+                <input type="checkbox" name="search-source" value="kkbox" checked>
+                <span>KKBOX</span>
               </label>
             </div>
           </div>
@@ -183,7 +187,15 @@ class LyricsModule {
       </div>
     `;
     
-    window.dialogModule.showDialog(dialogContent, 'search-lyrics-dialog');
+    // 獲取對話框模組
+    const dialogModule = this.dialogModule || window.dialogModule || window.modules?.dialogModule;
+    if (!dialogModule) {
+      console.error('無法訪問對話框模塊');
+      alert('系統錯誤：無法啟動搜尋功能');
+      return;
+    }
+    
+    dialogModule.showDialog(dialogContent, 'search-lyrics-dialog');
     
     // 設置對話框按鈕事件
     const closeBtn = document.getElementById('close-search-dialog');
@@ -192,50 +204,179 @@ class LyricsModule {
     
     if (closeBtn) {
       closeBtn.addEventListener('click', () => {
-        window.dialogModule.closeDialog();
+        dialogModule.closeDialog();
       });
     }
     
     if (cancelBtn) {
       cancelBtn.addEventListener('click', () => {
-        window.dialogModule.closeDialog();
+        dialogModule.closeDialog();
       });
     }
     
     if (searchBtn) {
       searchBtn.addEventListener('click', () => {
-        const title = document.getElementById('song-title').value.trim();
-        const artist = document.getElementById('artist-name').value.trim();
-        const useMojim = document.getElementById('source-mojim').checked;
-        const useMusixmatch = document.getElementById('source-musixmatch').checked;
-        
-        if (!title) {
-          alert('請輸入歌曲名稱');
-          return;
-        }
-        
-        // 開始搜尋
-        this.searchLyrics(title, artist, { useMojim, useMusixmatch });
+        this.searchLyrics();
       });
     }
   }
   
   /**
-   * 搜尋歌詞
-   * @param {string} title - 歌曲標題
-   * @param {string} artist - 藝人名稱
-   * @param {Object} options - 搜尋選項
+   * 打開手動輸入歌詞對話框
    */
-  searchLyrics(title, artist, options) {
-    window.dialogModule.closeDialog();
+  openImportDialog() {
+    const dialogContent = `
+      <div class="dialog-header">
+        <h3>手動輸入歌詞</h3>
+        <button class="dialog-close" id="close-import-dialog">✕</button>
+      </div>
+      <div class="dialog-body">
+        <div class="form-group">
+          <label for="import-song-title">歌曲名稱</label>
+          <input type="text" id="import-song-title" placeholder="輸入歌曲名稱" required>
+        </div>
+        <div class="form-group">
+          <label for="import-artist-name">藝人名稱 (選填)</label>
+          <input type="text" id="import-artist-name" placeholder="輸入藝人名稱">
+        </div>
+        <div class="form-group">
+          <label for="import-lyrics-text">歌詞內容</label>
+          <textarea id="import-lyrics-text" placeholder="輸入或貼上歌詞內容" rows="10"></textarea>
+        </div>
+      </div>
+      <div class="dialog-footer">
+        <button id="cancel-import" class="action-button">取消</button>
+        <button id="confirm-import" class="action-button primary">確認</button>
+      </div>
+    `;
+    
+    // 獲取對話框模組
+    const dialogModule = this.dialogModule || window.dialogModule || window.modules?.dialogModule;
+    if (!dialogModule) {
+      console.error('無法訪問對話框模塊');
+      alert('系統錯誤：無法啟動匯入功能');
+      return;
+    }
+    
+    dialogModule.showDialog(dialogContent, 'import-lyrics-dialog');
+    
+    // 設置對話框按鈕事件
+    const closeBtn = document.getElementById('close-import-dialog');
+    const cancelBtn = document.getElementById('cancel-import');
+    const confirmBtn = document.getElementById('confirm-import');
+    
+    if (closeBtn) {
+      closeBtn.addEventListener('click', () => {
+        dialogModule.closeDialog();
+      });
+    }
+    
+    if (cancelBtn) {
+      cancelBtn.addEventListener('click', () => {
+        dialogModule.closeDialog();
+      });
+    }
+    
+    if (confirmBtn) {
+      confirmBtn.addEventListener('click', () => {
+        this.importLyrics();
+      });
+    }
+  }
+  
+  /**
+   * 搜索歌詞
+   */
+  searchLyrics() {
+    const songTitleInput = document.getElementById('search-song-title');
+    const artistNameInput = document.getElementById('search-artist-name');
+    
+    if (!songTitleInput) {
+      console.error('找不到歌曲標題輸入欄位');
+      return;
+    }
+    
+    const songTitle = songTitleInput.value.trim();
+    const artistName = artistNameInput ? artistNameInput.value.trim() : '';
+    
+    if (!songTitle) {
+      alert('請輸入歌曲標題');
+      return;
+    }
+    
+    // 獲取選中的搜索源
+    const sourceOptions = document.querySelectorAll('input[name="search-source"]:checked');
+    const sources = Array.from(sourceOptions).map(option => option.value);
+    
+    if (sources.length === 0) {
+      alert('請選擇至少一個搜索源');
+      return;
+    }
+    
+    // 關閉對話框
+    const dialogModule = this.dialogModule || window.dialogModule || window.modules?.dialogModule;
+    if (dialogModule) {
+      dialogModule.closeDialog();
+    }
     
     // 顯示加載中狀態
-    this.showLoading('正在搜尋歌詞...');
+    this.showLoading('正在搜索歌詞...');
     
-    // 通過IPC發送搜尋請求到主程序
-    window.electronAPI.send('search-lyrics', { title, artist, options });
+    // 搜索歌詞
+    console.log(`搜索歌詞: ${songTitle} - ${artistName}, 搜索源: ${sources.join(', ')}`);
     
-    // 注意：搜尋結果將通過IPC回調處理
+    // 檢查electronAPI是否可用
+    if (window.electronAPI && typeof window.electronAPI.send === 'function') {
+      window.electronAPI.send('search-lyrics', {
+        title: songTitle,
+        artist: artistName,
+        sources: sources
+      });
+    } else {
+      // 模擬搜索過程
+      console.log('模擬搜索過程');
+      setTimeout(() => {
+        this.hideLoading();
+        
+        // 模擬搜索結果
+        this.searchResults = this.getMockSearchResults(songTitle, artistName);
+        
+        if (this.searchResults.length > 0) {
+          this.showSearchResultsDialog(this.searchResults);
+        } else {
+          this.showNoResultsMessage();
+        }
+      }, 1500);
+    }
+  }
+  
+  /**
+   * 獲取模擬搜索結果（用於沒有API連接時測試）
+   */
+  getMockSearchResults(title, artist) {
+    const mockResults = [];
+    
+    if (title.toLowerCase().includes('無結果測試')) {
+      return [];
+    }
+    
+    mockResults.push({
+      title: title,
+      artist: artist || '未知藝人',
+      source: 'MusicMatch',
+      url: 'https://example.com/lyrics/1'
+    });
+    
+    if (Math.random() > 0.3) {
+      mockResults.push({
+        title: `${title} (Live版)`,
+        artist: artist || '未知藝人',
+        source: 'KTV資料庫',
+        url: 'https://example.com/lyrics/2'
+      });
+    }
+    
+    return mockResults;
   }
   
   /**
@@ -295,7 +436,15 @@ class LyricsModule {
       </div>
     `;
     
-    window.dialogModule.showDialog(dialogContent, 'search-results-dialog');
+    // 獲取對話框模組
+    const dialogModule = this.dialogModule || window.dialogModule || window.modules?.dialogModule;
+    if (!dialogModule) {
+      console.error('無法訪問對話框模塊');
+      alert('系統錯誤：無法顯示搜尋結果');
+      return;
+    }
+    
+    dialogModule.showDialog(dialogContent, 'search-results-dialog');
     
     // 設置對話框按鈕事件
     const closeBtn = document.getElementById('close-results-dialog');
@@ -305,22 +454,22 @@ class LyricsModule {
     
     if (closeBtn) {
       closeBtn.addEventListener('click', () => {
-        window.dialogModule.closeDialog();
+        dialogModule.closeDialog();
       });
     }
     
     if (backBtn) {
       backBtn.addEventListener('click', () => {
-        window.dialogModule.closeDialog();
+        dialogModule.closeDialog();
         setTimeout(() => {
-          this.openSearchDialog();
+          this.searchLyrics();
         }, 300);
       });
     }
     
     if (cancelBtn) {
       cancelBtn.addEventListener('click', () => {
-        window.dialogModule.closeDialog();
+        dialogModule.closeDialog();
       });
     }
     
@@ -345,26 +494,51 @@ class LyricsModule {
       return;
     }
     
-    window.dialogModule.closeDialog();
+    // 獲取對話框模組
+    const dialogModule = this.dialogModule || window.dialogModule || window.modules?.dialogModule;
+    if (dialogModule) {
+      dialogModule.closeDialog();
+    }
     
     // 顯示加載中狀態
     this.showLoading('正在獲取歌詞...');
     
-    // 通過IPC請求獲取完整歌詞
-    window.electronAPI.send('get-lyrics', { resultId: index });
+    // 檢查electronAPI是否可用
+    if (window.electronAPI && typeof window.electronAPI.send === 'function') {
+      // 通過IPC請求獲取完整歌詞
+      window.electronAPI.send('get-lyrics', { resultId: index });
+    } else {
+      // 如果electronAPI不可用，模擬獲取歌詞過程
+      setTimeout(() => {
+        this.hideLoading();
+        // 創建模擬歌詞
+        const mockLyrics = `這是 ${result.title} 的模擬歌詞\n由 ${result.artist || '未知藝人'} 演唱\n\n這是第一段\n模擬的歌詞內容\n用於測試功能\n\n這是第二段\n繼續測試用的歌詞\n希望一切正常運作`;
+        
+        // 手動處理歌詞
+        this.parseLyrics(mockLyrics);
+        this.renderLyrics();
+        
+        // 更新項目信息
+        const projectModule = this.projectModule || window.projectModule || window.modules?.projectModule;
+        if (projectModule && typeof projectModule.updateProjectInfo === 'function') {
+          projectModule.updateProjectInfo({
+            title: result.title,
+            artist: result.artist || '未知藝人',
+            source: result.source,
+            sourceUrl: result.url || ''
+          });
+        }
+      }, 1000);
+    }
     
     // 設置項目信息
-    document.getElementById('song-title').textContent = result.title;
-    document.getElementById('artist-name').textContent = result.artist || '未知藝人';
-    document.getElementById('project-name').textContent = result.title;
+    const titleElement = document.getElementById('song-title');
+    const artistElement = document.getElementById('artist-name');
+    const projectNameElement = document.getElementById('project-name');
     
-    // 更新項目數據
-    window.projectModule.updateProjectInfo({
-      title: result.title,
-      artist: result.artist,
-      source: result.source,
-      sourceUrl: result.url
-    });
+    if (titleElement) titleElement.textContent = result.title;
+    if (artistElement) artistElement.textContent = result.artist || '未知藝人';
+    if (projectNameElement) projectNameElement.textContent = result.title;
   }
   
   /**
@@ -551,7 +725,15 @@ class LyricsModule {
       </div>
     `;
     
-    window.dialogModule.showDialog(dialogContent, 'no-results-dialog');
+    // 獲取對話框模組
+    const dialogModule = this.dialogModule || window.dialogModule || window.modules?.dialogModule;
+    if (!dialogModule) {
+      console.error('無法訪問對話框模塊');
+      alert('系統錯誤：未找到歌詞');
+      return;
+    }
+    
+    dialogModule.showDialog(dialogContent, 'no-results-dialog');
     
     // 設置對話框按鈕事件
     const closeBtn = document.getElementById('close-no-results-dialog');
@@ -560,13 +742,13 @@ class LyricsModule {
     
     if (closeBtn) {
       closeBtn.addEventListener('click', () => {
-        window.dialogModule.closeDialog();
+        dialogModule.closeDialog();
       });
     }
     
     if (backBtn) {
       backBtn.addEventListener('click', () => {
-        window.dialogModule.closeDialog();
+        dialogModule.closeDialog();
         setTimeout(() => {
           this.openSearchDialog();
         }, 300);
@@ -575,7 +757,7 @@ class LyricsModule {
     
     if (manualBtn) {
       manualBtn.addEventListener('click', () => {
-        window.dialogModule.closeDialog();
+        dialogModule.closeDialog();
         setTimeout(() => {
           this.openImportDialog();
         }, 300);
@@ -584,91 +766,65 @@ class LyricsModule {
   }
   
   /**
-   * 打開手動輸入歌詞對話框
+   * 匯入文本歌詞
    */
-  openImportDialog() {
-    const dialogContent = `
-      <div class="dialog-header">
-        <h3>手動輸入歌詞</h3>
-        <button class="dialog-close" id="close-import-dialog">✕</button>
-      </div>
-      <div class="dialog-body">
-        <div class="form-group">
-          <label for="manual-song-title">歌曲名稱</label>
-          <input type="text" id="manual-song-title" placeholder="輸入歌曲名稱" required>
-        </div>
-        <div class="form-group">
-          <label for="manual-artist-name">藝人名稱 (選填)</label>
-          <input type="text" id="manual-artist-name" placeholder="輸入藝人名稱">
-        </div>
-        <div class="form-group">
-          <label for="manual-lyrics">歌詞內容</label>
-          <textarea id="manual-lyrics" placeholder="輸入或貼上歌詞內容" rows="10"></textarea>
-        </div>
-      </div>
-      <div class="dialog-footer">
-        <button id="cancel-import" class="action-button">取消</button>
-        <button id="confirm-import" class="action-button primary">確認</button>
-      </div>
-    `;
+  importLyrics() {
+    const songTitleInput = document.getElementById('import-song-title');
+    const artistNameInput = document.getElementById('import-artist-name');
+    const lyricsTextInput = document.getElementById('import-lyrics-text');
     
-    window.dialogModule.showDialog(dialogContent, 'import-lyrics-dialog');
-    
-    // 設置對話框按鈕事件
-    const closeBtn = document.getElementById('close-import-dialog');
-    const cancelBtn = document.getElementById('cancel-import');
-    const confirmBtn = document.getElementById('confirm-import');
-    
-    if (closeBtn) {
-      closeBtn.addEventListener('click', () => {
-        window.dialogModule.closeDialog();
-      });
+    if (!songTitleInput || !lyricsTextInput) {
+      console.error('找不到必要的輸入欄位');
+      return;
     }
     
-    if (cancelBtn) {
-      cancelBtn.addEventListener('click', () => {
-        window.dialogModule.closeDialog();
-      });
+    const songTitle = songTitleInput.value.trim();
+    const artistName = artistNameInput ? artistNameInput.value.trim() : '';
+    const lyricsText = lyricsTextInput.value.trim();
+    
+    if (!songTitle) {
+      alert('請輸入歌曲標題');
+      return;
     }
     
-    if (confirmBtn) {
-      confirmBtn.addEventListener('click', () => {
-        const title = document.getElementById('manual-song-title').value.trim();
-        const artist = document.getElementById('manual-artist-name').value.trim();
-        const lyricsText = document.getElementById('manual-lyrics').value.trim();
-        
-        if (!title) {
-          alert('請輸入歌曲名稱');
-          return;
-        }
-        
-        if (!lyricsText) {
-          alert('請輸入歌詞內容');
-          return;
-        }
-        
-        // 設置項目信息
-        document.getElementById('song-title').textContent = title;
-        document.getElementById('artist-name').textContent = artist || '未知藝人';
-        document.getElementById('project-name').textContent = title;
-        
-        // 更新項目數據
-        window.projectModule.updateProjectInfo({
-          title: title,
-          artist: artist,
-          source: '手動輸入',
-          sourceUrl: ''
-        });
-        
-        // 解析並設置歌詞
-        this.parseLyrics(lyricsText);
-        
-        // 渲染歌詞
-        this.renderLyrics();
-        
-        window.dialogModule.closeDialog();
-      });
+    if (!lyricsText) {
+      alert('請輸入歌詞文本');
+      return;
     }
+    
+    // 關閉對話框
+    const dialogModule = this.dialogModule || window.dialogModule || window.modules?.dialogModule;
+    if (dialogModule) {
+      dialogModule.closeDialog();
+    }
+    
+    // 解析歌詞
+    this.parseLyrics(lyricsText);
+    
+    // 更新界面
+    this.renderLyrics();
+    
+    // 更新項目信息
+    const projectModule = this.projectModule || window.projectModule || window.modules?.projectModule;
+    if (projectModule && typeof projectModule.updateProjectInfo === 'function') {
+      projectModule.updateProjectInfo({
+        title: songTitle,
+        artist: artistName || '未知藝人'
+      });
+    } else {
+      console.error('無法更新項目信息: projectModule不可用或缺少updateProjectInfo方法');
+      
+      // 至少更新顯示
+      const titleElement = document.getElementById('song-title');
+      const artistElement = document.getElementById('artist-name');
+      const projectNameElement = document.getElementById('project-name');
+      
+      if (titleElement) titleElement.textContent = songTitle;
+      if (artistElement) artistElement.textContent = artistName || '未知藝人';
+      if (projectNameElement) projectNameElement.textContent = songTitle;
+    }
+    
+    console.log('已匯入歌詞: ', songTitle, artistName);
   }
   
   /**

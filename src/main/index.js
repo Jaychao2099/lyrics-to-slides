@@ -384,9 +384,26 @@ ipcMain.handle('show-open-dialog', async (event, options) => {
 
 // 打開保存對話框
 ipcMain.handle('show-save-dialog', async (event, options) => {
-  log.info('收到show-save-dialog請求');
+  log.info('收到show-save-dialog請求', options);
   try {
-    const result = await dialog.showSaveDialog(mainWindow, options);
+    // 確定正確的父視窗
+    const sender = event.sender;
+    const win = BrowserWindow.fromWebContents(sender);
+    const parentWindow = win || mainWindow;
+    
+    // 添加默認選項
+    const dialogOptions = {
+      ...options,
+      // 如果沒有指定預設路徑，使用默認下載目錄
+      defaultPath: options.defaultPath || app.getPath('downloads'),
+      // 確保對話框總是顯示在前面
+      modal: true,
+      properties: [...(options.properties || []), 'createDirectory', 'showOverwriteConfirmation']
+    };
+    
+    log.info('打開保存檔案對話框，配置:', dialogOptions);
+    const result = await dialog.showSaveDialog(parentWindow, dialogOptions);
+    log.info('show-save-dialog結果:', result);
     return result;
   } catch (error) {
     log.error('show-save-dialog錯誤:', error);

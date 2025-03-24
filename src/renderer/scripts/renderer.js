@@ -219,8 +219,8 @@ function initIPCListeners() {
   });
   
   // 另存為菜單事件
-  window.electronAPI.on('menu-save-project-as', (path) => {
-    window.modules.projectModule.saveProject(true, path);
+  window.electronAPI.on('menu-save-project-as', () => {
+    window.modules.projectModule.saveProject(true);
   });
   
   // 搜尋歌詞菜單事件
@@ -231,9 +231,15 @@ function initIPCListeners() {
   // 匯出菜單事件
   window.electronAPI.on('menu-export', (options) => {
     // 切換到匯出標籤頁
-    const exportNavItem = document.querySelector('.nav-item[data-section="export-section"]');
+    const exportNavItem = document.querySelector('.nav-item[data-section="export"]');
     if (exportNavItem) {
       exportNavItem.click();
+    } else if (window.exportMenuItem) {
+      window.exportMenuItem.click();
+    } else {
+      console.error('找不到匯出導航項');
+      // 嘗試直接顯示匯出部分
+      showSection('export-section');
     }
     
     // 設置匯出選項
@@ -254,16 +260,22 @@ function initIPCListeners() {
   // 偏好設定菜單事件
   window.electronAPI.on('menu-preferences', () => {
     // 切換到設置標籤頁
-    const settingsNavItem = document.querySelector('.nav-item[data-section="settings-section"]');
+    const settingsNavItem = document.querySelector('.nav-item[data-section="settings"]');
     if (settingsNavItem) {
       settingsNavItem.click();
+    } else if (window.settingsMenuItem) {
+      window.settingsMenuItem.click();
+    } else {
+      console.error('找不到設定導航項');
+      // 嘗試直接顯示設定部分
+      showSection('settings-section');
     }
   });
   
   // API金鑰管理菜單事件
   window.electronAPI.on('menu-api-keys', () => {
     // 切換到設置標籤頁並捲動到API區域
-    const settingsNavItem = document.querySelector('.nav-item[data-section="settings-section"]');
+    const settingsNavItem = document.querySelector('.nav-item[data-section="settings"]');
     if (settingsNavItem) {
       settingsNavItem.click();
       
@@ -351,73 +363,178 @@ function setupWindowControls() {
 }
 
 /**
- * 設置側邊欄導航
+ * 設置導航功能
  */
 function setupNavigation() {
-  const navItems = document.querySelectorAll('.nav-item');
-  const sections = document.querySelectorAll('.section');
+  // 定義部分到ID的映射
+  const sectionMapping = {
+    'lyrics': 'lyrics-section',
+    'design': 'design-section',
+    'preview': 'preview-section',
+    'export': 'export-section',
+    'settings': 'settings-section'
+  };
   
-  // 初始切換到歌詞編輯部分
+  // 初始顯示歌詞部分
   showSection('lyrics-section');
   
-  // 為每個導航項添加點擊事件
+  // 為導航項添加點擊事件
+  const navItems = document.querySelectorAll('.nav-item');
+  
   navItems.forEach(item => {
     item.addEventListener('click', () => {
-      const sectionId = item.getAttribute('data-section');
+      const section = item.getAttribute('data-section');
+      console.log(`嘗試切換到頁面: ${section}`);
+      
+      // 獲取對應的部分ID
+      const sectionId = sectionMapping[section];
+      
+      if (!sectionId) {
+        console.error(`找不到對應的部分ID: ${section}`);
+        return;
+      }
+      
+      console.log(`映射到部分ID: ${sectionId}`);
+      
+      // 顯示相應部分
       showSection(sectionId);
+      
+      // 更新活動導航項
+      navItems.forEach(navItem => {
+        navItem.classList.remove('active');
+      });
+      
+      item.classList.add('active');
     });
   });
   
-  // 側邊欄按鈕事件
+  // 修正其他地方使用的選擇器
+  const exportMenuItem = document.querySelector('.nav-item[data-section="export"]');
+  if (exportMenuItem) {
+    // 保存對匯出菜單項的引用
+    window.exportMenuItem = exportMenuItem;
+  }
   
+  const settingsMenuItem = document.querySelector('.nav-item[data-section="settings"]');
+  if (settingsMenuItem) {
+    // 保存對設置菜單項的引用
+    window.settingsMenuItem = settingsMenuItem;
+  }
+  
+  // 側邊欄按鈕事件
+  setupSidebarButtons();
+}
+
+/**
+ * 設置側邊欄按鈕事件
+ */
+function setupSidebarButtons() {
   // 新建項目
-  const newProjectButton = document.getElementById('new-project-button');
+  const newProjectButton = document.getElementById('new-project-btn');
   if (newProjectButton) {
     newProjectButton.addEventListener('click', () => {
-      window.modules.projectModule.confirmSaveBeforeNew();
+      const projectModule = window.modules?.projectModule || window.projectModule;
+      if (projectModule && typeof projectModule.confirmSaveBeforeNew === 'function') {
+        projectModule.confirmSaveBeforeNew();
+      } else {
+        console.error('projectModule 不可用或缺少confirmSaveBeforeNew方法');
+      }
     });
   }
   
   // 打開項目
-  const openProjectButton = document.getElementById('open-project-button');
+  const openProjectButton = document.getElementById('open-project-btn');
   if (openProjectButton) {
     openProjectButton.addEventListener('click', () => {
-      window.modules.projectModule.confirmSaveBeforeOpen();
+      const projectModule = window.modules?.projectModule || window.projectModule;
+      if (projectModule && typeof projectModule.confirmSaveBeforeOpen === 'function') {
+        projectModule.confirmSaveBeforeOpen();
+      } else {
+        console.error('projectModule 不可用或缺少confirmSaveBeforeOpen方法');
+      }
     });
   }
   
   // 保存項目
-  const saveProjectButton = document.getElementById('save-project-button');
+  const saveProjectButton = document.getElementById('save-project-btn');
   if (saveProjectButton) {
     saveProjectButton.addEventListener('click', () => {
-      window.modules.projectModule.saveProject();
-    });
-  }
-  
-  /**
-   * 顯示指定的部分
-   * @param {string} sectionId - 部分ID
-   */
-  function showSection(sectionId) {
-    // 隱藏所有部分
-    sections.forEach(section => {
-      section.classList.remove('active-section');
-    });
-    
-    // 顯示指定部分
-    const activeSection = document.getElementById(sectionId);
-    if (activeSection) {
-      activeSection.classList.add('active-section');
-    }
-    
-    // 更新導航活動狀態
-    navItems.forEach(item => {
-      if (item.getAttribute('data-section') === sectionId) {
-        item.classList.add('active');
+      const projectModule = window.modules?.projectModule || window.projectModule;
+      if (projectModule && typeof projectModule.saveProject === 'function') {
+        projectModule.saveProject();
       } else {
-        item.classList.remove('active');
+        console.error('projectModule 不可用或缺少saveProject方法');
       }
     });
+  }
+}
+
+/**
+ * 顯示指定部分
+ * @param {string} sectionId - 部分的ID
+ */
+function showSection(sectionId) {
+  console.log(`嘗試顯示部分: ${sectionId}`);
+  
+  // 獲取部分元素
+  const section = document.getElementById(sectionId);
+  
+  // 檢查部分是否存在
+  if (!section) {
+    console.error(`部分不存在: ${sectionId}`);
+    return;
+  }
+  
+  // 獲取所有部分
+  const allSections = document.querySelectorAll('.section, .active-section');
+  console.log(`找到 ${allSections.length} 個部分`);
+  
+  // 隱藏所有部分 (移除active-section類並添加section類)
+  allSections.forEach(s => {
+    console.log(`處理部分: ${s.id}`);
+    s.classList.remove('active-section');
+    s.classList.add('section');
+  });
+  
+  // 顯示選定的部分 (移除section類並添加active-section類)
+  section.classList.remove('section');
+  section.classList.add('active-section');
+  
+  console.log(`頁面已切換至: ${sectionId}`);
+  
+  // 在部分切換時處理任何相關行為
+  handleSectionChange(sectionId);
+}
+
+/**
+ * 處理部分變更
+ * @param {string} sectionId - 部分的ID
+ */
+function handleSectionChange(sectionId) {
+  // 檢查項目模塊是否可用
+  const projectModule = window.modules?.projectModule || window.projectModule;
+  
+  if (!projectModule) {
+    console.warn('項目模塊不可用，無法處理部分變更');
+    return;
+  }
+  
+  // 如果切換到預覽部分，更新預覽
+  if (sectionId === 'preview-section') {
+    if (typeof projectModule.updatePreview === 'function') {
+      projectModule.updatePreview();
+    } else {
+      console.warn('項目模塊缺少updatePreview方法');
+    }
+  }
+  
+  // 如果切換到設計部分，更新設計
+  if (sectionId === 'design-section') {
+    if (typeof projectModule.updateDesignView === 'function') {
+      projectModule.updateDesignView();
+    } else {
+      console.warn('項目模塊缺少updateDesignView方法');
+    }
   }
 }
 
@@ -426,47 +543,109 @@ function setupNavigation() {
  */
 function setupPageHandlers() {
   // 歌詞搜尋按鈕
-  const lyricsSearchButton = document.getElementById('lyrics-search-button');
+  const lyricsSearchButton = document.getElementById('search-lyrics-btn');
   if (lyricsSearchButton) {
     lyricsSearchButton.addEventListener('click', () => {
-      window.modules.lyricsModule.openSearchDialog();
+      if (window.modules && window.modules.lyricsModule) {
+        window.modules.lyricsModule.openSearchDialog();
+      } else {
+        console.error('lyricsModule 不可用');
+        // 嘗試使用全局變量
+        if (window.lyricsModule && typeof window.lyricsModule.openSearchDialog === 'function') {
+          window.lyricsModule.openSearchDialog();
+        } else {
+          // 最後嘗試使用事件
+          window.dispatchEvent(new CustomEvent('open-search-dialog'));
+        }
+      }
     });
   }
   
   // 歌詞手動輸入按鈕
-  const lyricsImportButton = document.getElementById('lyrics-import-button');
+  const lyricsImportButton = document.getElementById('import-lyrics-btn');
   if (lyricsImportButton) {
     lyricsImportButton.addEventListener('click', () => {
-      window.modules.lyricsModule.openImportDialog();
+      if (window.modules && window.modules.lyricsModule) {
+        window.modules.lyricsModule.openImportDialog();
+      } else {
+        console.error('lyricsModule 不可用');
+        // 嘗試使用全局變量
+        if (window.lyricsModule && typeof window.lyricsModule.openImportDialog === 'function') {
+          window.lyricsModule.openImportDialog();
+        } else {
+          // 最後嘗試使用事件
+          window.dispatchEvent(new CustomEvent('open-import-dialog'));
+        }
+      }
     });
   }
   
   // 歌詞操作按鈕
-  const addParagraphButton = document.getElementById('add-paragraph');
+  const addParagraphButton = document.getElementById('add-paragraph-btn');
   if (addParagraphButton) {
     addParagraphButton.addEventListener('click', () => {
-      window.modules.lyricsModule.addParagraph();
+      if (window.modules && window.modules.lyricsModule) {
+        window.modules.lyricsModule.addParagraph();
+      } else if (window.lyricsModule && typeof window.lyricsModule.addParagraph === 'function') {
+        window.lyricsModule.addParagraph();
+      }
     });
   }
   
-  const splitParagraphButton = document.getElementById('split-paragraph');
+  const splitParagraphButton = document.getElementById('split-paragraph-btn');
   if (splitParagraphButton) {
     splitParagraphButton.addEventListener('click', () => {
-      window.modules.lyricsModule.splitParagraph();
+      if (window.modules && window.modules.lyricsModule) {
+        window.modules.lyricsModule.splitParagraph();
+      } else if (window.lyricsModule && typeof window.lyricsModule.splitParagraph === 'function') {
+        window.lyricsModule.splitParagraph();
+      }
     });
   }
   
-  const mergeParagraphsButton = document.getElementById('merge-paragraphs');
+  const mergeParagraphsButton = document.getElementById('merge-paragraphs-btn');
   if (mergeParagraphsButton) {
     mergeParagraphsButton.addEventListener('click', () => {
-      window.modules.lyricsModule.mergeParagraphs();
+      if (window.modules && window.modules.lyricsModule) {
+        window.modules.lyricsModule.mergeParagraphs();
+      } else if (window.lyricsModule && typeof window.lyricsModule.mergeParagraphs === 'function') {
+        window.lyricsModule.mergeParagraphs();
+      }
     });
   }
   
-  const removeParagraphButton = document.getElementById('remove-paragraph');
+  const removeParagraphButton = document.getElementById('remove-paragraph-btn');
   if (removeParagraphButton) {
     removeParagraphButton.addEventListener('click', () => {
-      window.modules.lyricsModule.removeParagraph();
+      if (window.modules && window.modules.lyricsModule) {
+        window.modules.lyricsModule.removeParagraph();
+      } else if (window.lyricsModule && typeof window.lyricsModule.removeParagraph === 'function') {
+        window.lyricsModule.removeParagraph();
+      }
+    });
+  }
+  
+  // 空狀態的歌詞搜尋按鈕
+  const emptySearchButton = document.getElementById('empty-search-btn');
+  if (emptySearchButton) {
+    emptySearchButton.addEventListener('click', () => {
+      if (window.modules && window.modules.lyricsModule) {
+        window.modules.lyricsModule.openSearchDialog();
+      } else if (window.lyricsModule && typeof window.lyricsModule.openSearchDialog === 'function') {
+        window.lyricsModule.openSearchDialog();
+      }
+    });
+  }
+  
+  // 空狀態的歌詞匯入按鈕
+  const emptyImportButton = document.getElementById('empty-import-btn');
+  if (emptyImportButton) {
+    emptyImportButton.addEventListener('click', () => {
+      if (window.modules && window.modules.lyricsModule) {
+        window.modules.lyricsModule.openImportDialog();
+      } else if (window.lyricsModule && typeof window.lyricsModule.openImportDialog === 'function') {
+        window.lyricsModule.openImportDialog();
+      }
     });
   }
   

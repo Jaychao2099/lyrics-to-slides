@@ -253,23 +253,17 @@ input, textarea {
 }
 
 .section, .active-section {
-  position: absolute;
-  top: 0;
-  left: 0;
+  display: none;
   width: 100%;
   height: 100%;
   overflow-y: auto;
-  opacity: 0;
-  pointer-events: none;
   transition: opacity var(--transition-normal);
   padding: var(--space-md);
-  display: flex;
   flex-direction: column;
 }
 
 .active-section {
-  opacity: 1;
-  pointer-events: auto;
+  display: flex;
   z-index: 1;
 }
 

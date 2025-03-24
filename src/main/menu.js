@@ -58,7 +58,7 @@ function createMenu() {
               const { canceled, filePaths } = await dialog.showOpenDialog({
                 title: '開啟項目',
                 filters: [
-                  { name: '歌曲投影片項目', extensions: ['lts'] },
+                  { name: '歌曲投影片項目', extensions: ['lsp'] },
                   { name: '所有檔案', extensions: ['*'] }
                 ],
                 properties: ['openFile']
@@ -84,19 +84,10 @@ function createMenu() {
         {
           label: '另存為...',
           accelerator: 'CmdOrCtrl+Shift+S',
-          click: async () => {
+          click: () => {
             const mainWindow = BrowserWindow.getFocusedWindow();
             if (mainWindow) {
-              const { canceled, filePath } = await dialog.showSaveDialog({
-                title: '另存為',
-                filters: [
-                  { name: '歌曲投影片項目', extensions: ['lts'] }
-                ]
-              });
-              
-              if (!canceled && filePath) {
-                mainWindow.webContents.send('menu-save-project-as', filePath);
-              }
+              mainWindow.webContents.send('menu-save-project-as');
             }
           }
         },
@@ -180,9 +171,9 @@ function createMenu() {
       ]
     },
     
-    // 視圖選單
+    // 視窗選單
     {
-      label: '視圖',
+      label: '視窗',
       submenu: [
         {
           label: '主題',
