@@ -440,78 +440,454 @@ class SlideModule {
    * 為當前投影片生成背景圖片
    */
   async generateImageForSlide() {
-    if (this.activeSlideIndex < 0 || this.activeSlideIndex >= this.slides.length) return;
-    if (this.imageGenerationInProgress) return;
-    
-    const slide = this.slides[this.activeSlideIndex];
-    
-    // 顯示加載對話框
-    this.dialogModule.showDialog(`
-      <h3>正在生成圖片...</h3>
-      <div class="progress-container">
-        <progress id="generation-progress" value="0" max="100"></progress>
-        <span id="generation-status">準備中...</span>
-      </div>
-    `, 'image-generation-dialog', {
-      closeButton: false,
-      width: '400px',
-      height: 'auto'
-    });
-    
-    this.imageGenerationInProgress = true;
-    
-    try {
-      // 準備提示詞
-      const prompt = slide.text;
-      
-      // 發送圖片生成請求
-      window.electronAPI.generateImage({
-        prompt: prompt,
-        model: 'dall-e-3',
-        size: '1024x1024',
-        quality: 'standard',
-        n: 1
-      });
-    } catch (error) {
-      console.error('圖片生成請求失敗:', error);
-      this.dialogModule.closeDialog();
-      
-      // 顯示錯誤訊息
-      this.dialogModule.showAlertDialog(`圖片生成失敗: ${error.message || '未知錯誤'}`);
-      this.imageGenerationInProgress = false;
-    }
-  }
-  
-  /**
-   * 處理圖片生成進度更新
-   * @param {Object} progressData - 進度數據
-   */
-  handleImageGenerationProgress(progressData) {
-    const progressBar = document.getElementById('generation-progress');
-    const statusElement = document.getElementById('generation-status');
-    
-    if (progressBar && statusElement) {
-      progressBar.value = progressData.percentage || 0;
-      statusElement.textContent = progressData.status || '處理中...';
-    }
-  }
-  
-  /**
-   * 處理圖片生成完成
-   * @param {Object} result - 生成結果
-   */
-  handleImageGenerationComplete(result) {
-    this.imageGenerationInProgress = false;
-    this.dialogModule.closeDialog();
-    
-    if (result.error) {
-      this.dialogModule.showAlertDialog(`圖片生成失敗: ${result.error}`);
+    // 檢查是否有活動投影片
+    if (this.activeSlideIndex < 0 || this.activeSlideIndex >= this.slides.length) {
+      console.warn('沒有活動投影片，無法生成圖片');
+      if (this.dialogModule) {
+        this.dialogModule.showAlertDialog('請先選擇一個投影片', '操作失敗', 'warning');
+      }
       return;
     }
     
-    if (result.data && result.data.length > 0) {
-      // 設置背景圖片
-      this.setBackgroundImage(result.data[0]);
+    // 檢查是否已經有圖像生成進行中
+    if (this.imageGenerationInProgress) {
+      console.warn('圖像生成正在進行中，請等待完成');
+      if (this.dialogModule) {
+        this.dialogModule.showAlertDialog('正在生成圖片，請等待當前操作完成', '操作進行中', 'info');
+      }
+      return;
+    }
+    
+    // 獲取活動投影片
+    const slide = this.slides[this.activeSlideIndex];
+    
+    // 準備圖像生成參數
+    const promptOptions = this.getPromptOptions();
+    
+    // 顯示圖像生成參數設定對話框
+    this.showImageGenerationDialog(slide, promptOptions);
+  }
+
+  /**
+   * 獲取圖像生成提示選項
+   * @returns {Object} 圖像生成提示選項
+   */
+  getPromptOptions() {
+    // 根據當前項目設定獲取適當的選項
+    return {
+      styles: [
+        { id: 'realistic', name: '真實風格', description: '照片般真實的圖像' },
+        { id: 'abstract', name: '抽象風格', description: '現代抽象藝術風格' },
+        { id: 'digital', name: '數位藝術', description: '數位插圖風格' },
+        { id: 'painting', name: '繪畫風格', description: '手繪油畫效果' },
+        { id: 'cinematic', name: '電影場景', description: '電影場景風格' }
+      ],
+      moods: [
+        { id: 'calm', name: '平靜', description: '平靜、寧靜的氛圍' },
+        { id: 'joyful', name: '歡快', description: '歡樂、喜悅的氛圍' },
+        { id: 'dramatic', name: '戲劇性', description: '強烈、戲劇性的氛圍' },
+        { id: 'melancholic', name: '憂鬱', description: '傷感、懷舊的氛圍' },
+        { id: 'energetic', name: '活力', description: '充滿活力和動感的氛圍' }
+      ],
+      colors: [
+        { id: 'vibrant', name: '鮮豔色彩', description: '鮮豔、飽和的色彩' },
+        { id: 'muted', name: '柔和色彩', description: '柔和、低飽和度的色彩' },
+        { id: 'dark', name: '暗色調', description: '暗沉、深色調的色彩' },
+        { id: 'light', name: '亮色調', description: '明亮、淺色調的色彩' },
+        { id: 'monochrome', name: '單色調', description: '黑白或單色調色彩' }
+      ]
+    };
+  }
+
+  /**
+   * 顯示圖像生成對話框
+   * @param {Object} slide - 投影片對象
+   * @param {Object} options - 圖像生成選項
+   */
+  showImageGenerationDialog(slide, options) {
+    if (!this.dialogModule) {
+      console.error('缺少對話框模組，無法顯示圖像生成對話框');
+      return;
+    }
+    
+    // 構建樣式選項HTML
+    let stylesHTML = '';
+    options.styles.forEach(style => {
+      stylesHTML += `
+        <label class="option-card">
+          <input type="radio" name="style" value="${style.id}">
+          <div class="option-content">
+            <div class="option-title">${style.name}</div>
+            <div class="option-description">${style.description}</div>
+          </div>
+        </label>
+      `;
+    });
+    
+    // 構建情緒選項HTML
+    let moodsHTML = '';
+    options.moods.forEach(mood => {
+      moodsHTML += `
+        <label class="option-card">
+          <input type="radio" name="mood" value="${mood.id}">
+          <div class="option-content">
+            <div class="option-title">${mood.name}</div>
+            <div class="option-description">${mood.description}</div>
+          </div>
+        </label>
+      `;
+    });
+    
+    // 構建顏色選項HTML
+    let colorsHTML = '';
+    options.colors.forEach(color => {
+      colorsHTML += `
+        <label class="option-card">
+          <input type="radio" name="color" value="${color.id}">
+          <div class="option-content">
+            <div class="option-title">${color.name}</div>
+            <div class="option-description">${color.description}</div>
+          </div>
+        </label>
+      `;
+    });
+    
+    // 對話框內容
+    const dialogContent = `
+      <div class="dialog-header">
+        <h3>生成背景圖片</h3>
+        <button class="dialog-close" id="close-generate-dialog">✕</button>
+      </div>
+      <div class="dialog-body">
+        <div class="form-group">
+          <label>從歌詞生成圖片：</label>
+          <div class="lyrics-preview">${slide.text}</div>
+        </div>
+        
+        <div class="form-group">
+          <label>自訂提示詞 (選填)：</label>
+          <textarea id="custom-prompt" placeholder="輸入額外的描述或關鍵詞，例如：山脈、海洋、城市..."></textarea>
+        </div>
+        
+        <div class="form-group">
+          <label>圖片風格：</label>
+          <div class="options-grid styles-grid">
+            ${stylesHTML}
+          </div>
+        </div>
+        
+        <div class="form-group">
+          <label>圖片氛圍：</label>
+          <div class="options-grid moods-grid">
+            ${moodsHTML}
+          </div>
+        </div>
+        
+        <div class="form-group">
+          <label>色彩風格：</label>
+          <div class="options-grid colors-grid">
+            ${colorsHTML}
+          </div>
+        </div>
+        
+        <div class="form-group">
+          <label for="generation-quality">圖片品質：</label>
+          <select id="generation-quality">
+            <option value="standard">標準品質</option>
+            <option value="high">高品質 (較慢)</option>
+          </select>
+        </div>
+      </div>
+      <div class="dialog-footer">
+        <button id="cancel-generate-btn" class="action-button">取消</button>
+        <button id="start-generate-btn" class="action-button primary">開始生成</button>
+      </div>
+    `;
+    
+    // 顯示對話框
+    this.dialogModule.showDialog(dialogContent, 'generate-image-dialog');
+    
+    // 預設選中第一個選項
+    document.querySelector('input[name="style"]').checked = true;
+    document.querySelector('input[name="mood"]').checked = true;
+    document.querySelector('input[name="color"]').checked = true;
+    
+    // 綁定按鈕事件
+    const closeBtn = document.getElementById('close-generate-dialog');
+    const cancelBtn = document.getElementById('cancel-generate-btn');
+    const startBtn = document.getElementById('start-generate-btn');
+    
+    if (closeBtn) {
+      closeBtn.addEventListener('click', () => {
+        this.dialogModule.closeDialog();
+      });
+    }
+    
+    if (cancelBtn) {
+      cancelBtn.addEventListener('click', () => {
+        this.dialogModule.closeDialog();
+      });
+    }
+    
+    if (startBtn) {
+      startBtn.addEventListener('click', () => {
+        // 收集所有選項
+        const style = document.querySelector('input[name="style"]:checked')?.value || 'realistic';
+        const mood = document.querySelector('input[name="mood"]:checked')?.value || 'calm';
+        const color = document.querySelector('input[name="color"]:checked')?.value || 'vibrant';
+        const customPrompt = document.getElementById('custom-prompt')?.value || '';
+        const quality = document.getElementById('generation-quality')?.value || 'standard';
+        
+        // 開始生成圖像
+        this.startImageGeneration(slide, { 
+          style, 
+          mood, 
+          color, 
+          customPrompt,
+          quality,
+          lyrics: slide.text
+        });
+        
+        // 關閉對話框
+        this.dialogModule.closeDialog();
+      });
+    }
+  }
+
+  /**
+   * 開始圖像生成過程
+   * @param {Object} slide - 投影片對象
+   * @param {Object} params - 圖像生成參數
+   */
+  startImageGeneration(slide, params) {
+    // 設置生成狀態
+    this.imageGenerationInProgress = true;
+    
+    // 顯示加載覆蓋層
+    this.showGenerationOverlay();
+    
+    // 構建完整提示詞
+    let prompt = `以下是歌詞文本：「${params.lyrics}」`;
+    
+    // 添加自定義提示詞
+    if (params.customPrompt) {
+      prompt += `\n額外描述：${params.customPrompt}`;
+    }
+    
+    // 添加風格、氛圍和顏色描述
+    const styleMap = {
+      realistic: '真實風格的照片',
+      abstract: '抽象藝術風格',
+      digital: '數位插圖風格',
+      painting: '手繪油畫效果',
+      cinematic: '電影場景風格'
+    };
+    
+    const moodMap = {
+      calm: '平靜、寧靜的氛圍',
+      joyful: '歡樂、喜悅的氛圍',
+      dramatic: '強烈、戲劇性的氛圍',
+      melancholic: '傷感、懷舊的氛圍',
+      energetic: '充滿活力和動感的氛圍'
+    };
+    
+    const colorMap = {
+      vibrant: '鮮豔、飽和的色彩',
+      muted: '柔和、低飽和度的色彩',
+      dark: '暗沉、深色調的色彩',
+      light: '明亮、淺色調的色彩',
+      monochrome: '黑白或單色調色彩'
+    };
+    
+    prompt += `\n風格：${styleMap[params.style] || params.style}`;
+    prompt += `\n氛圍：${moodMap[params.mood] || params.mood}`;
+    prompt += `\n色彩：${colorMap[params.color] || params.color}`;
+    
+    // 準備API參數
+    const apiParams = {
+      prompt: prompt,
+      slideId: slide.id,
+      quality: params.quality,
+      width: 1920,
+      height: 1080,
+      model: 'dall-e-3' // 使用適當的模型
+    };
+    
+    console.log('開始生成圖片，參數:', apiParams);
+    
+    // 發送請求到主進程
+    if (window.electronAPI) {
+      window.electronAPI.generateImage(apiParams);
+      
+      // 顯示通知
+      if (window.showNotification) {
+        window.showNotification('開始生成圖片，請稍候...', 'info');
+      }
+    } else {
+      console.error('無法訪問electronAPI，無法生成圖片');
+      this.hideGenerationOverlay();
+      this.imageGenerationInProgress = false;
+      
+      if (this.dialogModule) {
+        this.dialogModule.showAlertDialog('無法連接到圖像生成服務', '操作失敗', 'error');
+      }
+    }
+  }
+
+  /**
+   * 顯示圖像生成覆蓋層
+   */
+  showGenerationOverlay() {
+    // 創建覆蓋層
+    const overlay = document.createElement('div');
+    overlay.className = 'generation-overlay';
+    overlay.innerHTML = `
+      <div class="generation-status">
+        <div class="spinner"></div>
+        <h3>正在生成圖片...</h3>
+        <div class="progress-container">
+          <div class="progress-bar" id="generation-progress-bar"></div>
+        </div>
+        <div class="progress-text" id="generation-progress-text">準備中...</div>
+        <button id="cancel-generation-btn" class="action-button">取消</button>
+      </div>
+    `;
+    
+    // 添加到主容器
+    const slideEditor = document.getElementById('slide-editor');
+    if (slideEditor) {
+      slideEditor.appendChild(overlay);
+      
+      // 綁定取消按鈕事件
+      const cancelBtn = document.getElementById('cancel-generation-btn');
+      if (cancelBtn) {
+        cancelBtn.addEventListener('click', () => {
+          this.cancelImageGeneration();
+        });
+      }
+    }
+  }
+
+  /**
+   * 隱藏圖像生成覆蓋層
+   */
+  hideGenerationOverlay() {
+    const overlay = document.querySelector('.generation-overlay');
+    if (overlay) {
+      overlay.remove();
+    }
+  }
+
+  /**
+   * 取消圖像生成
+   */
+  cancelImageGeneration() {
+    if (this.imageGenerationInProgress) {
+      // 發送取消請求
+      if (window.electronAPI) {
+        window.electronAPI.send('cancel-image-generation');
+      }
+      
+      // 重置狀態
+      this.imageGenerationInProgress = false;
+      this.hideGenerationOverlay();
+      
+      // 顯示通知
+      if (window.showNotification) {
+        window.showNotification('已取消圖片生成', 'info');
+      }
+    }
+  }
+
+  /**
+   * 處理圖像生成進度
+   * @param {Object} progressData - 進度數據
+   */
+  handleImageGenerationProgress(progressData) {
+    if (!this.imageGenerationInProgress) return;
+    
+    // 更新進度條
+    const progressBar = document.getElementById('generation-progress-bar');
+    const progressText = document.getElementById('generation-progress-text');
+    
+    if (progressBar && progressText) {
+      const percent = progressData.percent || 0;
+      progressBar.style.width = `${percent}%`;
+      progressText.textContent = progressData.message || `進度: ${percent}%`;
+    }
+  }
+
+  /**
+   * 處理圖像生成完成
+   * @param {Object} result - 結果數據
+   */
+  handleImageGenerationComplete(result) {
+    // 重置狀態
+    this.imageGenerationInProgress = false;
+    this.hideGenerationOverlay();
+    
+    if (result.error) {
+      console.error('圖片生成失敗:', result.error);
+      
+      // 顯示錯誤信息
+      if (this.dialogModule) {
+        this.dialogModule.showAlertDialog(
+          `圖片生成失敗: ${result.error}`, 
+          '操作失敗', 
+          'error'
+        );
+      }
+      return;
+    }
+    
+    // 確保結果有效
+    if (!result.data) {
+      console.error('圖片生成結果無效');
+      return;
+    }
+    
+    // 尋找對應的投影片
+    const slideIndex = this.slides.findIndex(slide => slide.id === result.slideId);
+    if (slideIndex < 0) {
+      console.error('無法找到對應的投影片:', result.slideId);
+      return;
+    }
+    
+    // 添加圖片資源
+    const resourceId = this.generateId();
+    
+    // 更新項目資源
+    if (this.projectModule) {
+      this.projectModule.addResource({
+        id: resourceId,
+        type: 'image',
+        name: `slide_bg_${slideIndex + 1}`,
+        data: result.data
+      });
+    }
+    
+    // 更新投影片背景
+    this.slides[slideIndex].background = {
+      type: 'image',
+      value: resourceId
+    };
+    
+    // 標記項目為已修改
+    if (this.projectModule) {
+      this.projectModule.markAsModified();
+    }
+    
+    // 更新UI
+    this.renderSlidesList();
+    
+    // 如果是當前活動投影片，更新預覽
+    if (slideIndex === this.activeSlideIndex) {
+      this.renderActiveSlide();
+    }
+    
+    // 顯示成功通知
+    if (window.showNotification) {
+      window.showNotification('背景圖片生成成功!', 'success');
     }
   }
   

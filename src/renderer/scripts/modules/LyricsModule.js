@@ -15,6 +15,47 @@ class LyricsModule {
   }
   
   /**
+   * 初始化模塊
+   * @param {Object} dependencies - 依賴模塊
+   */
+  init(dependencies) {
+    this.dialogModule = dependencies.dialogModule;
+    this.projectModule = dependencies.projectModule;
+    this.slideModule = dependencies.slideModule;
+    
+    // 檢查electronAPI是否可用
+    if (window.electronAPI) {
+      // 設置IPC事件監聽器
+      window.electronAPI.on('lyrics-search-result', this.handleSearchResults.bind(this));
+      window.electronAPI.on('lyrics-content', this.handleReceivedLyrics.bind(this));
+      console.log('歌詞模塊IPC事件已設置');
+    } else {
+      // electronAPI不可用時，顯示警告
+      console.warn('electronAPI不可用，歌詞模塊將以有限功能運行');
+    }
+    
+    // 設置自定義事件
+    this.setupCustomEvents();
+    
+    console.log('歌詞模塊依賴已初始化');
+  }
+  
+  /**
+   * 設置自定義事件
+   */
+  setupCustomEvents() {
+    // 例如：接收來自其他模塊的事件
+    window.addEventListener('project-loaded', (event) => {
+      if (event.detail && event.detail.lyrics) {
+        this.lyrics = event.detail.lyrics;
+        this.renderLyrics();
+      }
+    });
+    
+    // 其他自定義事件...
+  }
+  
+  /**
    * 初始化事件監聽器
    */
   initEventListeners() {
@@ -27,12 +68,78 @@ class LyricsModule {
           this.selectParagraph(paragraphIndex);
         }
       });
+    } else {
+      console.warn('歌詞編輯器元素未找到，無法綁定選擇事件');
     }
+    
+    // 監聽歌詞工具按鈕事件
+    this.bindLyricsToolButtons();
+    
+    // 監聽歌詞搜索和導入按鈕事件
+    this.bindLyricsActionButtons();
     
     // 監聽應用程序初始化事件
     window.addEventListener('app-ready', () => {
       this.renderEmptyState();
     });
+  }
+  
+  /**
+   * 綁定歌詞工具按鈕
+   */
+  bindLyricsToolButtons() {
+    // 添加段落按鈕
+    const addParagraphBtn = document.getElementById('add-paragraph-btn');
+    if (addParagraphBtn) {
+      addParagraphBtn.addEventListener('click', () => {
+        this.addNewParagraph();
+      });
+    }
+    
+    // 分割段落按鈕
+    const splitParagraphBtn = document.getElementById('split-paragraph-btn');
+    if (splitParagraphBtn) {
+      splitParagraphBtn.addEventListener('click', () => {
+        this.splitParagraph();
+      });
+    }
+    
+    // 合併段落按鈕
+    const mergeParagraphsBtn = document.getElementById('merge-paragraphs-btn');
+    if (mergeParagraphsBtn) {
+      mergeParagraphsBtn.addEventListener('click', () => {
+        this.mergeParagraphs();
+      });
+    }
+    
+    // 刪除段落按鈕
+    const removeParagraphBtn = document.getElementById('remove-paragraph-btn');
+    if (removeParagraphBtn) {
+      removeParagraphBtn.addEventListener('click', () => {
+        this.removeParagraph();
+      });
+    }
+  }
+  
+  /**
+   * 綁定歌詞動作按鈕
+   */
+  bindLyricsActionButtons() {
+    // 搜尋歌詞按鈕
+    const searchLyricsBtn = document.getElementById('search-lyrics-btn');
+    if (searchLyricsBtn) {
+      searchLyricsBtn.addEventListener('click', () => {
+        this.openSearchDialog();
+      });
+    }
+    
+    // 匯入文字按鈕
+    const importLyricsBtn = document.getElementById('import-lyrics-btn');
+    if (importLyricsBtn) {
+      importLyricsBtn.addEventListener('click', () => {
+        this.openImportDialog();
+      });
+    }
   }
   
   /**
@@ -262,21 +369,67 @@ class LyricsModule {
   
   /**
    * 處理接收到的歌詞
-   * @param {string} lyricsText - 歌詞文本
-   * @param {string} language - 歌詞語言
+   * @param {Object} data - 歌詞數據
    */
-  handleReceivedLyrics(lyricsText, language) {
-    // 隱藏加載狀態
-    this.hideLoading();
-    
-    // 解析歌詞
-    this.lyrics = this.parseLyrics(lyricsText);
-    
-    // 設置歌詞語言
-    window.projectModule.updateProjectInfo({ language });
-    
-    // 渲染歌詞
-    this.renderLyrics();
+  handleReceivedLyrics(data) {
+    try {
+      // 隱藏加載狀態
+      this.hideLoading();
+      
+      if (!data) {
+        console.error('接收到的歌詞數據為空');
+        this.showError('無法獲取歌詞數據');
+        return;
+      }
+      
+      // 標題和藝人信息
+      const title = data.title || '未知歌曲';
+      const artist = data.artist || '未知藝人';
+      const source = data.source || '';
+      const sourceUrl = data.url || '';
+      
+      // 更新UI信息
+      const titleElement = document.getElementById('song-title');
+      const artistElement = document.getElementById('artist-name');
+      
+      if (titleElement) {
+        titleElement.textContent = title;
+      }
+      
+      if (artistElement) {
+        artistElement.textContent = artist;
+      }
+      
+      // 確保歌詞文本存在
+      if (!data.lyrics || typeof data.lyrics !== 'string' || data.lyrics.trim() === '') {
+        console.error('歌詞文本為空或格式不正確');
+        this.showError('歌詞內容為空');
+        return;
+      }
+      
+      // 解析歌詞文本
+      this.parseLyrics(data.lyrics);
+      
+      // 更新項目數據
+      if (window.modules && window.modules.projectModule) {
+        const projectModule = window.modules.projectModule;
+        projectModule.updateProjectInfo({
+          title,
+          artist,
+          source,
+          sourceUrl,
+          lyrics: this.lyrics
+        });
+      }
+      
+      // 通知投影片模塊更新投影片
+      if (window.modules && window.modules.slideModule) {
+        window.modules.slideModule.updateSlidesFromLyrics(this.lyrics);
+      }
+    } catch (error) {
+      console.error('處理歌詞數據時發生錯誤:', error);
+      this.showError('處理歌詞時發生錯誤: ' + error.message);
+    }
   }
   
   /**
@@ -309,7 +462,7 @@ class LyricsModule {
       paragraphs.push(currentParagraph);
     }
     
-    return paragraphs;
+    this.lyrics = paragraphs;
   }
   
   /**
@@ -342,15 +495,38 @@ class LyricsModule {
    * 渲染空白狀態
    */
   renderEmptyState() {
-    if (!this.lyricsEditor) return;
+    if (!this.lyricsEditor) {
+      console.warn('歌詞編輯器元素未找到，無法渲染空狀態');
+      return;
+    }
     
     this.lyricsEditor.innerHTML = `
       <div class="empty-state">
         <div class="empty-icon">🎵</div>
-        <h3>尚無歌詞</h3>
-        <p>點擊「搜尋歌詞」按鈕開始，或手動匯入歌詞文本</p>
+        <h3>尚未添加歌詞</h3>
+        <p>您可以搜尋歌詞或手動輸入</p>
+        <div class="empty-actions">
+          <button id="empty-search-btn" class="action-button primary">搜尋歌詞</button>
+          <button id="empty-import-btn" class="action-button">匯入文字</button>
+        </div>
       </div>
     `;
+    
+    // 綁定空狀態按鈕事件
+    const searchBtn = document.getElementById('empty-search-btn');
+    const importBtn = document.getElementById('empty-import-btn');
+    
+    if (searchBtn) {
+      searchBtn.addEventListener('click', () => {
+        this.openSearchDialog();
+      });
+    }
+    
+    if (importBtn) {
+      importBtn.addEventListener('click', () => {
+        this.openImportDialog();
+      });
+    }
   }
   
   /**
@@ -485,7 +661,7 @@ class LyricsModule {
         });
         
         // 解析並設置歌詞
-        this.lyrics = this.parseLyrics(lyricsText);
+        this.parseLyrics(lyricsText);
         
         // 渲染歌詞
         this.renderLyrics();
@@ -527,66 +703,146 @@ class LyricsModule {
   /**
    * 添加新段落
    */
-  addParagraph() {
-    let position = this.selectedParagraphIndex;
-    if (position < 0) {
-      position = this.lyrics.length;
-    } else {
-      position += 1; // 在當前選擇的段落後添加
-    }
+  addNewParagraph() {
+    // 實作添加新段落邏輯
+    const newParagraph = {
+      id: this.generateId(),
+      text: '',
+      type: 'verse'
+    };
     
-    // 插入新段落
-    this.lyrics.splice(position, 0, ['新段落']);
+    // 如果有選中段落，插入在其後
+    if (this.selectedParagraphIndex >= 0 && this.selectedParagraphIndex < this.lyrics.length) {
+      this.lyrics.splice(this.selectedParagraphIndex + 1, 0, newParagraph);
+      this.selectedParagraphIndex += 1;
+    } else {
+      // 否則添加到末尾
+      this.lyrics.push(newParagraph);
+      this.selectedParagraphIndex = this.lyrics.length - 1;
+    }
     
     // 重新渲染歌詞
     this.renderLyrics();
     
-    // 選擇新段落
-    this.selectParagraph(position);
+    // 標記項目為已修改
+    if (window.modules && window.modules.projectModule) {
+      window.modules.projectModule.markAsModified();
+    }
   }
   
   /**
    * 分割段落
    */
   splitParagraph() {
-    if (this.selectedParagraphIndex < 0 || this.selectedLineIndex < 0) return;
+    // 檢查是否有選中段落
+    if (this.selectedParagraphIndex < 0 || this.selectedParagraphIndex >= this.lyrics.length) {
+      console.warn('未選中段落，無法分割');
+      return;
+    }
     
+    // 獲取選中段落
     const paragraph = this.lyrics[this.selectedParagraphIndex];
-    if (!paragraph || paragraph.length <= 1) return;
     
-    const line = this.selectedLineIndex;
+    // 實作段落分割邏輯
+    const text = paragraph.text;
+    const selection = window.getSelection();
     
-    // 分割段落
-    const newParagraph = paragraph.slice(line);
-    paragraph.splice(line);
+    // 確保選中的文本在段落內
+    if (!selection || selection.rangeCount === 0) {
+      console.warn('未選中文本，無法分割');
+      return;
+    }
     
-    // 插入新段落
-    this.lyrics.splice(this.selectedParagraphIndex + 1, 0, newParagraph);
-    
-    // 重新渲染歌詞
-    this.renderLyrics();
+    try {
+      const range = selection.getRangeAt(0);
+      const paragraphElement = document.querySelector(`.lyrics-paragraph[data-index="${this.selectedParagraphIndex}"]`);
+      
+      if (!paragraphElement || !paragraphElement.contains(range.commonAncestorContainer)) {
+        console.warn('選中的文本不在當前段落內');
+        return;
+      }
+      
+      // 計算光標位置
+      const textNode = range.startContainer;
+      const offset = range.startOffset;
+      
+      // 獲取段落內文本
+      let fullText = '';
+      for (const node of paragraphElement.childNodes) {
+        if (node.nodeType === Node.TEXT_NODE) {
+          fullText += node.textContent;
+        }
+      }
+      
+      // 分割文本
+      let cursorPosition = 0;
+      for (const node of paragraphElement.childNodes) {
+        if (node === textNode) {
+          cursorPosition += offset;
+          break;
+        } else if (node.nodeType === Node.TEXT_NODE) {
+          cursorPosition += node.textContent.length;
+        }
+      }
+      
+      const firstPart = fullText.substring(0, cursorPosition);
+      const secondPart = fullText.substring(cursorPosition);
+      
+      // 更新當前段落文本
+      paragraph.text = firstPart;
+      
+      // 創建新段落
+      const newParagraph = {
+        id: this.generateId(),
+        text: secondPart,
+        type: paragraph.type
+      };
+      
+      // 插入新段落
+      this.lyrics.splice(this.selectedParagraphIndex + 1, 0, newParagraph);
+      
+      // 重新渲染歌詞
+      this.renderLyrics();
+      
+      // 選中新段落
+      this.selectParagraph(this.selectedParagraphIndex + 1);
+      
+      // 標記項目為已修改
+      if (window.modules && window.modules.projectModule) {
+        window.modules.projectModule.markAsModified();
+      }
+    } catch (error) {
+      console.error('分割段落時發生錯誤:', error);
+    }
   }
   
   /**
    * 合併段落
    */
   mergeParagraphs() {
-    if (this.selectedParagraphIndex < 0 || this.selectedParagraphIndex >= this.lyrics.length - 1) return;
+    // 檢查是否有選中段落
+    if (this.selectedParagraphIndex < 0 || this.selectedParagraphIndex >= this.lyrics.length - 1) {
+      console.warn('未選中段落或已是最後一個段落，無法合併');
+      return;
+    }
     
-    const current = this.lyrics[this.selectedParagraphIndex];
-    const next = this.lyrics[this.selectedParagraphIndex + 1];
+    // 獲取選中段落和下一個段落
+    const currentParagraph = this.lyrics[this.selectedParagraphIndex];
+    const nextParagraph = this.lyrics[this.selectedParagraphIndex + 1];
     
-    // 合併段落
-    current.push(...next);
+    // 合併文本
+    currentParagraph.text = currentParagraph.text + '\n' + nextParagraph.text;
     
-    // 移除下一個段落
+    // 刪除下一個段落
     this.lyrics.splice(this.selectedParagraphIndex + 1, 1);
     
     // 重新渲染歌詞
     this.renderLyrics();
     
-    // 選擇合併後的段落
-    this.selectParagraph(this.selectedParagraphIndex);
+    // 標記項目為已修改
+    if (window.modules && window.modules.projectModule) {
+      window.modules.projectModule.markAsModified();
+    }
   }
   
   /**
@@ -616,29 +872,48 @@ class LyricsModule {
    * @param {string} message - 加載消息
    */
   showLoading(message) {
-    if (!this.lyricsEditor) return;
-    
-    this.lyricsEditor.innerHTML = `
-      <div class="loading-state">
-        <div class="spinner"></div>
-        <p>${message}</p>
+    // 實作載入狀態顯示邏輯
+    const loadingOverlay = document.createElement('div');
+    loadingOverlay.className = 'loading-overlay';
+    loadingOverlay.innerHTML = `
+      <div class="loading-container">
+        <div class="loading-spinner"></div>
+        <p>${message || '載入中...'}</p>
       </div>
     `;
+    
+    document.body.appendChild(loadingOverlay);
   }
   
   /**
    * 隱藏加載狀態
    */
   hideLoading() {
-    // 此方法不需要做什麼，因為renderLyrics或renderEmptyState會替換內容
+    // 實作載入狀態隱藏邏輯
+    const loadingOverlay = document.querySelector('.loading-overlay');
+    if (loadingOverlay) {
+      loadingOverlay.remove();
+    }
   }
   
   /**
-   * 獲取所有歌詞數據
-   * @returns {Array} 歌詞數據
+   * 生成唯一ID
+   * @returns {string} 唯一ID
    */
-  getLyricsData() {
-    return this.lyrics;
+  generateId() {
+    return Date.now().toString(36) + Math.random().toString(36).substr(2, 5);
+  }
+  
+  /**
+   * 顯示錯誤信息
+   * @param {string} message - 錯誤信息
+   */
+  showError(message) {
+    if (window.modules && window.modules.dialogModule) {
+      window.modules.dialogModule.showAlertDialog(message, '錯誤', 'error');
+    } else {
+      alert(message);
+    }
   }
 }
 

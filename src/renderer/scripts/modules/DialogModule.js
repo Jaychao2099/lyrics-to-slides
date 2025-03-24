@@ -1,54 +1,69 @@
 /**
  * 對話框模塊
- * 負責創建和管理彈出對話框
+ * 負責處理應用程式的各種對話框
  */
 class DialogModule {
   constructor() {
-    this.dialogContainer = document.getElementById('dialog-container');
     this.activeDialog = null;
+    this.dialogOverlay = null;
     
-    // 如果容器不存在，創建一個
-    if (!this.dialogContainer) {
-      this.dialogContainer = document.createElement('div');
-      this.dialogContainer.id = 'dialog-container';
-      this.dialogContainer.className = 'dialog-overlay';
-      this.dialogContainer.style.display = 'none';
-      document.body.appendChild(this.dialogContainer);
-    }
-    
-    // 添加點擊背景關閉功能
-    this.dialogContainer.addEventListener('click', (e) => {
-      if (e.target === this.dialogContainer) {
-        this.closeDialog();
-      }
-    });
-    
-    // 添加ESC鍵關閉功能
-    document.addEventListener('keydown', (e) => {
-      if (e.key === 'Escape' && this.isDialogOpen()) {
-        this.closeDialog();
-      }
-    });
+    // 創建對話框覆蓋層
+    this.createDialogOverlay();
     
     console.log('對話框模塊已初始化');
   }
   
   /**
-   * 顯示對話框
-   * @param {string} content - 對話框HTML內容
-   * @param {string} dialogId - 對話框ID
-   * @param {Object} options - 對話框選項
+   * 初始化模塊
+   * @param {Object} dependencies - 依賴模塊
    */
-  showDialog(content, dialogId, options = {}) {
-    // 如果已有對話框打開，先關閉它
-    if (this.isDialogOpen()) {
+  init(dependencies) {
+    console.log('對話框模塊已初始化依賴');
+  }
+  
+  /**
+   * 創建對話框覆蓋層
+   */
+  createDialogOverlay() {
+    // 移除現有覆蓋層（如果有）
+    const existingOverlay = document.getElementById('dialog-overlay');
+    if (existingOverlay) {
+      existingOverlay.remove();
+    }
+    
+    // 創建新覆蓋層
+    this.dialogOverlay = document.createElement('div');
+    this.dialogOverlay.id = 'dialog-overlay';
+    this.dialogOverlay.className = 'dialog-overlay';
+    
+    // 默認隱藏
+    this.dialogOverlay.style.display = 'none';
+    
+    // 添加到文檔
+    document.body.appendChild(this.dialogOverlay);
+  }
+  
+  /**
+   * 顯示通用對話框
+   * @param {string} content - 對話框內容
+   * @param {string} dialogId - 對話框ID
+   * @param {Object} options - 選項
+   */
+  showDialog(content, dialogId = 'dialog', options = {}) {
+    // 如果已經有活動對話框，先關閉它
+    if (this.activeDialog) {
       this.closeDialog();
+    }
+    
+    // 確保對話框覆蓋層存在
+    if (!this.dialogOverlay) {
+      this.createDialogOverlay();
     }
     
     // 創建對話框元素
     const dialog = document.createElement('div');
     dialog.className = 'dialog';
-    dialog.id = dialogId || `dialog-${Date.now()}`;
+    dialog.id = dialogId;
     dialog.innerHTML = content;
     
     // 應用自定義樣式
@@ -56,31 +71,29 @@ class DialogModule {
       dialog.style.width = options.width;
     }
     
-    if (options.maxWidth) {
-      dialog.style.maxWidth = options.maxWidth;
+    if (options.height) {
+      dialog.style.height = options.height;
     }
     
-    // 記錄活動對話框
+    // 添加對話框到覆蓋層
+    this.dialogOverlay.innerHTML = '';
+    this.dialogOverlay.appendChild(dialog);
+    
+    // 顯示覆蓋層
+    this.dialogOverlay.style.display = 'flex';
+    
+    // 保存活動對話框引用
     this.activeDialog = dialog;
     
-    // 添加到容器並顯示
-    this.dialogContainer.innerHTML = '';
-    this.dialogContainer.appendChild(dialog);
-    this.dialogContainer.style.display = 'flex';
+    // 為關閉按鈕添加事件監聽器
+    const closeButtons = dialog.querySelectorAll('.dialog-close');
+    closeButtons.forEach(button => {
+      button.addEventListener('click', () => {
+        this.closeDialog();
+      });
+    });
     
-    // 添加動畫類
-    setTimeout(() => {
-      dialog.classList.add('dialog-visible');
-    }, 10);
-    
-    // 焦點到第一個輸入域或按鈕
-    setTimeout(() => {
-      const firstInput = dialog.querySelector('input, textarea, button');
-      if (firstInput) {
-        firstInput.focus();
-      }
-    }, 100);
-    
+    // 返回對話框引用
     return dialog;
   }
   
@@ -88,61 +101,53 @@ class DialogModule {
    * 關閉當前對話框
    */
   closeDialog() {
-    if (!this.isDialogOpen()) return;
-    
-    // 添加關閉動畫
-    if (this.activeDialog) {
-      this.activeDialog.classList.remove('dialog-visible');
-      this.activeDialog.classList.add('dialog-closing');
-      
-      // 動畫結束後隱藏容器
-      setTimeout(() => {
-        this.dialogContainer.style.display = 'none';
-        this.dialogContainer.innerHTML = '';
-        this.activeDialog = null;
-      }, 300);
-    } else {
-      // 如果沒有活動對話框，直接隱藏容器
-      this.dialogContainer.style.display = 'none';
-      this.dialogContainer.innerHTML = '';
+    if (this.dialogOverlay) {
+      this.dialogOverlay.style.display = 'none';
+      this.dialogOverlay.innerHTML = '';
     }
-  }
-  
-  /**
-   * 檢查是否有對話框打開
-   * @returns {boolean} 是否有對話框打開
-   */
-  isDialogOpen() {
-    return this.dialogContainer.style.display !== 'none' && this.activeDialog !== null;
-  }
-  
-  /**
-   * 獲取當前活動對話框
-   * @returns {HTMLElement} 當前對話框元素
-   */
-  getActiveDialog() {
-    return this.activeDialog;
+    
+    this.activeDialog = null;
   }
   
   /**
    * 顯示確認對話框
-   * @param {string} message - 確認消息
-   * @param {Function} onConfirm - 確認回調
-   * @param {Function} onCancel - 取消回調
+   * @param {string} message - 確認信息
+   * @param {Function} onConfirm - 確認時的回調
+   * @param {Function} onCancel - 取消時的回調
    * @param {Object} options - 對話框選項
    */
   showConfirmDialog(message, onConfirm, onCancel, options = {}) {
     const title = options.title || '確認';
     const confirmText = options.confirmText || '確認';
     const cancelText = options.cancelText || '取消';
+    const type = options.type || 'confirm'; // confirm, info, warning, error
     
-    const dialogContent = `
+    // 根據類型選擇圖標
+    let icon = '';
+    switch (type) {
+      case 'info':
+        icon = '<div class="dialog-icon info">i</div>';
+        break;
+      case 'warning':
+        icon = '<div class="dialog-icon warning">⚠</div>';
+        break;
+      case 'error':
+        icon = '<div class="dialog-icon error">⛔</div>';
+        break;
+      default:
+        icon = '<div class="dialog-icon confirm">?</div>';
+    }
+    
+    const content = `
       <div class="dialog-header">
         <h3>${title}</h3>
-        <button class="dialog-close" id="close-confirm">✕</button>
+        <button class="dialog-close" id="close-confirm-dialog">✕</button>
       </div>
       <div class="dialog-body">
-        <p>${message}</p>
+        <div class="confirm-content">
+          ${icon}
+          <div class="confirm-message">${message}</div>
+        </div>
       </div>
       <div class="dialog-footer">
         <button id="cancel-btn" class="action-button">${cancelText}</button>
@@ -150,287 +155,334 @@ class DialogModule {
       </div>
     `;
     
-    const dialog = this.showDialog(dialogContent, 'confirm-dialog', options);
+    // 顯示對話框
+    const dialog = this.showDialog(content, 'confirm-dialog', {
+      width: options.width || '400px'
+    });
     
-    // 設置按鈕事件
-    const closeBtn = dialog.querySelector('#close-confirm');
-    const cancelBtn = dialog.querySelector('#cancel-btn');
-    const confirmBtn = dialog.querySelector('#confirm-btn');
+    // 綁定按鈕事件
+    const confirmBtn = document.getElementById('confirm-btn');
+    const cancelBtn = document.getElementById('cancel-btn');
     
-    if (closeBtn) {
-      closeBtn.addEventListener('click', () => {
+    if (confirmBtn) {
+      confirmBtn.addEventListener('click', () => {
         this.closeDialog();
-        if (onCancel) onCancel();
+        if (typeof onConfirm === 'function') {
+          onConfirm();
+        }
       });
     }
     
     if (cancelBtn) {
       cancelBtn.addEventListener('click', () => {
         this.closeDialog();
-        if (onCancel) onCancel();
+        if (typeof onCancel === 'function') {
+          onCancel();
+        }
       });
     }
     
-    if (confirmBtn) {
-      confirmBtn.addEventListener('click', () => {
-        this.closeDialog();
-        if (onConfirm) onConfirm();
-      });
-    }
+    return dialog;
   }
   
   /**
-   * 顯示提示對話框
-   * @param {string} message - 提示消息
-   * @param {Function} onClose - 關閉回調
-   * @param {Object} options - 對話框選項
+   * 顯示警告對話框
+   * @param {string} message - 警告信息
+   * @param {string} title - 標題
+   * @param {string} type - 類型：info, warning, error
    */
-  showAlertDialog(message, onClose, options = {}) {
-    const title = options.title || '提示';
-    const closeText = options.closeText || '確定';
+  showAlertDialog(message, title = '提示', type = 'info') {
+    // 根據類型選擇圖標
+    let icon = '';
+    switch (type) {
+      case 'info':
+        icon = '<div class="dialog-icon info">i</div>';
+        break;
+      case 'warning':
+        icon = '<div class="dialog-icon warning">⚠</div>';
+        break;
+      case 'error':
+        icon = '<div class="dialog-icon error">⛔</div>';
+        break;
+      default:
+        icon = '<div class="dialog-icon info">i</div>';
+    }
     
-    const dialogContent = `
+    const content = `
       <div class="dialog-header">
         <h3>${title}</h3>
-        <button class="dialog-close" id="close-alert">✕</button>
+        <button class="dialog-close" id="close-alert-dialog">✕</button>
       </div>
       <div class="dialog-body">
-        <p>${message}</p>
+        <div class="alert-content">
+          ${icon}
+          <div class="alert-message">${message}</div>
+        </div>
       </div>
       <div class="dialog-footer">
-        <button id="alert-close-btn" class="action-button primary">${closeText}</button>
+        <button id="alert-ok-btn" class="action-button primary">確定</button>
       </div>
     `;
     
-    const dialog = this.showDialog(dialogContent, 'alert-dialog', options);
+    // 顯示對話框
+    const dialog = this.showDialog(content, 'alert-dialog', {
+      width: '400px'
+    });
     
-    // 設置按鈕事件
-    const closeBtn = dialog.querySelector('#close-alert');
-    const alertCloseBtn = dialog.querySelector('#alert-close-btn');
-    
-    if (closeBtn) {
-      closeBtn.addEventListener('click', () => {
+    // 綁定按鈕事件
+    const okBtn = document.getElementById('alert-ok-btn');
+    if (okBtn) {
+      okBtn.addEventListener('click', () => {
         this.closeDialog();
-        if (onClose) onClose();
       });
+      
+      // 聚焦確定按鈕
+      setTimeout(() => okBtn.focus(), 100);
     }
     
-    if (alertCloseBtn) {
-      alertCloseBtn.addEventListener('click', () => {
-        this.closeDialog();
-        if (onClose) onClose();
-      });
-    }
+    return dialog;
   }
   
   /**
    * 顯示輸入對話框
-   * @param {string} message - 提示消息
-   * @param {Function} onInput - 輸入回調
+   * @param {string} message - 提示信息
    * @param {string} defaultValue - 默認值
+   * @param {Function} onSubmit - 提交時的回調
    * @param {Object} options - 對話框選項
    */
-  showPromptDialog(message, onInput, defaultValue = '', options = {}) {
+  showInputDialog(message, defaultValue = '', onSubmit, options = {}) {
     const title = options.title || '輸入';
-    const confirmText = options.confirmText || '確認';
+    const submitText = options.submitText || '確認';
     const cancelText = options.cancelText || '取消';
     const placeholder = options.placeholder || '';
+    const type = options.type || 'text'; // text, number, password
+    const required = options.required !== false;
     
-    const dialogContent = `
+    const content = `
       <div class="dialog-header">
         <h3>${title}</h3>
-        <button class="dialog-close" id="close-prompt">✕</button>
+        <button class="dialog-close" id="close-input-dialog">✕</button>
       </div>
       <div class="dialog-body">
-        <p>${message}</p>
-        <input type="text" id="prompt-input" placeholder="${placeholder}" value="${defaultValue}">
+        <div class="input-content">
+          <div class="input-message">${message}</div>
+          <input 
+            type="${type}" 
+            id="input-value" 
+            class="dialog-input" 
+            value="${defaultValue}"
+            placeholder="${placeholder}"
+            ${required ? 'required' : ''}
+          >
+        </div>
       </div>
       <div class="dialog-footer">
-        <button id="prompt-cancel-btn" class="action-button">${cancelText}</button>
-        <button id="prompt-confirm-btn" class="action-button primary">${confirmText}</button>
+        <button id="cancel-input-btn" class="action-button">${cancelText}</button>
+        <button id="submit-input-btn" class="action-button primary">${submitText}</button>
       </div>
     `;
     
-    const dialog = this.showDialog(dialogContent, 'prompt-dialog', options);
+    // 顯示對話框
+    const dialog = this.showDialog(content, 'input-dialog', {
+      width: options.width || '400px'
+    });
     
-    // 設置按鈕事件
-    const closeBtn = dialog.querySelector('#close-prompt');
-    const cancelBtn = dialog.querySelector('#prompt-cancel-btn');
-    const confirmBtn = dialog.querySelector('#prompt-confirm-btn');
-    const input = dialog.querySelector('#prompt-input');
+    // 獲取輸入元素
+    const inputElement = document.getElementById('input-value');
     
-    if (closeBtn) {
-      closeBtn.addEventListener('click', () => {
+    // 綁定按鈕事件
+    const submitBtn = document.getElementById('submit-input-btn');
+    const cancelBtn = document.getElementById('cancel-input-btn');
+    
+    if (submitBtn) {
+      submitBtn.addEventListener('click', () => {
+        if (required && (!inputElement || !inputElement.value.trim())) {
+          // 如果必填但沒有值，則顯示錯誤
+          if (inputElement) {
+            inputElement.classList.add('error');
+            inputElement.focus();
+          }
+          return;
+        }
+        
+        const value = inputElement ? inputElement.value : '';
         this.closeDialog();
-        if (onInput) onInput(null);
-      });
-    }
-    
-    if (cancelBtn) {
-      cancelBtn.addEventListener('click', () => {
-        this.closeDialog();
-        if (onInput) onInput(null);
-      });
-    }
-    
-    if (confirmBtn) {
-      confirmBtn.addEventListener('click', () => {
-        const value = input ? input.value.trim() : '';
-        this.closeDialog();
-        if (onInput) onInput(value);
-      });
-    }
-    
-    if (input) {
-      // 焦點到輸入框
-      setTimeout(() => {
-        input.focus();
-        input.select();
-      }, 100);
-      
-      // 按Enter鍵確認
-      input.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter') {
-          const value = input.value.trim();
-          this.closeDialog();
-          if (onInput) onInput(value);
+        if (typeof onSubmit === 'function') {
+          onSubmit(value);
         }
       });
     }
-  }
-  
-  /**
-   * 顯示自定義表單對話框
-   * @param {string} title - 表單標題
-   * @param {Array} fields - 表單字段數組
-   * @param {Function} onSubmit - 提交回調
-   * @param {Function} onCancel - 取消回調
-   * @param {Object} options - 對話框選項
-   */
-  showFormDialog(title, fields, onSubmit, onCancel, options = {}) {
-    const confirmText = options.confirmText || '提交';
-    const cancelText = options.cancelText || '取消';
-    
-    // 構建表單字段HTML
-    let fieldsHtml = '';
-    
-    fields.forEach(field => {
-      const id = field.id || `field-${Math.random().toString(36).substring(2, 9)}`;
-      const label = field.label || '';
-      const type = field.type || 'text';
-      const placeholder = field.placeholder || '';
-      const value = field.value || '';
-      const required = field.required ? 'required' : '';
-      const options = field.options || [];
-      
-      fieldsHtml += `<div class="form-group">`;
-      
-      if (label) {
-        fieldsHtml += `<label for="${id}">${label}</label>`;
-      }
-      
-      if (type === 'select') {
-        fieldsHtml += `<select id="${id}" name="${id}" ${required}>`;
-        options.forEach(option => {
-          const selected = option.value === value ? 'selected' : '';
-          fieldsHtml += `<option value="${option.value}" ${selected}>${option.label}</option>`;
-        });
-        fieldsHtml += `</select>`;
-      } else if (type === 'textarea') {
-        fieldsHtml += `<textarea id="${id}" name="${id}" placeholder="${placeholder}" ${required}>${value}</textarea>`;
-      } else if (type === 'checkbox') {
-        fieldsHtml += `
-          <div class="checkbox-field">
-            <input type="checkbox" id="${id}" name="${id}" ${value ? 'checked' : ''}>
-            <span>${placeholder}</span>
-          </div>
-        `;
-      } else if (type === 'radio') {
-        fieldsHtml += `<div class="radio-group">`;
-        options.forEach(option => {
-          const checked = option.value === value ? 'checked' : '';
-          fieldsHtml += `
-            <label class="radio-label">
-              <input type="radio" name="${id}" value="${option.value}" ${checked}>
-              <span>${option.label}</span>
-            </label>
-          `;
-        });
-        fieldsHtml += `</div>`;
-      } else {
-        fieldsHtml += `<input type="${type}" id="${id}" name="${id}" placeholder="${placeholder}" value="${value}" ${required}>`;
-      }
-      
-      if (field.help) {
-        fieldsHtml += `<div class="field-help">${field.help}</div>`;
-      }
-      
-      fieldsHtml += `</div>`;
-    });
-    
-    const dialogContent = `
-      <div class="dialog-header">
-        <h3>${title}</h3>
-        <button class="dialog-close" id="close-form">✕</button>
-      </div>
-      <div class="dialog-body">
-        <form id="custom-form">
-          ${fieldsHtml}
-        </form>
-      </div>
-      <div class="dialog-footer">
-        <button id="form-cancel-btn" class="action-button">${cancelText}</button>
-        <button id="form-submit-btn" class="action-button primary">${confirmText}</button>
-      </div>
-    `;
-    
-    const dialog = this.showDialog(dialogContent, 'form-dialog', options);
-    
-    // 設置按鈕事件
-    const closeBtn = dialog.querySelector('#close-form');
-    const cancelBtn = dialog.querySelector('#form-cancel-btn');
-    const submitBtn = dialog.querySelector('#form-submit-btn');
-    const form = dialog.querySelector('#custom-form');
-    
-    if (closeBtn) {
-      closeBtn.addEventListener('click', () => {
-        this.closeDialog();
-        if (onCancel) onCancel();
-      });
-    }
     
     if (cancelBtn) {
       cancelBtn.addEventListener('click', () => {
         this.closeDialog();
-        if (onCancel) onCancel();
       });
     }
     
-    if (submitBtn && form) {
-      submitBtn.addEventListener('click', () => {
-        // 收集表單數據
-        const formData = {};
+    // 支持按Enter提交
+    if (inputElement) {
+      inputElement.addEventListener('keyup', (e) => {
+        if (e.key === 'Enter') {
+          if (submitBtn) submitBtn.click();
+        }
         
-        fields.forEach(field => {
-          const id = field.id || '';
-          const type = field.type || 'text';
-          
-          if (type === 'checkbox') {
-            const checkbox = form.querySelector(`#${id}`);
-            formData[id] = checkbox ? checkbox.checked : false;
-          } else if (type === 'radio') {
-            const radio = form.querySelector(`input[name="${id}"]:checked`);
-            formData[id] = radio ? radio.value : '';
-          } else {
-            const input = form.querySelector(`#${id}, [name="${id}"]`);
-            formData[id] = input ? input.value : '';
-          }
-        });
-        
-        this.closeDialog();
-        if (onSubmit) onSubmit(formData);
+        // 移除錯誤標記
+        inputElement.classList.remove('error');
       });
+      
+      // 聚焦輸入框
+      setTimeout(() => inputElement.focus(), 100);
     }
+    
+    return dialog;
+  }
+  
+  /**
+   * 顯示加載對話框
+   * @param {string} message - 加載信息
+   * @param {boolean} canCancel - 是否可以取消
+   * @param {Function} onCancel - 取消時的回調
+   * @returns {Object} 對話框和更新函數
+   */
+  showLoadingDialog(message, canCancel = false, onCancel = null) {
+    let content = `
+      <div class="dialog-header">
+        <h3>請稍候</h3>
+        ${canCancel ? '<button class="dialog-close" id="close-loading-dialog">✕</button>' : ''}
+      </div>
+      <div class="dialog-body">
+        <div class="loading-content">
+          <div class="spinner"></div>
+          <div id="loading-message" class="loading-message">${message}</div>
+        </div>
+      </div>
+    `;
+    
+    if (canCancel) {
+      content += `
+        <div class="dialog-footer">
+          <button id="cancel-loading-btn" class="action-button">取消</button>
+        </div>
+      `;
+    }
+    
+    // 顯示對話框
+    const dialog = this.showDialog(content, 'loading-dialog', {
+      width: '400px'
+    });
+    
+    // 綁定取消按鈕事件
+    if (canCancel) {
+      const cancelBtn = document.getElementById('cancel-loading-btn');
+      const closeBtn = document.getElementById('close-loading-dialog');
+      
+      const cancelHandler = () => {
+        this.closeDialog();
+        if (typeof onCancel === 'function') {
+          onCancel();
+        }
+      };
+      
+      if (cancelBtn) {
+        cancelBtn.addEventListener('click', cancelHandler);
+      }
+      
+      if (closeBtn) {
+        closeBtn.addEventListener('click', cancelHandler);
+      }
+    }
+    
+    // 返回對話框和更新消息的函數
+    return {
+      dialog,
+      updateMessage: (newMessage) => {
+        const messageElement = document.getElementById('loading-message');
+        if (messageElement) {
+          messageElement.textContent = newMessage;
+        }
+      }
+    };
+  }
+  
+  /**
+   * 顯示進度對話框
+   * @param {string} message - 進度信息
+   * @param {boolean} canCancel - 是否可以取消
+   * @param {Function} onCancel - 取消時的回調
+   * @returns {Object} 對話框和更新函數
+   */
+  showProgressDialog(message, canCancel = false, onCancel = null) {
+    let content = `
+      <div class="dialog-header">
+        <h3>進度</h3>
+        ${canCancel ? '<button class="dialog-close" id="close-progress-dialog">✕</button>' : ''}
+      </div>
+      <div class="dialog-body">
+        <div class="progress-content">
+          <div id="progress-message" class="progress-message">${message}</div>
+          <div class="progress-container">
+            <div id="progress-bar" class="progress-bar" style="width: 0%"></div>
+          </div>
+          <div id="progress-percentage" class="progress-percentage">0%</div>
+        </div>
+      </div>
+    `;
+    
+    if (canCancel) {
+      content += `
+        <div class="dialog-footer">
+          <button id="cancel-progress-btn" class="action-button">取消</button>
+        </div>
+      `;
+    }
+    
+    // 顯示對話框
+    const dialog = this.showDialog(content, 'progress-dialog', {
+      width: '400px'
+    });
+    
+    // 綁定取消按鈕事件
+    if (canCancel) {
+      const cancelBtn = document.getElementById('cancel-progress-btn');
+      const closeBtn = document.getElementById('close-progress-dialog');
+      
+      const cancelHandler = () => {
+        this.closeDialog();
+        if (typeof onCancel === 'function') {
+          onCancel();
+        }
+      };
+      
+      if (cancelBtn) {
+        cancelBtn.addEventListener('click', cancelHandler);
+      }
+      
+      if (closeBtn) {
+        closeBtn.addEventListener('click', cancelHandler);
+      }
+    }
+    
+    // 返回對話框和更新進度的函數
+    return {
+      dialog,
+      updateProgress: (percent, newMessage = null) => {
+        const progressBar = document.getElementById('progress-bar');
+        const percentageElement = document.getElementById('progress-percentage');
+        const messageElement = document.getElementById('progress-message');
+        
+        if (progressBar) {
+          progressBar.style.width = `${percent}%`;
+        }
+        
+        if (percentageElement) {
+          percentageElement.textContent = `${Math.round(percent)}%`;
+        }
+        
+        if (newMessage && messageElement) {
+          messageElement.textContent = newMessage;
+        }
+      }
+    };
   }
 }
 

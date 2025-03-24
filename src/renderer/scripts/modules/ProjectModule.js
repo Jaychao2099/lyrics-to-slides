@@ -31,6 +31,148 @@ class ProjectModule {
   }
   
   /**
+   * 初始化模塊
+   * @param {Object} dependencies - 依賴模塊
+   */
+  init(dependencies) {
+    this.dialogModule = dependencies.dialogModule;
+    this.lyricsModule = dependencies.lyricsModule;
+    this.slideModule = dependencies.slideModule;
+    this.previewModule = dependencies.previewModule;
+    this.exportModule = dependencies.exportModule;
+    this.settingsModule = dependencies.settingsModule;
+    
+    // 檢查electronAPI是否可用
+    if (window.electronAPI) {
+      // 設置IPC事件監聽器
+      window.electronAPI.on('project-open-result', this.handleProjectOpenResult.bind(this));
+      window.electronAPI.on('project-save-result', this.handleProjectSaveResult.bind(this));
+      console.log('項目模塊IPC事件已設置');
+    } else {
+      // electronAPI不可用時，顯示警告並以模擬模式繼續
+      console.warn('electronAPI不可用，項目模塊將以有限功能運行');
+      // 添加此方法以在electronAPI不可用時提供兼容性
+      window.electronAPI = window.electronAPI || {
+        on: (channel, listener) => {
+          console.log(`模擬監聽${channel}事件`);
+          // 返回一個空函數，用於移除監聽器時調用
+          return () => {};
+        },
+        send: (channel, ...args) => {
+          console.log(`模擬發送${channel}事件:`, args);
+        },
+        showOpenDialog: () => Promise.resolve({ canceled: true }),
+        showSaveDialog: () => Promise.resolve({ canceled: true }),
+        getAppPath: () => ''
+      };
+    }
+    
+    // 設置模塊間事件監聽
+    window.addEventListener('lyrics-updated', this.handleLyricsUpdated.bind(this));
+    window.addEventListener('slides-updated', this.handleSlidesUpdated.bind(this));
+    
+    // 綁定其他UI事件
+    this.bindUIEvents();
+    
+    console.log('項目模塊依賴已初始化');
+  }
+  
+  /**
+   * 綁定UI事件
+   */
+  bindUIEvents() {
+    // 在這裡綁定與項目相關的UI事件
+    const newProjectBtn = document.getElementById('new-project-btn');
+    const openProjectBtn = document.getElementById('open-project-btn');
+    const saveProjectBtn = document.getElementById('save-project-btn');
+    const saveAsProjectBtn = document.getElementById('save-as-project-btn');
+    
+    if (newProjectBtn) {
+      newProjectBtn.addEventListener('click', () => this.createNewProject());
+    }
+    
+    if (openProjectBtn) {
+      openProjectBtn.addEventListener('click', () => this.openProject());
+    }
+    
+    if (saveProjectBtn) {
+      saveProjectBtn.addEventListener('click', () => this.saveProject(false));
+    }
+    
+    if (saveAsProjectBtn) {
+      saveAsProjectBtn.addEventListener('click', () => this.saveProject(true));
+    }
+  }
+  
+  /**
+   * 處理項目開啟結果
+   * @param {Object} event - 事件對象
+   * @param {Object} result - 開啟結果
+   */
+  handleProjectOpenResult(event, result) {
+    if (result.success && result.data) {
+      this.loadProjectData(result.data);
+    } else {
+      window.showNotification('項目開啟失敗: ' + (result.error || '未知錯誤'), 'error');
+    }
+  }
+  
+  /**
+   * 處理項目保存結果
+   * @param {Object} event - 事件對象
+   * @param {Object} result - 保存結果
+   */
+  handleProjectSaveResult(event, result) {
+    if (result.success) {
+      this.savedPath = result.path;
+      this.isModified = false;
+      window.showNotification('項目已保存', 'success');
+    } else {
+      window.showNotification('項目保存失敗: ' + (result.error || '未知錯誤'), 'error');
+    }
+  }
+  
+  /**
+   * 處理歌詞更新事件
+   * @param {Event} event - 事件對象
+   */
+  handleLyricsUpdated(event) {
+    // 更新項目數據中的歌詞
+    if (event.detail && event.detail.lyrics) {
+      this.projectData.lyrics = event.detail.lyrics;
+      this.markAsModified();
+    }
+  }
+  
+  /**
+   * 處理投影片更新事件
+   * @param {Event} event - 事件對象
+   */
+  handleSlidesUpdated(event) {
+    // 更新項目數據中的投影片
+    if (event.detail && event.detail.slides) {
+      this.projectData.slides = event.detail.slides;
+      this.markAsModified();
+    }
+  }
+  
+  /**
+   * 標記項目為已修改
+   */
+  markAsModified() {
+    if (!this.isModified) {
+      this.isModified = true;
+      this.projectData.modified = new Date();
+      
+      // 更新UI以顯示未保存狀態
+      const projectNameElement = document.getElementById('project-name');
+      if (projectNameElement && !projectNameElement.textContent.endsWith('*')) {
+        projectNameElement.textContent += ' *';
+      }
+    }
+  }
+  
+  /**
    * 生成唯一ID
    * @returns {string} 唯一ID
    */
@@ -284,54 +426,213 @@ class ProjectModule {
   
   /**
    * 保存項目
-   * @param {boolean} forceSaveAs - 是否強制另存為
-   * @param {Function} callback - 保存後的回調函數
+   * @param {boolean} saveAs - 是否另存為
+   * @param {Function} callback - 保存完成後的回調函數
    */
-  saveProject(forceSaveAs = false, callback = null) {
-    // 如果沒有保存路徑或需要另存為，則請求保存路徑
-    if (!this.savedPath || forceSaveAs) {
-      window.electronAPI.send('save-project-as', this.prepareProjectDataForSave());
-    } else {
-      window.electronAPI.send('save-project', this.prepareProjectDataForSave());
+  saveProject(saveAs = false, callback) {
+    try {
+      // 如果需要另存為或尚未設置保存路徑
+      if (saveAs || !this.savedPath) {
+        this.showSaveDialog((filePath) => {
+          if (filePath) {
+            this.saveProjectToPath(filePath, callback);
+          }
+        });
+      } else {
+        // 直接保存到已有路徑
+        this.saveProjectToPath(this.savedPath, callback);
+      }
+    } catch (error) {
+      console.error('項目保存錯誤:', error);
+      if (window.modules && window.modules.dialogModule) {
+        window.modules.dialogModule.showAlertDialog(
+          `保存項目時發生錯誤: ${error.message}`, 
+          '保存失敗', 
+          'error'
+        );
+      }
+    }
+  }
+  
+  /**
+   * 顯示保存對話框
+   * @param {Function} callback - 選擇文件後的回調函數
+   */
+  showSaveDialog(callback) {
+    if (!window.electronAPI) {
+      console.error('無法訪問 electronAPI');
+      return;
     }
     
-    // 保存回調
-    if (callback) {
-      const handleSaved = (success) => {
-        if (success) {
-          callback();
-          window.electronAPI.removeListener('project-saved', handleSaved);
+    // 設置對話框選項
+    const options = {
+      title: '保存項目',
+      defaultPath: this.savedPath || window.electronAPI.getAppPath('documents'),
+      filters: [
+        { name: '歌曲投影片項目', extensions: ['lsp'] },
+        { name: '所有文件', extensions: ['*'] }
+      ],
+      properties: ['createDirectory', 'showOverwriteConfirmation']
+    };
+    
+    // 顯示保存對話框
+    window.electronAPI.showSaveDialog(options)
+      .then(result => {
+        if (!result.canceled && result.filePath) {
+          callback(result.filePath);
         }
-      };
+      })
+      .catch(error => {
+        console.error('顯示保存對話框時出錯:', error);
+        if (window.modules && window.modules.dialogModule) {
+          window.modules.dialogModule.showAlertDialog(
+            `顯示保存對話框時發生錯誤: ${error.message}`, 
+            '錯誤', 
+            'error'
+          );
+        }
+      });
+  }
+  
+  /**
+   * 將項目保存到指定路徑
+   * @param {string} filePath - 保存路徑
+   * @param {Function} callback - 保存完成後的回調函數
+   */
+  saveProjectToPath(filePath, callback) {
+    try {
+      // 準備保存數據
+      const dataToSave = this.prepareProjectDataForSave();
       
-      window.electronAPI.receive('project-saved', handleSaved);
+      // 檢查文件擴展名
+      let pathToSave = filePath;
+      if (!pathToSave.toLowerCase().endsWith('.lsp')) {
+        pathToSave += '.lsp';
+      }
+      
+      console.log('保存項目到:', pathToSave);
+      
+      // 更新項目信息
+      this.projectData.modified = new Date();
+      
+      // 如果是首次保存，可能需要設置項目名稱
+      if (!this.savedPath) {
+        // 從文件路徑提取項目名稱
+        const pathParts = pathToSave.split(/[/\\]/);
+        const fileName = pathParts[pathParts.length - 1];
+        const projectName = fileName.replace(/\.lsp$/i, '');
+        
+        // 更新項目名稱
+        this.projectData.name = projectName;
+      }
+      
+      // 保存路徑
+      this.savedPath = pathToSave;
+      
+      // 將數據轉換為JSON字符串
+      const jsonData = JSON.stringify(dataToSave, null, 2);
+      
+      // 發送保存請求到主進程
+      window.electronAPI.send('save-project', {
+        path: pathToSave,
+        data: jsonData
+      });
+      
+      // 標記為未修改
+      this.isModified = false;
+      
+      // 更新UI
+      document.getElementById('project-name').textContent = this.projectData.name;
+      
+      // 顯示通知
+      if (window.showNotification) {
+        window.showNotification('項目已成功保存', 'success');
+      }
+      
+      // 執行回調
+      if (typeof callback === 'function') {
+        callback(true);
+      }
+    } catch (error) {
+      console.error('保存項目時出錯:', error);
+      
+      if (window.modules && window.modules.dialogModule) {
+        window.modules.dialogModule.showAlertDialog(
+          `保存項目時發生錯誤: ${error.message}`, 
+          '保存失敗', 
+          'error'
+        );
+      }
+      
+      // 執行回調並標記失敗
+      if (typeof callback === 'function') {
+        callback(false);
+      }
     }
   }
   
   /**
    * 準備項目數據用於保存
-   * @returns {Object} 項目數據
+   * @returns {Object} 準備好的項目數據
    */
   prepareProjectDataForSave() {
-    // 更新修改時間
-    this.projectData.modified = new Date();
+    // 創建數據副本，避免修改原始數據
+    const saveData = JSON.parse(JSON.stringify(this.projectData));
     
-    // 獲取最新的歌詞數據
-    if (window.lyricsModule) {
-      this.projectData.lyrics = window.lyricsModule.getLyricsData();
+    // 添加保存路徑信息
+    saveData.path = this.savedPath;
+    
+    // 添加項目版本信息
+    saveData.appVersion = {
+      version: '1.0.0', // 應該從主進程獲取
+      saveFormat: '1'
+    };
+    
+    // 添加時間戳
+    saveData.saveTime = new Date().toISOString();
+    
+    return saveData;
+  }
+  
+  /**
+   * 添加資源到項目
+   * @param {Object} resource - 資源對象
+   * @returns {string} 資源ID
+   */
+  addResource(resource) {
+    // 確保資源有一個ID
+    if (!resource.id) {
+      resource.id = this.generateId();
     }
     
-    // 獲取最新的投影片數據
-    if (window.slideModule) {
-      this.projectData.slides = window.slideModule.getSlidesData();
+    // 確保項目有資源數組
+    if (!this.projectData.resources) {
+      this.projectData.resources = [];
     }
     
-    // 添加路徑（如果有）
-    if (this.savedPath) {
-      this.projectData.path = this.savedPath;
+    // 添加資源
+    this.projectData.resources.push(resource);
+    
+    // 標記項目為已修改
+    this.markAsModified();
+    
+    // 返回資源ID
+    return resource.id;
+  }
+  
+  /**
+   * 獲取資源
+   * @param {string} resourceId - 資源ID
+   * @returns {Object|null} 資源對象或null
+   */
+  getResource(resourceId) {
+    // 確保項目有資源數組
+    if (!this.projectData.resources) {
+      return null;
     }
     
-    return this.projectData;
+    // 查找並返回資源
+    return this.projectData.resources.find(r => r.id === resourceId) || null;
   }
   
   /**
@@ -339,37 +640,45 @@ class ProjectModule {
    * @param {Object} info - 項目信息
    */
   updateProjectInfo(info) {
-    if (!info) return;
-    
-    // 更新項目數據
-    if (info.title) {
+    // 更新項目信息
+    if (info.title !== undefined) {
       this.projectData.title = info.title;
-      this.projectData.name = info.title; // 同時更新項目名稱
+      
+      // 更新UI
+      const titleElement = document.getElementById('song-title');
+      if (titleElement) {
+        titleElement.textContent = info.title || '尚未設置歌曲';
+      }
     }
     
-    if (info.artist) {
+    if (info.artist !== undefined) {
       this.projectData.artist = info.artist;
+      
+      // 更新UI
+      const artistElement = document.getElementById('artist-name');
+      if (artistElement) {
+        artistElement.textContent = info.artist || '未知藝人';
+      }
     }
     
-    if (info.source) {
+    if (info.source !== undefined) {
       this.projectData.source = info.source;
     }
     
-    if (info.sourceUrl) {
+    if (info.sourceUrl !== undefined) {
       this.projectData.sourceUrl = info.sourceUrl;
     }
     
-    if (info.language) {
+    if (info.language !== undefined) {
       this.projectData.language = info.language;
     }
     
-    // 標記項目已修改
-    this.isModified = true;
-    
-    // 更新UI
-    if (info.title) {
-      document.getElementById('project-name').textContent = info.title;
+    if (info.lyrics !== undefined) {
+      this.projectData.lyrics = info.lyrics;
     }
+    
+    // 標記項目為已修改
+    this.markAsModified();
   }
   
   /**
@@ -394,13 +703,6 @@ class ProjectModule {
    */
   setSavedPath(path) {
     this.savedPath = path;
-  }
-  
-  /**
-   * 標記項目已修改
-   */
-  markAsModified() {
-    this.isModified = true;
   }
   
   /**

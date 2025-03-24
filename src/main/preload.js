@@ -4,7 +4,6 @@
  */
 
 const { contextBridge, ipcRenderer } = require('electron');
-const os = require('os');
 
 // 定義暴露給渲染進程的 API
 contextBridge.exposeInMainWorld('electronAPI', {
@@ -32,7 +31,22 @@ contextBridge.exposeInMainWorld('electronAPI', {
       'update-settings',
       'open-dev-tools',
       'renderer-ready',
-      'onboarding-complete'
+      'onboarding-complete',
+      'import-lyrics-text',
+      'menu-new-project',
+      'menu-open-project',
+      'menu-save-project',
+      'menu-save-project-as',
+      'menu-search-lyrics',
+      'menu-export',
+      'menu-theme-changed',
+      'menu-preferences',
+      'menu-api-keys',
+      'menu-check-updates',
+      'cancel-export',
+      'cancel-image-generation',
+      'app-ready',
+      'check-for-updates'
     ];
     
     if (validChannels.includes(channel)) {
@@ -67,7 +81,19 @@ contextBridge.exposeInMainWorld('electronAPI', {
       'settings-updated',
       'update-available',
       'update-downloaded',
-      'setup-completed'
+      'setup-completed',
+      'menu-new-project',
+      'menu-open-project',
+      'menu-save-project',
+      'menu-save-project-as',
+      'menu-search-lyrics',
+      'menu-export',
+      'menu-theme-changed',
+      'menu-preferences',
+      'menu-api-keys',
+      'menu-check-updates',
+      'show-lyrics-search-dialog',
+      'show-lyrics-import-dialog'
     ];
     
     if (validChannels.includes(channel)) {
@@ -115,11 +141,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
     platform: process.platform,
     arch: process.arch,
     version: process.versions.electron,
-    osVersion: os.release(),
-    cpuCores: os.cpus().length,
-    totalMemory: os.totalmem(),
-    freeMemory: os.freemem(),
-    hostname: os.hostname()
+    osVersion: process.getSystemVersion ? process.getSystemVersion() : 'unknown',
+    cpuCores: navigator.hardwareConcurrency || 1,
+    totalMemory: 'N/A',
+    freeMemory: 'N/A',
+    hostname: 'user-device'
   }),
   
   // 打開開發者工具
@@ -192,6 +218,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   
   // 歌詞相關
   searchLyrics: (query) => ipcRenderer.invoke('search-lyrics', query),
+  getLyrics: (resultId) => ipcRenderer.invoke('get-lyrics', resultId),
   
   // 圖像生成相關
   generateImage: (params) => ipcRenderer.invoke('generate-image', params),
@@ -227,7 +254,17 @@ contextBridge.exposeInMainWorld('electronAPI', {
       'export-progress',
       'export-complete',
       'project-saved',
-      'project-loaded'
+      'project-loaded',
+      'menu-new-project',
+      'menu-open-project',
+      'menu-save-project',
+      'menu-save-project-as',
+      'menu-search-lyrics',
+      'menu-export',
+      'menu-theme-changed',
+      'menu-preferences',
+      'menu-api-keys',
+      'menu-check-updates'
     ];
     
     if (validChannels.includes(channel)) {
@@ -248,9 +285,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
 // 應用程序可用後通知主進程
 window.addEventListener('DOMContentLoaded', () => {
+  // 在DOMContentLoaded事件後通知主進程渲染器已準備好
+  console.log('preload: DOM已載入，通知主進程渲染器已準備好');
   ipcRenderer.send('renderer-ready');
-  
-  // 添加控制台日誌以幫助調試
-  console.log('預載入腳本已加載，渲染進程就緒');
-  console.log('可用的API方法:', Object.keys(window.electronAPI).join(', '));
 }); 

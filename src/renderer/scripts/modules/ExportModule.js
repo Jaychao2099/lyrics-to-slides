@@ -262,67 +262,331 @@ class ExportModule {
   /**
    * 開始匯出流程
    */
-  async startExport() {
-    if (this.exportInProgress) return;
+  startExport() {
+    // 檢查是否已經有匯出進行中
+    if (this.exportInProgress) {
+      console.warn('匯出正在進行中，請等待當前匯出完成');
+      if (this.dialogModule) {
+        this.dialogModule.showAlertDialog('匯出正在進行中，請稍候', '匯出進行中', 'info');
+      }
+      return;
+    }
     
-    // 驗證輸出選項
+    // 驗證輸出設定
     if (!this.validateExportOptions()) {
       return;
     }
     
-    // 獲取項目數據
+    // 獲取專案數據
     const projectData = this.projectModule.getProjectData();
-    
-    // 確保有投影片可匯出
-    if (!projectData.slides || projectData.slides.length === 0) {
-      this.dialogModule.showAlertDialog('沒有可匯出的投影片。請先創建投影片。');
+    if (!projectData || !projectData.slides || projectData.slides.length === 0) {
+      console.error('沒有投影片可供匯出');
+      this.dialogModule.showAlertDialog('沒有可匯出的投影片', '匯出失敗', 'error');
       return;
     }
     
-    // 顯示進度UI
+    // 配置匯出選項
+    const exportOptions = {
+      ...this.exportOptions,
+      projectData: this.prepareProjectDataForExport(projectData),
+      format: this.exportOptions.format,
+      outputPath: this.getOutputFilePath(projectData.name || '未命名簡報')
+    };
+    
+    console.log('開始匯出，選項:', exportOptions);
+    
+    // 顯示匯出進度
     this.showExportProgress();
     
-    // 標記匯出中
+    // 設置匯出狀態
     this.exportInProgress = true;
-    this.exportProgress = 0;
-    this.updateProgressBar(0, '準備匯出...');
     
-    try {
-      // 準備匯出選項
-      const exportOptions = {
-        format: this.exportOptions.format,
-        quality: this.exportOptions.quality,
-        includeTransitions: this.exportOptions.includeTransitions,
-        includeNotes: this.exportOptions.includeNotes,
-        outputDirectory: this.exportOptions.outputDirectory,
-        filename: this.getFilename(),
-        project: projectData
-      };
-      
-      // 發送匯出請求到主進程
-      window.electronAPI.exportSlideshow(exportOptions);
-    } catch (error) {
-      console.error('啟動匯出失敗:', error);
-      this.hideExportProgress();
-      this.exportInProgress = false;
-      this.dialogModule.showAlertDialog(`匯出失敗: ${error.message || '未知錯誤'}`);
+    // 根據選擇的格式調用不同的匯出方法
+    switch (this.exportOptions.format) {
+      case 'pptx':
+        this.exportToPPTX(exportOptions);
+        break;
+      case 'pdf':
+        this.exportToPDF(exportOptions);
+        break;
+      case 'images':
+        this.exportToImages(exportOptions);
+        break;
+      case 'video':
+        this.exportToVideo(exportOptions);
+        break;
+      case 'html':
+        this.exportToHTML(exportOptions);
+        break;
+      default:
+        this.exportInProgress = false;
+        this.hideExportProgress();
+        this.dialogModule.showAlertDialog(`不支援的匯出格式: ${this.exportOptions.format}`, '匯出失敗', 'error');
     }
   }
   
   /**
-   * 取消當前匯出
+   * 驗證匯出選項
+   * @returns {boolean} 是否有效
    */
-  cancelExport() {
-    if (!this.exportInProgress) return;
+  validateExportOptions() {
+    // 檢查輸出路徑
+    if (!this.exportOptions.outputDirectory) {
+      this.dialogModule.showAlertDialog('請選擇輸出位置', '無效的輸出位置', 'warning');
+      return false;
+    }
     
-    try {
-      // 發送取消請求到主進程
-      window.electronAPI.send('cancel-export');
+    // 檢查檔案名稱
+    if (!this.exportOptions.filename) {
+      this.dialogModule.showAlertDialog('請輸入檔案名稱', '無效的檔案名稱', 'warning');
+      return false;
+    }
+    
+    // 檢查檔案名稱中的非法字元
+    const illegalChars = /[\\/:*?"<>|]/;
+    if (illegalChars.test(this.exportOptions.filename)) {
+      this.dialogModule.showAlertDialog('檔案名稱包含非法字元 (\\/:*?"<>|)', '無效的檔案名稱', 'warning');
+      return false;
+    }
+    
+    return true;
+  }
+  
+  /**
+   * 獲取完整的輸出文件路徑
+   * @param {string} projectName - 項目名稱
+   * @returns {string} 完整的輸出路徑
+   */
+  getOutputFilePath(projectName) {
+    let filename = this.exportOptions.filename || projectName;
+    
+    // 如果是圖片集，創建一個文件夾
+    if (this.exportOptions.format === 'images') {
+      return `${this.exportOptions.outputDirectory}/${filename}`;
+    }
+    
+    // 添加適當的副檔名
+    let extension = '';
+    switch (this.exportOptions.format) {
+      case 'pptx':
+        extension = '.pptx';
+        break;
+      case 'pdf':
+        extension = '.pdf';
+        break;
+      case 'video':
+        extension = '.mp4';
+        break;
+      case 'html':
+        extension = '.html';
+        break;
+    }
+    
+    return `${this.exportOptions.outputDirectory}/${filename}${extension}`;
+  }
+  
+  /**
+   * 準備項目數據用於匯出
+   * @param {Object} projectData - 原始項目數據
+   * @returns {Object} 準備好用於匯出的數據
+   */
+  prepareProjectDataForExport(projectData) {
+    // 創建一個深拷貝，避免修改原始數據
+    const exportData = JSON.parse(JSON.stringify(projectData));
+    
+    // 確保包含必要的元數據
+    exportData.metadata = {
+      title: projectData.title || '未命名簡報',
+      author: projectData.artist || '未知作者',
+      createdAt: new Date().toISOString(),
+      application: '歌曲投影片生成器',
+      version: '1.0.0'
+    };
+    
+    return exportData;
+  }
+  
+  /**
+   * 顯示匯出進度界面
+   */
+  showExportProgress() {
+    // 隱藏匯出配置界面
+    const exportConfig = document.getElementById('export-config');
+    if (exportConfig) {
+      exportConfig.style.display = 'none';
+    }
+    
+    // 顯示進度界面
+    const exportProgress = document.getElementById('export-progress');
+    if (exportProgress) {
+      exportProgress.style.display = 'flex';
       
-      // 更新進度狀態
-      this.updateProgressBar(this.exportProgress, '正在取消匯出...');
-    } catch (error) {
-      console.error('取消匯出失敗:', error);
+      // 更新進度文本
+      const progressStatus = document.getElementById('progress-status');
+      if (progressStatus) {
+        progressStatus.textContent = '準備匯出...';
+      }
+      
+      // 重置進度條
+      const progressBar = document.getElementById('progress-bar');
+      if (progressBar) {
+        progressBar.style.width = '0%';
+      }
+    }
+  }
+  
+  /**
+   * 隱藏匯出進度界面
+   */
+  hideExportProgress() {
+    // 顯示匯出配置界面
+    const exportConfig = document.getElementById('export-config');
+    if (exportConfig) {
+      exportConfig.style.display = 'block';
+    }
+    
+    // 隱藏進度界面
+    const exportProgress = document.getElementById('export-progress');
+    if (exportProgress) {
+      exportProgress.style.display = 'none';
+    }
+  }
+  
+  /**
+   * 匯出為PPTX格式
+   * @param {Object} options - 匯出選項
+   */
+  exportToPPTX(options) {
+    console.log('開始匯出為PPTX格式', options);
+    
+    // 更新進度狀態
+    this.updateExportProgress(10, '正在創建PPT結構...');
+    
+    // 使用IPC調用主進程的匯出功能
+    window.electronAPI.send('export-slideshow', {
+      format: 'pptx',
+      outputPath: options.outputPath,
+      data: options.projectData,
+      options: {
+        includeTransitions: this.exportOptions.includeTransitions,
+        includeNotes: this.exportOptions.includeNotes
+      }
+    });
+  }
+  
+  /**
+   * 匯出為PDF格式
+   * @param {Object} options - 匯出選項
+   */
+  exportToPDF(options) {
+    console.log('開始匯出為PDF格式', options);
+    
+    // 更新進度狀態
+    this.updateExportProgress(10, '正在創建PDF結構...');
+    
+    // 使用IPC調用主進程的匯出功能
+    window.electronAPI.send('export-slideshow', {
+      format: 'pdf',
+      outputPath: options.outputPath,
+      data: options.projectData,
+      options: {
+        quality: this.exportOptions.quality,
+        includeTransitions: this.exportOptions.includeTransitions
+      }
+    });
+  }
+  
+  /**
+   * 匯出為圖片集
+   * @param {Object} options - 匯出選項
+   */
+  exportToImages(options) {
+    console.log('開始匯出為圖片集', options);
+    
+    // 更新進度狀態
+    this.updateExportProgress(10, '正在準備圖片...');
+    
+    // 使用IPC調用主進程的匯出功能
+    window.electronAPI.send('export-slideshow', {
+      format: 'images',
+      outputPath: options.outputPath,
+      data: options.projectData,
+      options: {
+        quality: this.exportOptions.quality,
+        imageFormat: 'png' // 或 'jpg'，根據需要
+      }
+    });
+  }
+  
+  /**
+   * 匯出為視頻
+   * @param {Object} options - 匯出選項
+   */
+  exportToVideo(options) {
+    console.log('開始匯出為視頻', options);
+    
+    // 更新進度狀態
+    this.updateExportProgress(10, '正在準備視頻編碼器...');
+    
+    // 使用IPC調用主進程的匯出功能
+    window.electronAPI.send('export-slideshow', {
+      format: 'video',
+      outputPath: options.outputPath,
+      data: options.projectData,
+      options: {
+        quality: this.exportOptions.quality,
+        framerate: 30,
+        transitionDuration: 1.5 // 秒
+      }
+    });
+  }
+  
+  /**
+   * 匯出為HTML
+   * @param {Object} options - 匯出選項
+   */
+  exportToHTML(options) {
+    console.log('開始匯出為HTML', options);
+    
+    // 更新進度狀態
+    this.updateExportProgress(10, '正在創建HTML結構...');
+    
+    // 使用IPC調用主進程的匯出功能
+    window.electronAPI.send('export-slideshow', {
+      format: 'html',
+      outputPath: options.outputPath,
+      data: options.projectData,
+      options: {
+        includeControls: true,
+        autoSlide: false,
+        themeColor: '#000000'
+      }
+    });
+  }
+  
+  /**
+   * 更新匯出進度
+   * @param {number} percent - 進度百分比 (0-100)
+   * @param {string} message - 進度消息
+   */
+  updateExportProgress(percent, message) {
+    // 更新進度條
+    const progressBar = document.getElementById('progress-bar');
+    if (progressBar) {
+      progressBar.style.width = `${percent}%`;
+    }
+    
+    // 更新進度文本
+    const progressStatus = document.getElementById('progress-status');
+    if (progressStatus) {
+      progressStatus.textContent = message;
+    }
+    
+    // 如果進度達到100%，顯示完成信息
+    if (percent >= 100) {
+      if (progressStatus) {
+        progressStatus.textContent = '匯出完成!';
+      }
     }
   }
   
@@ -333,10 +597,10 @@ class ExportModule {
   handleExportProgress(progressData) {
     if (!this.exportInProgress) return;
     
-    this.exportProgress = progressData.percentage || 0;
-    this.updateProgressBar(
-      this.exportProgress, 
-      progressData.status || `正在匯出... ${this.exportProgress}%`
+    // 更新進度界面
+    this.updateExportProgress(
+      progressData.percent || 0, 
+      progressData.message || '處理中...'
     );
   }
   
@@ -345,223 +609,65 @@ class ExportModule {
    * @param {Object} result - 匯出結果
    */
   handleExportComplete(result) {
+    // 重置匯出狀態
     this.exportInProgress = false;
-    this.hideExportProgress();
     
+    // 處理結果
     if (result.error) {
-      this.dialogModule.showAlertDialog(`匯出失敗: ${result.error}`);
+      console.error('匯出失敗:', result.error);
+      this.dialogModule.showAlertDialog(`匯出失敗: ${result.error}`, '匯出錯誤', 'error');
+      this.hideExportProgress();
       return;
     }
     
-    // 顯示成功消息，並提供打開文件選項
+    // 更新進度為100%
+    this.updateExportProgress(100, '匯出完成!');
+    
+    // 顯示成功對話框
     this.dialogModule.showConfirmDialog(
-      `投影片已成功匯出至:\n${result.outputPath}`,
+      `匯出成功!\n檔案已保存到: ${result.outputPath}`,
       () => {
-        // 打開文件或文件夾
-        window.electronAPI.openExternalLink(`file://${result.outputPath}`);
+        // 打開輸出位置
+        if (window.electronAPI) {
+          window.electronAPI.send('open-output-location', result.outputPath);
+        }
+        this.hideExportProgress();
       },
-      null,
+      () => {
+        this.hideExportProgress();
+      },
       {
         title: '匯出完成',
-        confirmText: '打開檔案位置',
+        confirmText: '打開位置',
         cancelText: '關閉'
       }
     );
   }
   
   /**
-   * 顯示匯出進度UI
+   * 取消匯出
    */
-  showExportProgress() {
-    // 隱藏匯出選項
-    const optionsContainer = this.elements.exportContainer.querySelector('.export-options');
-    if (optionsContainer) {
-      optionsContainer.style.display = 'none';
-    }
+  cancelExport() {
+    if (!this.exportInProgress) return;
     
-    // 顯示進度容器
-    if (this.elements.exportProgress) {
-      this.elements.exportProgress.style.display = 'flex';
-    }
-    
-    // 停用匯出按鈕
-    if (this.elements.exportButton) {
-      this.elements.exportButton.disabled = true;
-    }
-    
-    // 啟用取消按鈕
-    if (this.elements.cancelButton) {
-      this.elements.cancelButton.style.display = 'block';
-    }
-  }
-  
-  /**
-   * 隱藏匯出進度UI
-   */
-  hideExportProgress() {
-    // 顯示匯出選項
-    const optionsContainer = this.elements.exportContainer.querySelector('.export-options');
-    if (optionsContainer) {
-      optionsContainer.style.display = 'block';
-    }
-    
-    // 隱藏進度容器
-    if (this.elements.exportProgress) {
-      this.elements.exportProgress.style.display = 'none';
-    }
-    
-    // 啟用匯出按鈕
-    if (this.elements.exportButton) {
-      this.elements.exportButton.disabled = false;
-    }
-    
-    // 隱藏取消按鈕
-    if (this.elements.cancelButton) {
-      this.elements.cancelButton.style.display = 'none';
-    }
-  }
-  
-  /**
-   * 更新進度條
-   * @param {number} percentage - 進度百分比
-   * @param {string} status - 狀態文字
-   */
-  updateProgressBar(percentage, status) {
-    if (this.elements.progressBar) {
-      this.elements.progressBar.value = percentage;
-    }
-    
-    if (this.elements.progressStatus) {
-      this.elements.progressStatus.textContent = status;
-    }
-  }
-  
-  /**
-   * 驗證匯出選項
-   * @returns {boolean} 是否驗證通過
-   */
-  validateExportOptions() {
-    // 檢查輸出目錄
-    if (!this.exportOptions.outputDirectory) {
-      this.dialogModule.showAlertDialog('請選擇輸出位置');
-      return false;
-    }
-    
-    // 檢查檔案名稱
-    if (!this.exportOptions.filename) {
-      // 如果用戶沒有輸入檔名，使用項目名稱或默認名稱
-      const projectData = this.projectModule.getProjectData();
-      this.exportOptions.filename = projectData.name || '歌曲投影片';
-      
-      // 更新輸入框
-      if (this.elements.filenameInput) {
-        this.elements.filenameInput.value = this.exportOptions.filename;
-      }
-    }
-    
-    return true;
-  }
-  
-  /**
-   * 獲取完整檔案名稱（含適當的副檔名）
-   * @returns {string} 檔案名稱
-   */
-  getFilename() {
-    let filename = this.exportOptions.filename;
-    
-    // 確保檔名不含不合法字符
-    filename = this.sanitizeFilename(filename);
-    
-    // 圖片集不添加副檔名
-    if (this.exportOptions.format === 'images') {
-      return filename;
-    }
-    
-    // 根據格式添加副檔名
-    const extensionMap = {
-      'pptx': '.pptx',
-      'pdf': '.pdf',
-      'video': '.mp4',
-      'html': '.html'
-    };
-    
-    const extension = extensionMap[this.exportOptions.format] || '';
-    
-    // 避免重複副檔名
-    if (filename.toLowerCase().endsWith(extension)) {
-      return filename;
-    }
-    
-    return filename + extension;
-  }
-  
-  /**
-   * 過濾檔案名稱中的不合法字符
-   * @param {string} filename - 原始檔案名稱
-   * @returns {string} 過濾後的檔案名稱
-   */
-  sanitizeFilename(filename) {
-    return filename.replace(/[\\/:*?"<>|]/g, '_');
-  }
-  
-  /**
-   * 加載匯出選項
-   * @param {Object} projectData - 項目數據
-   */
-  loadExportOptions(projectData) {
-    // 設置檔案名稱
-    this.exportOptions.filename = projectData.name || '歌曲投影片';
-    if (this.elements.filenameInput) {
-      this.elements.filenameInput.value = this.exportOptions.filename;
-    }
-    
-    // 從項目設置中載入匯出格式和品質
-    if (projectData.settings?.export) {
-      // 設置格式
-      if (projectData.settings.export.format) {
-        this.exportOptions.format = projectData.settings.export.format;
+    // 確認是否取消
+    this.dialogModule.showConfirmDialog(
+      '確定要取消當前匯出嗎？',
+      () => {
+        // 發送取消請求
+        window.electronAPI.send('cancel-export');
         
-        // 更新單選框
-        const formatRadio = document.querySelector(`input[name="export-format"][value="${this.exportOptions.format}"]`);
-        if (formatRadio) {
-          formatRadio.checked = true;
-        }
+        // 重置匯出狀態
+        this.exportInProgress = false;
+        this.hideExportProgress();
+      },
+      null,
+      {
+        title: '取消匯出',
+        confirmText: '是',
+        cancelText: '否'
       }
-      
-      // 設置品質
-      if (projectData.settings.export.quality) {
-        this.exportOptions.quality = projectData.settings.export.quality;
-        
-        // 更新單選框
-        const qualityRadio = document.querySelector(`input[name="export-quality"][value="${this.exportOptions.quality}"]`);
-        if (qualityRadio) {
-          qualityRadio.checked = true;
-        }
-      }
-    }
-    
-    // 更新格式相關選項
-    this.updateFormatDependentOptions();
-  }
-  
-  /**
-   * 保存當前匯出選項到項目設置
-   */
-  saveExportOptions() {
-    if (!this.projectModule) return;
-    
-    const projectData = this.projectModule.getProjectData();
-    
-    // 更新項目匯出設置
-    if (!projectData.settings.export) {
-      projectData.settings.export = {};
-    }
-    
-    projectData.settings.export.format = this.exportOptions.format;
-    projectData.settings.export.quality = this.exportOptions.quality;
-    
-    // 標記項目為已修改
-    this.projectModule.markAsModified();
+    );
   }
 }
 

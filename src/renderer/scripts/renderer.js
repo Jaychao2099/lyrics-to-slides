@@ -32,15 +32,23 @@ function initApp() {
   window.showNotification = showNotification;
   
   // 顯示加載畫面
-  document.getElementById('loading-screen').style.display = 'flex';
+  const loadingScreen = document.getElementById('loading');
+  if (loadingScreen) {
+    loadingScreen.style.display = 'flex';
+  }
   
   // 延遲顯示應用界面以確保所有初始化完成
   setTimeout(() => {
-    document.getElementById('loading-screen').style.opacity = '0';
-    setTimeout(() => {
-      document.getElementById('loading-screen').style.display = 'none';
-      document.getElementById('app-container').style.opacity = '1';
-    }, 500);
+    if (loadingScreen) {
+      loadingScreen.style.opacity = '0';
+      setTimeout(() => {
+        loadingScreen.style.display = 'none';
+        const appContainer = document.getElementById('app');
+        if (appContainer) {
+          appContainer.style.opacity = '1';
+        }
+      }, 500);
+    }
   }, 1000);
 }
 
@@ -48,45 +56,151 @@ function initApp() {
  * 初始化應用模塊
  */
 function initModules() {
-  // 創建模塊實例
-  const projectModule = new ProjectModule();
-  const lyricsModule = new LyricsModule();
-  const dialogModule = new DialogModule();
-  const slideModule = new SlideModule();
-  const previewModule = new PreviewModule();
-  const exportModule = new ExportModule();
-  const settingsModule = new SettingsModule();
-  
-  // 初始化依賴關係
-  const dependencies = {
-    projectModule,
-    lyricsModule,
-    dialogModule,
-    slideModule,
-    previewModule,
-    exportModule,
-    settingsModule
-  };
-  
-  // 依次初始化所有模塊
-  dialogModule.init(dependencies);
-  projectModule.init(dependencies);
-  lyricsModule.init(dependencies);
-  slideModule.init(dependencies);
-  previewModule.init(dependencies);
-  exportModule.init(dependencies);
-  settingsModule.init(dependencies);
-  
-  // 將模塊綁定到窗口對象，方便全局訪問
-  window.modules = dependencies;
-  
-  console.log('所有模塊初始化完成');
+  try {
+    // 確認所有必要的模組類別已定義
+    if (!window.DialogModule || !window.ProjectModule || !window.LyricsModule || 
+        !window.SlideModule || !window.PreviewModule || !window.ExportModule || 
+        !window.SettingsModule) {
+      console.error('模塊類別尚未完全載入，請檢查腳本引用');
+      showModuleLoadError();
+      return;
+    }
+    
+    // 創建模塊實例
+    const dialogModule = new DialogModule();
+    const projectModule = new ProjectModule();
+    const lyricsModule = new LyricsModule();
+    const slideModule = new SlideModule();
+    const previewModule = new PreviewModule();
+    const exportModule = new ExportModule();
+    const settingsModule = new SettingsModule();
+    
+    // 初始化依賴關係
+    const dependencies = {
+      dialogModule,
+      projectModule,
+      lyricsModule,
+      slideModule,
+      previewModule,
+      exportModule,
+      settingsModule
+    };
+    
+    // 以正確的順序初始化所有模塊
+    try {
+      // 檢查每個模塊是否有init方法，如果沒有則提供一個空的init方法
+      Object.keys(dependencies).forEach(key => {
+        const module = dependencies[key];
+        if (typeof module.init !== 'function') {
+          console.warn(`${key} 沒有init方法，將提供空實現`);
+          module.init = function(deps) {
+            console.log(`${key} 使用自動生成的空init方法`);
+          };
+        }
+      });
+      
+      // 首先初始化對話框模塊，因為它被其他模塊使用
+      dialogModule.init(dependencies);
+      // 其次初始化項目模塊，它是其他模塊的核心依賴
+      projectModule.init(dependencies);
+      // 然後初始化其他模塊
+      lyricsModule.init(dependencies);
+      slideModule.init(dependencies);
+      previewModule.init(dependencies);
+      exportModule.init(dependencies);
+      settingsModule.init(dependencies);
+      
+      // 將模塊綁定到窗口對象，方便全局訪問
+      window.modules = dependencies;
+      window.dialogModule = dialogModule; // 為舊代碼提供兼容性
+      
+      console.log('所有模塊初始化完成');
+      
+      // 觸發應用程式初始化完成事件
+      window.dispatchEvent(new CustomEvent('app-ready'));
+    } catch (error) {
+      console.error('模塊初始化過程中發生錯誤:', error);
+      showModuleInitError(error);
+    }
+  } catch (error) {
+    console.error('模塊創建過程中發生錯誤:', error);
+    showModuleCreateError(error);
+  }
+}
+
+/**
+ * 顯示模塊載入錯誤
+ */
+function showModuleLoadError() {
+  const appContainer = document.getElementById('app');
+  if (appContainer) {
+    appContainer.innerHTML = `
+      <div class="error-container">
+        <h2>應用程式載入失敗</h2>
+        <p>無法載入必要的程式模塊。請重新整理頁面或重新啟動應用程式。</p>
+        <button onclick="location.reload()">重新載入</button>
+      </div>
+    `;
+  }
+}
+
+/**
+ * 顯示模塊創建錯誤
+ */
+function showModuleCreateError(error) {
+  const appContainer = document.getElementById('app');
+  if (appContainer) {
+    appContainer.innerHTML = `
+      <div class="error-container">
+        <h2>應用程式初始化失敗</h2>
+        <p>創建模塊時發生錯誤：${error.message}</p>
+        <button onclick="location.reload()">重新載入</button>
+      </div>
+    `;
+  }
+}
+
+/**
+ * 顯示模塊初始化錯誤
+ */
+function showModuleInitError(error) {
+  const appContainer = document.getElementById('app');
+  if (appContainer) {
+    appContainer.innerHTML = `
+      <div class="error-container">
+        <h2>應用程式初始化失敗</h2>
+        <p>初始化模塊時發生錯誤：${error.message}</p>
+        <button onclick="location.reload()">重新載入</button>
+      </div>
+    `;
+  }
 }
 
 /**
  * 初始化 IPC 事件監聽器
  */
 function initIPCListeners() {
+  // 檢查是否有electronAPI
+  if (!window.electronAPI) {
+    console.warn('electronAPI不可用，跳過IPC事件監聽器設置');
+    
+    // 創建模擬的electronAPI以避免錯誤
+    window.electronAPI = {
+      on: (channel, callback) => {
+        console.log(`模擬監聽${channel}事件`);
+        return () => {}; // 返回移除監聽器函數
+      },
+      send: (channel, ...args) => {
+        console.log(`模擬發送${channel}事件:`, args);
+      },
+      showOpenDialog: () => Promise.resolve({ canceled: true }),
+      showSaveDialog: () => Promise.resolve({ canceled: true }),
+      getAppPath: () => ''
+    };
+    
+    return;
+  }
+
   // 註冊 IPC 事件監聽
   
   // 新項目菜單事件
