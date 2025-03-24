@@ -323,8 +323,8 @@
                 <div class="option-group">
                   <h3>輸出位置</h3>
                   <div class="output-location">
-                    <input type="text" id="output-path" readonly>
-                    <button id="browse-output-btn" class="action-button small">瀏覽...</button>
+                    <input type="text" id="output-path">
+                    <button id="browse-output-btn" class="action-button small">瀏覽</button>
                   </div>
                 </div>
               </div>
@@ -435,62 +435,121 @@
   <!-- 腳本 -->
   <script src="./scripts/renderer.js" defer></script>
   <script>
-    // 在DOM載入後，顯示應用程序
     document.addEventListener('DOMContentLoaded', () => {
-      // 模擬載入時間
-      setTimeout(() => {
-        document.body.classList.add('loaded');
-      }, 1000);
-      
-      // 監聽標題欄按鈕
-      const minButton = document.getElementById('min-button');
-      const maxButton = document.getElementById('max-button');
-      const closeButton = document.getElementById('close-button');
-      
-      if (minButton) {
-        minButton.addEventListener('click', () => {
-          window.electronAPI.send('minimize-window');
-        });
-      }
-      
-      if (maxButton) {
-        maxButton.addEventListener('click', () => {
-          window.electronAPI.send('maximize-window');
-        });
-      }
-      
-      if (closeButton) {
-        closeButton.addEventListener('click', () => {
-          window.electronAPI.send('close-window');
-        });
-      }
-      
-      // 監聽側邊欄導航
-      const navItems = document.querySelectorAll('.nav-item');
-      const sections = document.querySelectorAll('.section, .active-section');
-      
-      navItems.forEach(item => {
-        item.addEventListener('click', () => {
-          // 移除所有導航項目的活動狀態
-          navItems.forEach(navItem => navItem.classList.remove('active'));
-          
-          // 添加當前項目的活動狀態
-          item.classList.add('active');
-          
-          // 顯示相應的內容區塊
-          const sectionId = item.getAttribute('data-section');
-          sections.forEach(section => {
-            section.classList.remove('active-section');
-            section.classList.add('section');
-          });
-          
-          const targetSection = document.getElementById(`${sectionId}-section`);
-          if (targetSection) {
-            targetSection.classList.remove('section');
-            targetSection.classList.add('active-section');
-          }
-        });
-      });
+        console.log('頁面已完成載入');
+
+        // 移除載入畫面
+        setTimeout(() => {
+            document.body.classList.add('loaded');
+            console.log('應用程式已準備好，移除載入畫面');
+            
+            // 通知主進程頁面已準備就緒
+            if (window.electronAPI && typeof window.electronAPI.send === 'function') {
+                try {
+                    window.electronAPI.send('renderer-ready');
+                    console.log('已通知主進程頁面準備就緒');
+                } catch (err) {
+                    console.error('通知主進程頁面準備就緒時出錯:', err);
+                }
+            }
+        }, 1000);
+
+        // 檢查 electronAPI 是否可用
+        if (window.electronAPI) {
+            console.log('electronAPI 可用');
+            
+            // 接收設置完成事件
+            window.electronAPI.receive('setup-completed', (data) => {
+                console.log('收到設置完成事件', data);
+                
+                // 更新輸出路徑到界面
+                try {
+                    // 更新輸出路徑顯示（如果有相關元素）
+                    const outputPathElement = document.getElementById('output-path');
+                    if (outputPathElement && data.outputPath) {
+                        console.log('更新輸出路徑顯示為：', data.outputPath);
+                        outputPathElement.value = data.outputPath;
+                        // 如果存在於localStorage中，也更新它
+                        localStorage.setItem('outputPath', data.outputPath);
+                    }
+                    
+                    // 應用語言設置
+                    if (data.locale) {
+                        console.log('設置語言為：', data.locale);
+                        // 如果應用程序支持多語言，在這裡切換語言
+                        document.documentElement.lang = data.locale;
+                    }
+                    
+                    // 顯示成功訊息
+                    console.log('已成功應用初始設置');
+                } catch (error) {
+                    console.error('應用設置時出錯：', error);
+                }
+            });
+            
+            // 監聽瀏覽按鈕點擊事件
+            document.addEventListener('click', (event) => {
+                if (event.target.id === 'browse-output-btn' || event.target.classList.contains('browse-button')) {
+                    console.log('點擊了瀏覽按鈕');
+                    handleBrowseButtonClick();
+                }
+            });
+            
+            // 瀏覽按鈕處理函數
+            async function handleBrowseButtonClick() {
+                console.log('處理瀏覽按鈕點擊');
+                try {
+                    // 獲取當前輸出路徑
+                    let currentPath = '';
+                    const outputPathElement = document.getElementById('output-path');
+                    if (outputPathElement) {
+                        currentPath = outputPathElement.value || '';
+                    } else {
+                        // 嘗試從存儲中獲取
+                        currentPath = localStorage.getItem('outputPath') || '';
+                        if (!currentPath) {
+                            try {
+                                currentPath = await window.electronAPI.getStoreValue('outputPath');
+                            } catch (e) {
+                                console.error('無法從存儲中獲取路徑：', e);
+                            }
+                        }
+                    }
+                    
+                    console.log('當前路徑：', currentPath);
+                    
+                    // 打開目錄選擇對話框
+                    const result = await window.electronAPI.showOpenDialog({
+                        properties: ['openDirectory'],
+                        title: '選擇輸出目錄',
+                        defaultPath: currentPath || await window.electronAPI.getAppPath('downloads'),
+                        buttonLabel: '選擇此目錄'
+                    });
+                    
+                    console.log('對話框結果：', result);
+                    
+                    if (result && !result.canceled && result.filePaths && result.filePaths.length > 0) {
+                        const selectedPath = result.filePaths[0];
+                        console.log('已選擇路徑：', selectedPath);
+                        
+                        // 更新界面
+                        if (outputPathElement) {
+                            outputPathElement.value = selectedPath;
+                        }
+                        
+                        // 儲存到設定
+                        await window.electronAPI.setStoreValue('outputPath', selectedPath);
+                        localStorage.setItem('outputPath', selectedPath);
+                        console.log('已儲存新的輸出路徑');
+                    }
+                } catch (error) {
+                    console.error('瀏覽目錄時出錯：', error);
+                    alert('選擇目錄時發生錯誤，請稍後再試');
+                }
+            }
+        } else {
+            console.error('electronAPI 不可用');
+        }
     });
   </script>
 </body>

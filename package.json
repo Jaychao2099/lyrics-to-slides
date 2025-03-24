@@ -6,6 +6,7 @@
   "scripts": {
     "start": "electron .",
     "dev": "electron . --dev",
+    "reset": "npm cache clean --force && rimraf node_modules && npm install",
     "build": "electron-builder",
     "build:win": "electron-builder --win",
     "build:mac": "electron-builder --mac",
@@ -24,15 +25,15 @@
   "devDependencies": {
     "electron": "^28.2.0",
     "electron-builder": "^24.9.1",
-    "jest": "^29.7.0"
+    "jest": "^29.7.0",
+    "rimraf": "^5.0.10"
   },
   "dependencies": {
+    "@marp-team/marp-core": "^3.9.0",
     "axios": "^1.6.2",
-    "better-sqlite3": "^9.2.2",
     "electron-log": "^5.0.1",
     "electron-store": "^8.1.0",
     "electron-updater": "^6.1.7",
-    "marp-core": "^3.9.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "tailwindcss": "^3.4.0"
@@ -59,4 +60,4 @@
       "output": "dist"
     }
   }
-} 
+}

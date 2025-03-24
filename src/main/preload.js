@@ -29,11 +29,17 @@ contextBridge.exposeInMainWorld('electronAPI', {
       'export-slideshow',
       'select-output-path',
       'get-settings',
-      'update-settings'
+      'update-settings',
+      'open-dev-tools',
+      'renderer-ready',
+      'onboarding-complete'
     ];
     
     if (validChannels.includes(channel)) {
+      console.log(`preload: 發送 ${channel} 訊息`);
       ipcRenderer.send(channel, ...args);
+    } else {
+      console.error(`preload: 嘗試發送未授權頻道 ${channel} 的訊息`);
     }
   },
   
@@ -60,7 +66,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
       'settings-data',
       'settings-updated',
       'update-available',
-      'update-downloaded'
+      'update-downloaded',
+      'setup-completed'
     ];
     
     if (validChannels.includes(channel)) {
@@ -115,10 +122,59 @@ contextBridge.exposeInMainWorld('electronAPI', {
     hostname: os.hostname()
   }),
   
+  // 打開開發者工具
+  openDevTools: () => ipcRenderer.send('open-dev-tools'),
+  
   // 檔案對話框
-  showOpenDialog: (options) => ipcRenderer.invoke('show-open-dialog', options),
-  showSaveDialog: (options) => ipcRenderer.invoke('show-save-dialog', options),
-  showMessageBox: (options) => ipcRenderer.invoke('show-message-box', options),
+  showOpenDialog: (options) => {
+    console.log('preload: 呼叫showOpenDialog, 選項:', options);
+    try {
+      // 處理選項，確保它們是安全的
+      const safeOptions = {
+        ...options,
+        properties: Array.isArray(options.properties) ? options.properties : ['openDirectory'],
+        title: options.title || '選擇目錄',
+        buttonLabel: options.buttonLabel || '選擇'
+      };
+      
+      console.log('preload: 處理後的對話框選項:', safeOptions);
+      
+      return ipcRenderer.invoke('show-open-dialog', safeOptions)
+        .then(result => {
+          console.log('preload: showOpenDialog成功結果:', result);
+          return result;
+        })
+        .catch(err => {
+          console.error('preload: showOpenDialog錯誤:', err);
+          // 創建更友好的錯誤對象返回給渲染進程
+          return {
+            canceled: true,
+            error: {
+              message: err.message || '選擇檔案時發生錯誤',
+              code: err.code || 'UNKNOWN_ERROR'
+            }
+          };
+        });
+    } catch (error) {
+      console.error('preload: 調用showOpenDialog時發生異常:', error);
+      // 返回一個取消狀態而不是拋出錯誤，讓UI可以處理
+      return Promise.resolve({
+        canceled: true,
+        error: {
+          message: error.message || '處理檔案對話框請求時發生錯誤',
+          code: 'PROCESS_ERROR'
+        }
+      });
+    }
+  },
+  showSaveDialog: (options) => {
+    console.log('preload: 呼叫showSaveDialog');
+    return ipcRenderer.invoke('show-save-dialog', options);
+  },
+  showMessageBox: (options) => {
+    console.log('preload: 呼叫showMessageBox');
+    return ipcRenderer.invoke('show-message-box', options);
+  },
   
   // 外部連結
   openExternalLink: (url) => ipcRenderer.invoke('open-external-link', url),
@@ -144,6 +200,19 @@ contextBridge.exposeInMainWorld('electronAPI', {
   checkForUpdates: () => ipcRenderer.invoke('check-for-updates'),
   downloadUpdate: () => ipcRenderer.invoke('download-update'),
   installUpdate: () => ipcRenderer.invoke('install-update'),
+  
+  // 引導設置相關
+  onboardingComplete: (data) => {
+    console.log('preload: 調用 onboardingComplete 方法，數據:', data);
+    try {
+      ipcRenderer.send('onboarding-complete', data);
+      console.log('preload: 成功發送 onboarding-complete 事件');
+      return true;
+    } catch (error) {
+      console.error('preload: 發送 onboarding-complete 事件時出錯:', error);
+      return false;
+    }
+  },
   
   // 事件監聽器
   on: (channel, callback) => {
@@ -174,22 +243,14 @@ contextBridge.exposeInMainWorld('electronAPI', {
         ipcRenderer.removeListener(channel, subscription);
       };
     }
-  },
-  
-  // 發送一次性事件
-  send: (channel, data) => {
-    // 允許的事件通道
-    const validChannels = [
-      'onboarding-complete'
-    ];
-    
-    if (validChannels.includes(channel)) {
-      ipcRenderer.send(channel, data);
-    }
   }
 });
 
 // 應用程序可用後通知主進程
 window.addEventListener('DOMContentLoaded', () => {
   ipcRenderer.send('renderer-ready');
+  
+  // 添加控制台日誌以幫助調試
+  console.log('預載入腳本已加載，渲染進程就緒');
+  console.log('可用的API方法:', Object.keys(window.electronAPI).join(', '));
 }); 
