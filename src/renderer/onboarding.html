@@ -1,0 +1,586 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>歡迎使用歌曲投影片生成器</title>
+    <style>
+        * {
+          margin: 0;
+          padding: 0;
+          box-sizing: border-box;
+          font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        
+        body {
+          background-color: #f5f7fa;
+          color: #333;
+          line-height: 1.6;
+        }
+        
+        .onboarding-container {
+          max-width: 700px;
+          margin: 0 auto;
+          padding: 20px;
+          min-height: 100vh;
+          display: flex;
+          flex-direction: column;
+        }
+        
+        .header {
+          text-align: center;
+          margin-bottom: 40px;
+          padding-top: 20px;
+        }
+        
+        .header h1 {
+          font-size: 28px;
+          color: #2563eb;
+          margin-bottom: 8px;
+        }
+        
+        .header p {
+          font-size: 16px;
+          color: #64748b;
+        }
+        
+        .content {
+          flex: 1;
+          background-color: white;
+          border-radius: 12px;
+          box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+          padding: 30px;
+        }
+        
+        .step {
+          display: none;
+        }
+        
+        .step.active {
+          display: block;
+        }
+        
+        .step h2 {
+          font-size: 22px;
+          margin-bottom: 16px;
+          color: #1e293b;
+        }
+        
+        .step p {
+          margin-bottom: 20px;
+          color: #475569;
+        }
+        
+        .step .input-group,
+        .step .select-group,
+        .step .checkbox-group {
+          margin: 24px 0;
+        }
+        
+        .step input[type="text"] {
+          width: 75%;
+          padding: 10px;
+          border: 1px solid #cbd5e1;
+          border-radius: 6px;
+          font-size: 14px;
+        }
+        
+        .step select {
+          width: 100%;
+          padding: 10px;
+          border: 1px solid #cbd5e1;
+          border-radius: 6px;
+          font-size: 14px;
+          background-color: white;
+        }
+        
+        .step button {
+          padding: 8px 20px;
+          border: none;
+          border-radius: 6px;
+          cursor: pointer;
+          font-size: 14px;
+          font-weight: 500;
+          transition: all 0.2s ease;
+        }
+        
+        #browseBtn {
+          background-color: #e2e8f0;
+          color: #334155;
+          margin-left: 10px;
+        }
+        
+        #browseBtn:hover {
+          background-color: #cbd5e1;
+        }
+        
+        .step .button-group {
+          margin-top: 40px;
+          display: flex;
+          justify-content: space-between;
+        }
+        
+        .back-btn {
+          background-color: #e2e8f0;
+          color: #334155;
+        }
+        
+        .back-btn:hover {
+          background-color: #cbd5e1;
+        }
+        
+        .next-btn, .finish-btn {
+          background-color: #2563eb;
+          color: white;
+        }
+        
+        .next-btn:hover, .finish-btn:hover {
+          background-color: #1d4ed8;
+        }
+    </style>
+</head>
+<body>
+    <div class="onboarding-container">
+        <div class="header">
+            <h1>歡迎使用歌曲投影片生成器</h1>
+            <p>讓我們幫您快速設置應用程式</p>
+        </div>
+
+        <div class="content">
+            <div class="steps">
+                <div class="step active" id="step1">
+                    <h2>歡迎</h2>
+                    <p>這個應用程式可以幫助您將歌詞轉換為精美的投影片。我們將幫助您完成初始設置。</p>
+                    <div class="button-group">
+                        <button id="next1" class="next-btn">下一步</button>
+                    </div>
+                </div>
+
+                <div class="step" id="step2">
+                    <h2>選擇輸出目錄</h2>
+                    <p>請選擇您想要保存投影片的默認位置：</p>
+                    <div class="input-group">
+                        <input type="text" id="outputPath">
+                        <button id="browseBtn">瀏覽</button>
+                    </div>
+                    <p class="helper-text" style="font-size: 12px; color: #718096;">可直接輸入路徑或點擊瀏覽選擇目錄</p>
+                    <div class="button-group">
+                        <button id="back2" class="back-btn">上一步</button>
+                        <button id="next2" class="next-btn">下一步</button>
+                    </div>
+                </div>
+
+                <div class="step" id="step3">
+                    <h2>選擇語言</h2>
+                    <p>請選擇您偏好的顯示語言：</p>
+                    <div class="select-group">
+                        <select id="language">
+                            <option value="zh-TW" selected>繁體中文</option>
+                            <option value="en">English</option>
+                        </select>
+                    </div>
+                    <div class="button-group">
+                        <button id="back3" class="back-btn">上一步</button>
+                        <button id="next3" class="next-btn">下一步</button>
+                    </div>
+                </div>
+
+                <div class="step" id="step4">
+                    <h2>自動更新</h2>
+                    <p>您希望應用程式自動檢查並安裝更新嗎？</p>
+                    <div class="checkbox-group">
+                        <input type="checkbox" id="autoUpdate" checked>
+                        <label for="autoUpdate">啟用自動更新</label>
+                    </div>
+                    <div class="button-group">
+                        <button id="back4" class="back-btn">上一步</button>
+                        <button id="next4" class="next-btn">下一步</button>
+                    </div>
+                </div>
+
+                <div class="step" id="step5">
+                    <h2>設置完成！</h2>
+                    <p>您已完成初始設置，現在可以開始使用歌曲投影片生成器了。</p>
+                    <div class="button-group">
+                        <button id="back5" class="back-btn">上一步</button>
+                        <button id="finish" class="finish-btn">完成</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            console.log('引導腳本已載入');
+            
+            // 取得所有步驟元素和按鈕
+            const steps = document.querySelectorAll('.step');
+            const nextButtons = document.querySelectorAll('.next-btn');
+            const backButtons = document.querySelectorAll('.back-btn');
+            const finishButton = document.querySelector('#finish');
+            const browseButton = document.querySelector('#browseBtn');
+            const outputPathInput = document.querySelector('#outputPath');
+            const autoUpdateCheckbox = document.querySelector('#autoUpdate');
+            const languageSelect = document.querySelector('#language');
+
+            console.log(`找到 ${steps.length} 個步驟元素`);
+            console.log(`找到 ${nextButtons.length} 個下一步按鈕`);
+            console.log(`找到 ${backButtons.length} 個上一步按鈕`);
+            
+            // 設置當前步驟
+            let currentStep = 0;
+
+            // 顯示指定步驟
+            function showStep(stepIndex) {
+                console.log(`切換到步驟 ${stepIndex}`);
+                // 隱藏所有步驟
+                steps.forEach(step => step.classList.remove('active'));
+                // 顯示當前步驟
+                steps[stepIndex].classList.add('active');
+                currentStep = stepIndex;
+            }
+
+            try {
+                // 設置默認輸出路徑為下載目錄
+                if (window.electronAPI) {
+                    console.log('API可用，嘗試獲取下載路徑');
+                    
+                    // 優先使用同步方式設置一個預設值，避免初始路徑為空
+                    outputPathInput.value = '正在載入預設路徑...';
+                    
+                    // 嘗試使用多種方法獲取下載路徑
+                    const setDefaultPath = async () => {
+                        let defaultPath = '';
+                        
+                        // 方法1: 使用getAppPath方法
+                        if (typeof window.electronAPI.getAppPath === 'function') {
+                            try {
+                                console.log('嘗試獲取下載路徑 (getAppPath)');
+                                defaultPath = await window.electronAPI.getAppPath('downloads');
+                                console.log('獲取到下載路徑:', defaultPath);
+                                if (defaultPath) {
+                                    outputPathInput.value = defaultPath;
+                                    return;
+                                }
+                            } catch (err) {
+                                console.error('獲取下載路徑失敗 (getAppPath):', err);
+                            }
+                        }
+                        
+                        // 方法2: 使用getStoreValue方法
+                        if (!defaultPath && typeof window.electronAPI.getStoreValue === 'function') {
+                            try {
+                                console.log('嘗試獲取下載路徑 (getStoreValue)');
+                                defaultPath = await window.electronAPI.getStoreValue('outputPath');
+                                console.log('從存儲獲取到路徑:', defaultPath);
+                                if (defaultPath) {
+                                    outputPathInput.value = defaultPath;
+                                    return;
+                                }
+                            } catch (err) {
+                                console.error('從存儲獲取路徑失敗:', err);
+                            }
+                        }
+                        
+                        // 方法3: 使用預設文檔目錄
+                        if (!defaultPath && typeof window.electronAPI.getAppPath === 'function') {
+                            try {
+                                console.log('嘗試獲取文檔路徑');
+                                defaultPath = await window.electronAPI.getAppPath('documents');
+                                console.log('獲取到文檔路徑:', defaultPath);
+                                if (defaultPath) {
+                                    outputPathInput.value = defaultPath;
+                                    return;
+                                }
+                            } catch (err) {
+                                console.error('獲取文檔路徑失敗:', err);
+                            }
+                        }
+                        
+                        // 方法4: 使用用戶主目錄
+                        if (!defaultPath && typeof window.electronAPI.getAppPath === 'function') {
+                            try {
+                                console.log('嘗試獲取主目錄路徑');
+                                defaultPath = await window.electronAPI.getAppPath('home');
+                                console.log('獲取到主目錄路徑:', defaultPath);
+                                if (defaultPath) {
+                                    outputPathInput.value = defaultPath;
+                                    return;
+                                }
+                            } catch (err) {
+                                console.error('獲取主目錄路徑失敗:', err);
+                            }
+                        }
+                        
+                        // 如果所有方法都失敗，清空輸入框讓用戶手動輸入
+                        if (!defaultPath) {
+                            console.error('無法獲取任何預設路徑');
+                            outputPathInput.value = '';
+                        }
+                    };
+                    
+                    // 執行異步路徑獲取
+                    setDefaultPath().catch(err => {
+                        console.error('設置預設路徑時出錯:', err);
+                        outputPathInput.value = '';
+                    });
+                } else {
+                    console.error('electronAPI 不可用，無法獲取系統路徑');
+                    outputPathInput.value = '請輸入路徑';
+                }
+            } catch (error) {
+                console.error('初始化路徑時出錯', error);
+                outputPathInput.value = '';
+            }
+
+            // 下一步按鈕事件
+            nextButtons.forEach((button, index) => {
+                button.addEventListener('click', () => {
+                    console.log(`點擊下一步按鈕 ${index}`);
+                    showStep(index + 1);
+                });
+            });
+
+            // 上一步按鈕事件
+            backButtons.forEach((button, index) => {
+                button.addEventListener('click', () => {
+                    console.log(`點擊上一步按鈕 ${index}`);
+                    showStep(index);
+                });
+            });
+
+            // 處理瀏覽按鈕點擊
+            if (browseButton) {
+                browseButton.addEventListener('click', async () => {
+                    console.log('瀏覽按鈕被點擊');
+                    try {
+                        // 檢查API是否完整
+                        if (!window.electronAPI) {
+                            console.error('electronAPI 不存在');
+                            alert('無法訪問系統功能，請手動輸入路徑');
+                            return;
+                        }
+                        
+                        // 檢查dialog功能是否存在
+                        if (typeof window.electronAPI.showOpenDialog !== 'function') {
+                            console.error('electronAPI.showOpenDialog 方法不存在');
+                            console.log('嘗試使用備用方法獲取預設路徑');
+                            
+                            try {
+                                // 嘗試獲取下載目錄
+                                if (typeof window.electronAPI.getAppPath === 'function') {
+                                    const path = await window.electronAPI.getAppPath('downloads');
+                                    outputPathInput.value = path;
+                                    console.log('已設置預設下載路徑:', path);
+                                } else {
+                                    console.error('getAppPath 方法也不存在');
+                                    // 使用本機存儲的上一次路徑
+                                    const savedSettings = localStorage.getItem('userSettings');
+                                    if (savedSettings) {
+                                        try {
+                                            const settings = JSON.parse(savedSettings);
+                                            if (settings.outputPath) {
+                                                outputPathInput.value = settings.outputPath;
+                                                console.log('使用本機存儲的路徑:', settings.outputPath);
+                                            }
+                                        } catch (e) {
+                                            console.error('解析本機存儲失敗:', e);
+                                        }
+                                    }
+                                }
+                            } catch (pathError) {
+                                console.error('獲取預設路徑失敗:', pathError);
+                            }
+                            
+                            alert('無法開啟檔案瀏覽器，請手動輸入路徑');
+                            return;
+                        }
+                        
+                        console.log('正在調用showOpenDialog');
+                        
+                        // 備份當前路徑
+                        const currentPath = outputPathInput.value || '';
+                        
+                        // 顯示正在選擇
+                        outputPathInput.value = "正在選擇路徑...";
+                        
+                        try {
+                            const result = await window.electronAPI.showOpenDialog({
+                                properties: ['openDirectory'],
+                                title: '選擇輸出目錄',
+                                buttonLabel: '選擇此目錄'
+                            });
+                            
+                            console.log('對話框結果:', result);
+                            
+                            if (result && !result.canceled && result.filePaths && result.filePaths.length > 0) {
+                                outputPathInput.value = result.filePaths[0];
+                                console.log('已選擇路徑:', result.filePaths[0]);
+                            } else {
+                                console.log('用戶取消了選擇或發生錯誤');
+                                // 如果用戶取消，恢復原路徑
+                                if (currentPath && currentPath !== "正在選擇路徑...") {
+                                    outputPathInput.value = currentPath;
+                                } else if (typeof window.electronAPI.getAppPath === 'function') {
+                                    try {
+                                        const downloads = await window.electronAPI.getAppPath('downloads');
+                                        outputPathInput.value = downloads;
+                                        console.log('已恢復為下載目錄:', downloads);
+                                    } catch (e) {
+                                        console.error('獲取下載目錄失敗:', e);
+                                        outputPathInput.value = "";
+                                    }
+                                } else {
+                                    outputPathInput.value = "";
+                                }
+                            }
+                        } catch (dialogError) {
+                            console.error('開啟對話框失敗:', dialogError);
+                            alert('開啟檔案選擇器時發生錯誤，請手動輸入路徑');
+                            // 恢復原始路徑或清空
+                            if (currentPath && currentPath !== "正在選擇路徑...") {
+                                outputPathInput.value = currentPath;
+                            } else {
+                                outputPathInput.value = "";
+                            }
+                        }
+                    } catch (error) {
+                        console.error('瀏覽按鈕處理錯誤:', error);
+                        alert('無法執行瀏覽功能，請手動輸入路徑');
+                        outputPathInput.value = "";
+                    }
+                });
+            } else {
+                console.error('找不到瀏覽按鈕元素');
+            }
+
+            // 完成按鈕事件
+            if (finishButton) {
+                finishButton.addEventListener('click', () => {
+                    console.log('點擊完成按鈕');
+                    try {
+                        // 驗證輸出路徑
+                        const outputPath = outputPathInput.value.trim();
+                        if (!outputPath) {
+                            alert('請指定輸出目錄！');
+                            return;
+                        }
+                        
+                        // 收集設置數據
+                        const userSettings = {
+                            outputPath: outputPath,
+                            autoUpdate: autoUpdateCheckbox.checked,
+                            locale: languageSelect.value
+                        };
+                        
+                        console.log('用戶設置:', userSettings);
+                        
+                        // 添加反饋訊息
+                        const finishText = document.querySelector('#step5 p');
+                        if (finishText) {
+                            finishText.textContent = '正在儲存設定...';
+                        }
+                        
+                        // 禁用按鈕，防止重複點擊
+                        finishButton.disabled = true;
+                        finishButton.textContent = '處理中...';
+                        
+                        // 檢查API是否可用
+                        console.log('可用的API方法:', Object.keys(window.electronAPI || {}).join(', '));
+                        
+                        // 嘗試各種方式發送事件
+                        let success = false;
+                        
+                        // 方式1: 直接使用send方法
+                        if (window.electronAPI && typeof window.electronAPI.send === 'function') {
+                            console.log('嘗試使用 electronAPI.send 方法發送完成事件');
+                            try {
+                                window.electronAPI.send('onboarding-complete', userSettings);
+                                console.log('已通過 send 方法發送 onboarding-complete 事件');
+                                success = true;
+                            } catch (e) {
+                                console.error('通過 send 方法發送事件失敗:', e);
+                            }
+                        }
+                        
+                        // 方式2: 使用onboardingComplete方法
+                        if (!success && window.electronAPI && typeof window.electronAPI.onboardingComplete === 'function') {
+                            console.log('嘗試使用 electronAPI.onboardingComplete 方法');
+                            try {
+                                const result = window.electronAPI.onboardingComplete(userSettings);
+                                console.log('onboardingComplete 結果:', result);
+                                success = true;
+                            } catch (e) {
+                                console.error('通過 onboardingComplete 方法發送事件失敗:', e);
+                            }
+                        }
+                        
+                        // 方式3: 使用原生IPC (僅作為備用)
+                        if (!success) {
+                            console.log('嘗試使用原生方式關閉視窗');
+                            try {
+                                // 將設置保存到 localStorage 以便主進程能夠讀取
+                                localStorage.setItem('userSettings', JSON.stringify(userSettings));
+                                console.log('使用者設定已儲存到 localStorage');
+                                
+                                // 發送一個自定義事件，以便在主進程中捕獲
+                                const event = new CustomEvent('onboarding-complete', { 
+                                    detail: userSettings 
+                                });
+                                window.dispatchEvent(event);
+                                console.log('發送了自定義事件 onboarding-complete');
+                                
+                                // 顯示成功訊息
+                                if (finishText) {
+                                    finishText.textContent = '設定已完成，視窗即將關閉';
+                                }
+                                
+                                // 延遲關閉，讓用戶看到反饋
+                                setTimeout(() => {
+                                    // 嘗試關閉自己的視窗
+                                    window.close();
+                                }, 2000);
+                                
+                                success = true;
+                            } catch (e) {
+                                console.error('通過原生方式關閉視窗失敗:', e);
+                            }
+                        }
+                        
+                        // 如果所有方法都失敗，顯示錯誤訊息
+                        if (!success) {
+                            console.error('所有通訊方法都失敗了');
+                            // 記錄當前可用的API
+                            console.log('當前可用的 API:', window.electronAPI ? Object.keys(window.electronAPI) : 'electronAPI不存在');
+                            alert('無法保存設置，但您可以關閉此視窗繼續使用應用程式');
+                            // 恢復按鈕狀態
+                            finishButton.disabled = false;
+                            finishButton.textContent = '完成';
+                            if (finishText) {
+                                finishText.textContent = '雖然無法自動保存設置，但您可以關閉此視窗繼續使用應用程式';
+                            }
+                        }
+                    } catch (error) {
+                        console.error('完成設置時出錯:', error);
+                        alert('儲存設定時發生錯誤: ' + error.message);
+                        // 恢復按鈕狀態
+                        finishButton.disabled = false;
+                        finishButton.textContent = '完成';
+                    }
+                });
+            }
+
+            // 開發調試：添加鍵盤事件
+            document.addEventListener('keydown', (event) => {
+                if (event.key === 'F12') {
+                    console.log('按下 F12 鍵');
+                    if (window.electronAPI && window.electronAPI.openDevTools) {
+                        window.electronAPI.openDevTools();
+                    }
+                }
+            });
+        });
+    </script>
+</body>
+</html>
