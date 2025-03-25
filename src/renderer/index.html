@@ -408,23 +408,41 @@
                 </div>
               </div>
               
+              <!-- API設置 -->
               <div class="settings-group">
-                <h3>API 金鑰</h3>
-                <div class="setting-item">
-                  <label for="openai-api-key">OpenAI API 金鑰</label>
-                  <div class="api-key-input">
-                    <input type="password" id="openai-api-key">
-                    <button id="toggle-openai-key" class="action-button small">顯示</button>
+                <h3>API設置</h3>
+                
+                <!-- 歌詞API設置 -->
+                <div class="api-section">
+                  <h4>搜尋歌詞/生成投影片</h4>
+                  <div class="api-container">
+                    <div id="lyrics-api-rows" class="api-rows">
+                      <!-- API列將由JavaScript動態添加 -->
+                    </div>
+                    <button id="add-lyrics-api" class="action-button">
+                      <span class="icon">➕</span>
+                      新增API
+                    </button>
                   </div>
                 </div>
-                <div class="setting-item">
-                  <label for="stability-api-key">Stability AI API 金鑰</label>
-                  <div class="api-key-input">
-                    <input type="password" id="stability-api-key">
-                    <button id="toggle-stability-key" class="action-button small">顯示</button>
+                
+                <!-- 背景API設置 -->
+                <div class="api-section">
+                  <h4>生成背景</h4>
+                  <div class="api-container">
+                    <div id="background-api-rows" class="api-rows">
+                      <!-- API列將由JavaScript動態添加 -->
+                    </div>
+                    <button id="add-background-api" class="action-button">
+                      <span class="icon">➕</span>
+                      新增API
+                    </button>
                   </div>
                 </div>
-                <p class="api-note">注意：API 金鑰僅保存在本地，不會傳送到其他地方。圖像生成服務可能產生費用，請參閱相關服務的定價說明。</p>
+                
+                <div class="settings-note">
+                  <p>注意：API金鑰將保存在本地，請妥善保管。使用圖片生成服務可能會產生費用。</p>
+                </div>
               </div>
               
               <div class="settings-actions">

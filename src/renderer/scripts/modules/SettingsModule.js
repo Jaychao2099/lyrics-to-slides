@@ -1,3 +1,19 @@
+// 定義全局通知方法
+window.showNotification = (message, type = 'info') => {
+  // 創建通知元素
+  const notification = document.createElement('div');
+  notification.className = `notification ${type}`;
+  notification.textContent = message;
+  
+  // 添加到頁面
+  document.body.appendChild(notification);
+  
+  // 3秒後自動移除
+  setTimeout(() => {
+    notification.remove();
+  }, 3000);
+};
+
 /**
  * 設定管理模塊
  * 負責應用程式設置和API金鑰管理
@@ -21,26 +37,18 @@ class SettingsModule {
       },
       // API設置
       api: {
-        openai: {
-          key: '',
-          model: 'dall-e-3',
-          usageLimit: 0
+        lyrics: {
+          apis: [],
+          defaultApi: null
         },
-        stability: {
-          key: '',
-          usageLimit: 0
-        },
-        musixmatch: {
-          key: '',
-          usageLimit: 0
+        background: {
+          apis: [],
+          defaultApi: null
         }
       },
       // 圖片生成設置
       imageGeneration: {
-        preferredProvider: 'openai',
-        defaultSize: '1024x1024',
-        defaultQuality: 'standard',
-        defaultStyle: 'vivid',
+        defaultSize: '1920x1080', // 與投影片解析度同步
         promptConfig: {
           useAIAssistant: true,
           appendKeywords: true,
@@ -74,13 +82,13 @@ class SettingsModule {
       outputPathInput: document.getElementById('default-output-path'),
       browseOutputButton: document.getElementById('browse-output-path'),
       defaultFormatSelector: document.getElementById('default-format'),
-      apiKeyInputs: {
-        openai: document.getElementById('openai-api-key'),
-        stability: document.getElementById('stability-api-key'),
-        musixmatch: document.getElementById('musixmatch-api-key')
-      },
       saveSettingsButton: document.getElementById('save-settings-btn'),
-      resetSettingsButton: document.getElementById('reset-settings-btn')
+      resetSettingsButton: document.getElementById('reset-settings-btn'),
+      // API相關元素
+      lyricsApiRows: document.getElementById('lyrics-api-rows'),
+      backgroundApiRows: document.getElementById('background-api-rows'),
+      addLyricsApiBtn: document.getElementById('add-lyrics-api'),
+      addBackgroundApiBtn: document.getElementById('add-background-api')
     };
     
     // 初始化事件監聽器
@@ -158,92 +166,67 @@ class SettingsModule {
       });
     }
     
-    // API金鑰輸入框
-    Object.keys(this.elements.apiKeyInputs).forEach(provider => {
-      const input = this.elements.apiKeyInputs[provider];
-      if (input) {
-        input.addEventListener('change', (e) => {
-          this.settings.api[provider].key = e.target.value;
-        });
+    // API相關事件監聽器
+    if (this.elements.addLyricsApiBtn) {
+      this.elements.addLyricsApiBtn.addEventListener('click', () => {
+        this.addApiRow('lyrics');
+      });
+    }
+    
+    if (this.elements.addBackgroundApiBtn) {
+      this.elements.addBackgroundApiBtn.addEventListener('click', () => {
+        this.addApiRow('background');
+      });
+    }
+    
+    // 委派事件監聽器
+    document.addEventListener('click', (e) => {
+      // 刪除API列
+      if (e.target.classList.contains('delete-api-row')) {
+        const row = e.target.closest('.api-row');
+        if (row) {
+          row.remove();
+        }
+      }
+      
+      // 驗證API金鑰
+      if (e.target.classList.contains('validate-api-key')) {
+        const row = e.target.closest('.api-row');
+        const type = e.target.dataset.type;
+        if (row && type) {
+          this.validateApiKey(row, type);
+        }
+      }
+      
+      // 切換API金鑰可見性
+      if (e.target.classList.contains('toggle-key-visibility')) {
+        const input = e.target.closest('.api-input-group').querySelector('.api-key');
+        if (input) {
+          this.toggleApiKeyVisibility(input, e.target);
+        }
+      }
+      
+      // 保存設定按鈕
+      if (e.target.id === 'save-settings-btn') {
+        this.saveSettings();
+      }
+      
+      // 重置設定按鈕
+      if (e.target.id === 'reset-settings-btn') {
+        this.confirmResetSettings();
       }
     });
     
-    // 保存設置按鈕
-    if (this.elements.saveSettingsButton) {
-      this.elements.saveSettingsButton.addEventListener('click', () => {
-        this.saveSettings();
-      });
-    }
-    
-    // 重置設置按鈕
-    if (this.elements.resetSettingsButton) {
-      this.elements.resetSettingsButton.addEventListener('click', () => {
-        this.confirmResetSettings();
-      });
-    }
-    
-    // 驗證API金鑰按鈕
-    const validateButtons = document.querySelectorAll('.validate-api-key');
-    validateButtons.forEach(button => {
-      button.addEventListener('click', (e) => {
-        const provider = e.target.getAttribute('data-provider');
-        if (provider) {
-          this.validateApiKey(provider);
+    // 監聽預設API變更
+    document.addEventListener('change', (e) => {
+      if (e.target.classList.contains('set-default-api')) {
+        const row = e.target.closest('.api-row');
+        const type = e.target.dataset.type;
+        if (row && type) {
+          this.setDefaultApi(row, type);
         }
-      });
+      }
     });
-    
-    // 修改API使用限額
-    const usageLimitInputs = document.querySelectorAll('.api-usage-limit');
-    usageLimitInputs.forEach(input => {
-      input.addEventListener('change', (e) => {
-        const provider = e.target.getAttribute('data-provider');
-        const value = parseFloat(e.target.value);
-        if (provider && !isNaN(value) && value >= 0) {
-          this.settings.api[provider].usageLimit = value;
-        }
-      });
-    });
-    
-    // 解析度選擇器
-    const resolutionSelect = document.getElementById('resolution-select');
-    if (resolutionSelect) {
-      resolutionSelect.addEventListener('change', (e) => {
-        this.settings.resolution.type = e.target.value;
-        
-        // 顯示/隱藏自訂解析度選項
-        const customResolutionDiv = document.querySelector('.custom-resolution');
-        if (customResolutionDiv) {
-          customResolutionDiv.style.display = e.target.value === 'custom' ? 'block' : 'none';
-        }
-      });
-    }
-    
-    // 自訂解析度寬度
-    const customWidth = document.getElementById('custom-width');
-    if (customWidth) {
-      customWidth.addEventListener('change', (e) => {
-        const value = parseInt(e.target.value);
-        if (!isNaN(value) && value >= 640 && value <= 3840) {
-          this.settings.resolution.width = value;
-        } else {
-          e.target.value = this.settings.resolution.width;
-        }
-      });
-    }
-    
-    // 自訂解析度高度
-    const customHeight = document.getElementById('custom-height');
-    if (customHeight) {
-      customHeight.addEventListener('change', (e) => {
-        const value = parseInt(e.target.value);
-        if (!isNaN(value) && value >= 480 && value <= 2160) {
-          this.settings.resolution.height = value;
-        } else {
-          e.target.value = this.settings.resolution.height;
-        }
-      });
-    }
   }
   
   /**
@@ -255,6 +238,22 @@ class SettingsModule {
       const savedSettings = await window.electronAPI.getStoreValue('settings');
       
       if (savedSettings) {
+        // 確保API設置的結構正確
+        if (!savedSettings.api) {
+          savedSettings.api = {
+            lyrics: { apis: [], defaultApi: null },
+            background: { apis: [], defaultApi: null }
+          };
+        }
+        
+        // 確保apis陣列存在
+        if (!Array.isArray(savedSettings.api.lyrics.apis)) {
+          savedSettings.api.lyrics.apis = [];
+        }
+        if (!Array.isArray(savedSettings.api.background.apis)) {
+          savedSettings.api.background.apis = [];
+        }
+        
         // 合併保存的設置與默認設置
         this.settings = this.mergeSettings(this.settings, savedSettings);
       }
@@ -315,52 +314,82 @@ class SettingsModule {
       this.elements.defaultFormatSelector.value = this.settings.output.defaultFormat;
     }
     
-    // API金鑰
-    Object.keys(this.elements.apiKeyInputs).forEach(provider => {
-      const input = this.elements.apiKeyInputs[provider];
-      if (input && this.settings.api[provider]) {
-        input.value = this.settings.api[provider].key;
-        
-        // 替換顯示，顯示部分掩碼的API金鑰
-        if (this.settings.api[provider].key) {
-          const maskedKey = this.maskApiKey(this.settings.api[provider].key);
-          const displayElement = document.getElementById(`${provider}-key-display`);
-          if (displayElement) {
-            displayElement.textContent = maskedKey;
-          }
-        }
-      }
-    });
-    
-    // API使用限額
-    Object.keys(this.settings.api).forEach(provider => {
-      const input = document.getElementById(`${provider}-usage-limit`);
-      if (input && this.settings.api[provider]) {
-        input.value = this.settings.api[provider].usageLimit;
-      }
-    });
-    
-    // 解析度設置
-    if (this.settings.resolution) {
-      const resolutionSelect = document.getElementById('resolution-select');
-      const customWidth = document.getElementById('custom-width');
-      const customHeight = document.getElementById('custom-height');
-      const customResolutionDiv = document.querySelector('.custom-resolution');
-      
-      if (resolutionSelect) {
-        resolutionSelect.value = this.settings.resolution.type || '16:9';
-      }
-      
-      if (customWidth && customHeight) {
-        customWidth.value = this.settings.resolution.width || 1920;
-        customHeight.value = this.settings.resolution.height || 1080;
-      }
-      
-      if (customResolutionDiv) {
-        customResolutionDiv.style.display = 
-          (this.settings.resolution.type === 'custom') ? 'block' : 'none';
-      }
+    // 應用API設置
+    this.applyApiSettings();
+  }
+  
+  /**
+   * 應用API設置到UI
+   */
+  applyApiSettings() {
+    // 確保API設置的結構正確
+    if (!this.settings.api) {
+      this.settings.api = {
+        lyrics: { apis: [], defaultApi: null },
+        background: { apis: [], defaultApi: null }
+      };
     }
+    
+    // 確保apis陣列存在
+    if (!Array.isArray(this.settings.api.lyrics.apis)) {
+      this.settings.api.lyrics.apis = [];
+    }
+    if (!Array.isArray(this.settings.api.background.apis)) {
+      this.settings.api.background.apis = [];
+    }
+    
+    // 清空現有API列
+    if (this.elements.lyricsApiRows) {
+      this.elements.lyricsApiRows.innerHTML = '';
+    }
+    if (this.elements.backgroundApiRows) {
+      this.elements.backgroundApiRows.innerHTML = '';
+    }
+    
+    // 添加歌詞API
+    this.settings.api.lyrics.apis.forEach(api => {
+      const row = this.createApiRow('lyrics', api);
+      if (this.elements.lyricsApiRows) {
+        this.elements.lyricsApiRows.appendChild(row);
+      }
+    });
+    
+    // 添加背景API
+    this.settings.api.background.apis.forEach(api => {
+      const row = this.createApiRow('background', api);
+      if (this.elements.backgroundApiRows) {
+        this.elements.backgroundApiRows.appendChild(row);
+      }
+    });
+  }
+  
+  /**
+   * 創建API列元素
+   * @param {string} type - API類型
+   * @param {Object} api - API資訊
+   * @returns {HTMLElement} API列元素
+   */
+  createApiRow(type, api) {
+    const row = document.createElement('div');
+    row.className = 'api-row';
+    row.innerHTML = `
+      <div class="api-input-group">
+        <input type="text" class="api-name" placeholder="API名稱" value="${api.name || ''}">
+        <div style="position: relative; flex: 1; display: flex;">
+          <input type="password" class="api-key" placeholder="API金鑰" value="${api.key || ''}">
+          <button type="button" class="toggle-key-visibility" title="顯示/隱藏">👁️</button>
+        </div>
+        <button class="action-button small validate-api-key" data-type="${type}">驗證</button>
+        <button class="action-button small delete-api-row">🗑️</button>
+      </div>
+      <div class="api-checkbox-group">
+        <label class="checkbox-label">
+          <input type="checkbox" class="set-default-api" data-type="${type}" ${api.isDefault ? 'checked' : ''}>
+          <span>設為預設</span>
+        </label>
+      </div>
+    `;
+    return row;
   }
   
   /**
@@ -368,18 +397,143 @@ class SettingsModule {
    */
   async saveSettings() {
     try {
+      console.log('正在保存設置...');
+      
+      // 收集API設置
+      this.settings.api.lyrics.apis = this.collectApiSettings('lyrics');
+      this.settings.api.background.apis = this.collectApiSettings('background');
+      
+      // 收集其他設置
+      this.collectGeneralSettings();
+      
       // 保存到存儲
-      await window.electronAPI.setStoreValue('settings', this.settings);
+      console.log('保存設置到電子存儲...', this.settings);
+      const result = await window.electronAPI.setStoreValue('settings', this.settings);
+      console.log('設置保存結果:', result);
       
       // 保存默認輸出路徑作為單獨設置（便於其他模塊直接使用）
-      await window.electronAPI.setStoreValue('outputPath', this.settings.output.defaultPath);
+      if (this.settings.output.defaultPath) {
+        await window.electronAPI.setStoreValue('outputPath', this.settings.output.defaultPath);
+      }
       
       // 顯示成功消息
       window.showNotification('設置已保存', 'success');
+      
+      // 顯示確認對話框
+      if (this.dialogModule && typeof this.dialogModule.showConfirmDialog === 'function') {
+        this.dialogModule.showConfirmDialog(
+          '您的設定已成功保存',
+          () => {
+            // 不需要額外的操作，對話框會自動關閉
+            console.log('設置保存確認對話框已關閉');
+          },
+          null,
+          {
+            title: '設定已保存',
+            confirmText: '確定',
+            cancelText: null, // 不顯示取消按鈕
+            type: 'info'
+          }
+        );
+      }
     } catch (error) {
       console.error('保存設置失敗:', error);
-      window.showNotification('保存設置失敗', 'error');
+      window.showNotification('保存設置失敗: ' + (error.message || '未知錯誤'), 'error');
+      
+      // 顯示錯誤對話框
+      if (this.dialogModule && typeof this.dialogModule.showConfirmDialog === 'function') {
+        this.dialogModule.showConfirmDialog(
+          `錯誤信息: ${error.message || '未知錯誤'}`,
+          () => {
+            // 不需要額外的操作，對話框會自動關閉
+            console.log('設置保存錯誤對話框已關閉');
+          },
+          null,
+          {
+            title: '保存設定失敗',
+            confirmText: '確定',
+            cancelText: null, // 不顯示取消按鈕
+            type: 'error'
+          }
+        );
+      }
     }
+  }
+  
+  /**
+   * 收集一般設置
+   */
+  collectGeneralSettings() {
+    // 主題
+    if (this.elements.themeSelector) {
+      this.settings.general.theme = this.elements.themeSelector.value;
+    }
+    
+    // 語言
+    if (this.elements.languageSelector) {
+      this.settings.general.language = this.elements.languageSelector.value;
+    }
+    
+    // 自動檢查更新
+    if (this.elements.autoSaveToggle) {
+      this.settings.general.checkUpdates = this.elements.autoSaveToggle.checked;
+    }
+    
+    // 解析度設置
+    const resolutionSelect = document.getElementById('resolution-select');
+    if (resolutionSelect) {
+      this.settings.resolution.type = resolutionSelect.value;
+    }
+    
+    // 自訂解析度
+    const customWidth = document.getElementById('custom-width');
+    const customHeight = document.getElementById('custom-height');
+    
+    if (customWidth && customHeight) {
+      const width = parseInt(customWidth.value);
+      const height = parseInt(customHeight.value);
+      
+      if (!isNaN(width) && width >= 640 && width <= 3840) {
+        this.settings.resolution.width = width;
+      }
+      
+      if (!isNaN(height) && height >= 480 && height <= 2160) {
+        this.settings.resolution.height = height;
+      }
+    }
+    
+    // 輸出位置
+    const outputPath = document.getElementById('output-path');
+    if (outputPath) {
+      this.settings.output.defaultPath = outputPath.value;
+    }
+  }
+  
+  /**
+   * 收集API設置
+   * @param {string} type - API類型
+   * @returns {Array} API設置陣列
+   */
+  collectApiSettings(type) {
+    const container = type === 'lyrics' ? this.elements.lyricsApiRows : this.elements.backgroundApiRows;
+    if (!container) return [];
+    
+    const apis = [];
+    container.querySelectorAll('.api-row').forEach(row => {
+      const nameInput = row.querySelector('.api-name');
+      const keyInput = row.querySelector('.api-key');
+      const defaultCheckbox = row.querySelector('.set-default-api');
+      
+      if (nameInput && keyInput) {
+        apis.push({
+          name: nameInput.value.trim(),
+          key: keyInput.value.trim(),
+          isDefault: defaultCheckbox ? defaultCheckbox.checked : false
+        });
+      }
+    });
+    
+    return apis;
   }
   
   /**
@@ -441,10 +595,7 @@ class SettingsModule {
       api: apiKeys,
       // 圖片生成設置
       imageGeneration: {
-        preferredProvider: 'openai',
-        defaultSize: '1024x1024',
-        defaultQuality: 'standard',
-        defaultStyle: 'vivid',
+        defaultSize: '1920x1080', // 與投影片解析度同步
         promptConfig: {
           useAIAssistant: true,
           appendKeywords: true,
@@ -551,104 +702,104 @@ class SettingsModule {
   
   /**
    * 驗證API金鑰
-   * @param {string} provider - API提供者
+   * @param {HTMLElement} row - API列元素
+   * @param {string} type - API類型
    */
-  async validateApiKey(provider) {
-    const key = this.settings.api[provider]?.key;
+  async validateApiKey(row, type) {
+    const nameInput = row.querySelector('.api-name');
+    const keyInput = row.querySelector('.api-key');
     
-    if (!key) {
-      window.showNotification(`請先輸入${provider}的API金鑰`, 'warning');
+    if (!nameInput || !keyInput) return;
+    
+    const name = nameInput.value.trim();
+    const key = keyInput.value.trim();
+    
+    if (!name || !key) {
+      window.showNotification('請輸入API名稱和金鑰', 'warning');
       return;
     }
     
     // 顯示驗證中狀態
-    const statusElement = document.getElementById(`${provider}-key-status`);
-    if (statusElement) {
-      statusElement.textContent = '驗證中...';
-      statusElement.className = 'api-key-status validating';
-    }
+    const button = row.querySelector('.validate-api-key');
+    const originalText = button.textContent;
+    button.textContent = '驗證中...';
+    button.disabled = true;
     
     try {
       // 發送API金鑰驗證請求
       const result = await window.electronAPI.validateApiKey({
-        provider,
+        type,
+        name,
         key
       });
       
       if (result.valid) {
-        // 顯示成功狀態
-        if (statusElement) {
-          statusElement.textContent = '有效';
-          statusElement.className = 'api-key-status valid';
-        }
-        window.showNotification(`${provider}的API金鑰驗證成功`, 'success');
+        window.showNotification(`${name}的API金鑰驗證成功`, 'success');
       } else {
-        // 顯示失敗狀態
-        if (statusElement) {
-          statusElement.textContent = '無效';
-          statusElement.className = 'api-key-status invalid';
-        }
-        window.showNotification(`${provider}的API金鑰無效: ${result.error || '未知錯誤'}`, 'error');
+        window.showNotification(`${name}的API金鑰無效: ${result.error || '未知錯誤'}`, 'error');
       }
     } catch (error) {
-      console.error(`驗證${provider}的API金鑰失敗:`, error);
-      
-      // 顯示錯誤狀態
-      if (statusElement) {
-        statusElement.textContent = '驗證失敗';
-        statusElement.className = 'api-key-status error';
-      }
-      
-      window.showNotification(`驗證${provider}的API金鑰失敗: ${error.message || '網絡錯誤'}`, 'error');
+      console.error(`驗證${name}的API金鑰失敗:`, error);
+      window.showNotification(`驗證${name}的API金鑰失敗: ${error.message || '網絡錯誤'}`, 'error');
+    } finally {
+      // 恢復按鈕狀態
+      button.textContent = originalText;
+      button.disabled = false;
     }
   }
   
   /**
-   * 顯示API使用統計
+   * 設置預設API
+   * @param {HTMLElement} row - API列元素
+   * @param {string} type - API類型
    */
-  async showApiUsageStats() {
-    try {
-      // 獲取API使用統計
-      const stats = await window.electronAPI.getApiUsageStats();
-      
-      // 顯示統計對話框
-      this.dialogModule.showDialog(`
-        <h3>API使用統計</h3>
-        <div class="api-usage-stats">
-          ${Object.keys(stats).map(provider => `
-            <div class="api-provider-stats">
-              <h4>${this.getProviderDisplayName(provider)}</h4>
-              <div class="stats-row">
-                <span>本月使用額度:</span>
-                <span>${stats[provider].used} ${this.getUsageUnit(provider)}</span>
-              </div>
-              <div class="stats-row">
-                <span>設置限額:</span>
-                <span>${this.settings.api[provider].usageLimit || '無限制'} ${this.getUsageUnit(provider)}</span>
-              </div>
-              <div class="stats-row">
-                <span>API調用次數:</span>
-                <span>${stats[provider].calls}</span>
-              </div>
-              <div class="stats-row">
-                <span>上次使用時間:</span>
-                <span>${stats[provider].lastUsed ? new Date(stats[provider].lastUsed).toLocaleString() : '無記錄'}</span>
-              </div>
-              <div class="usage-progress">
-                <progress value="${stats[provider].used}" max="${this.settings.api[provider].usageLimit || 100}"></progress>
-                <span>${this.formatPercentage(stats[provider].used, this.settings.api[provider].usageLimit)}</span>
-              </div>
-            </div>
-          `).join('')}
-        </div>
-      `, 'api-usage-dialog', {
-        width: '500px',
-        height: 'auto'
-      });
-    } catch (error) {
-      console.error('獲取API使用統計失敗:', error);
-      window.showNotification('獲取API使用統計失敗', 'error');
+  setDefaultApi(row, type) {
+    const container = type === 'lyrics' ? this.elements.lyricsApiRows : this.elements.backgroundApiRows;
+    if (!container) return;
+    
+    // 取消其他API的預設狀態
+    container.querySelectorAll('.set-default-api').forEach(checkbox => {
+      if (checkbox !== row.querySelector('.set-default-api')) {
+        checkbox.checked = false;
+      }
+    });
+    
+    // 更新設定
+    const nameInput = row.querySelector('.api-name');
+    if (nameInput) {
+      this.settings.api[type].defaultApi = nameInput.value.trim();
     }
+  }
+  
+  /**
+   * 新增API列
+   * @param {string} type - API類型（lyrics或background）
+   */
+  addApiRow(type) {
+    const container = type === 'lyrics' ? this.elements.lyricsApiRows : this.elements.backgroundApiRows;
+    if (!container) return;
+    
+    const row = document.createElement('div');
+    row.className = 'api-row';
+    row.innerHTML = `
+      <div class="api-input-group">
+        <input type="text" class="api-name" placeholder="API名稱">
+        <div style="position: relative; flex: 1; display: flex;">
+          <input type="password" class="api-key" placeholder="API金鑰">
+          <button type="button" class="toggle-key-visibility" title="顯示/隱藏">👁️</button>
+        </div>
+        <button class="action-button small validate-api-key" data-type="${type}">驗證</button>
+        <button class="action-button small delete-api-row">🗑️</button>
+      </div>
+      <div class="api-checkbox-group">
+        <label class="checkbox-label">
+          <input type="checkbox" class="set-default-api" data-type="${type}">
+          <span>設為預設</span>
+        </label>
+      </div>
+    `;
+    
+    container.appendChild(row);
   }
   
   /**
@@ -761,6 +912,71 @@ class SettingsModule {
     
     const percentage = (used / limit) * 100;
     return `${percentage.toFixed(1)}%`;
+  }
+  
+  /**
+   * 顯示API使用統計
+   */
+  async showApiUsageStats() {
+    try {
+      // 獲取API使用統計
+      const stats = await window.electronAPI.getApiUsageStats();
+      
+      // 顯示統計對話框
+      this.dialogModule.showDialog(`
+        <h3>API使用統計</h3>
+        <div class="api-usage-stats">
+          ${Object.keys(stats).map(provider => `
+            <div class="api-provider-stats">
+              <h4>${this.getProviderDisplayName(provider)}</h4>
+              <div class="stats-row">
+                <span>本月使用額度:</span>
+                <span>${stats[provider].used} ${this.getUsageUnit(provider)}</span>
+              </div>
+              <div class="stats-row">
+                <span>設置限額:</span>
+                <span>${this.settings.api[provider].usageLimit || '無限制'} ${this.getUsageUnit(provider)}</span>
+              </div>
+              <div class="stats-row">
+                <span>API調用次數:</span>
+                <span>${stats[provider].calls}</span>
+              </div>
+              <div class="stats-row">
+                <span>上次使用時間:</span>
+                <span>${stats[provider].lastUsed ? new Date(stats[provider].lastUsed).toLocaleString() : '無記錄'}</span>
+              </div>
+              <div class="usage-progress">
+                <progress value="${stats[provider].used}" max="${this.settings.api[provider].usageLimit || 100}"></progress>
+                <span>${this.formatPercentage(stats[provider].used, this.settings.api[provider].usageLimit)}</span>
+              </div>
+            </div>
+          `).join('')}
+        </div>
+      `, 'api-usage-dialog', {
+        width: '500px',
+        height: 'auto'
+      });
+    } catch (error) {
+      console.error('獲取API使用統計失敗:', error);
+      window.showNotification('獲取API使用統計失敗', 'error');
+    }
+  }
+  
+  /**
+   * 切換API金鑰的可見性
+   * @param {HTMLElement} input - 輸入框元素
+   * @param {HTMLElement} button - 按鈕元素
+   */
+  toggleApiKeyVisibility(input, button) {
+    if (input.type === 'password') {
+      input.type = 'text';
+      button.textContent = '🔒';
+      button.title = '隱藏';
+    } else {
+      input.type = 'password';
+      button.textContent = '👁️';
+      button.title = '顯示';
+    }
   }
 }
 
