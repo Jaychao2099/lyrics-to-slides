@@ -55,15 +55,21 @@ class SettingsModule {
         fontColor: '#FFFFFF',
         fontWeight: 'bold',
         textShadow: true
+      },
+      // 投影片解析度設置
+      resolution: {
+        type: '16:9',
+        width: 1920,
+        height: 1080
       }
     };
     
     // 常用的DOM元素引用
     this.elements = {
       settingsContainer: document.getElementById('settings-container'),
-      themeSelector: document.getElementById('theme-selector'),
-      languageSelector: document.getElementById('language-selector'),
-      autoSaveToggle: document.getElementById('auto-save-toggle'),
+      themeSelector: document.getElementById('theme-select'),
+      languageSelector: document.getElementById('language-select'),
+      autoSaveToggle: document.getElementById('auto-update-check'),
       autoSaveInterval: document.getElementById('auto-save-interval'),
       outputPathInput: document.getElementById('default-output-path'),
       browseOutputButton: document.getElementById('browse-output-path'),
@@ -73,8 +79,8 @@ class SettingsModule {
         stability: document.getElementById('stability-api-key'),
         musixmatch: document.getElementById('musixmatch-api-key')
       },
-      saveSettingsButton: document.getElementById('save-settings'),
-      resetSettingsButton: document.getElementById('reset-settings')
+      saveSettingsButton: document.getElementById('save-settings-btn'),
+      resetSettingsButton: document.getElementById('reset-settings-btn')
     };
     
     // 初始化事件監聽器
@@ -198,6 +204,46 @@ class SettingsModule {
         }
       });
     });
+    
+    // 解析度選擇器
+    const resolutionSelect = document.getElementById('resolution-select');
+    if (resolutionSelect) {
+      resolutionSelect.addEventListener('change', (e) => {
+        this.settings.resolution.type = e.target.value;
+        
+        // 顯示/隱藏自訂解析度選項
+        const customResolutionDiv = document.querySelector('.custom-resolution');
+        if (customResolutionDiv) {
+          customResolutionDiv.style.display = e.target.value === 'custom' ? 'block' : 'none';
+        }
+      });
+    }
+    
+    // 自訂解析度寬度
+    const customWidth = document.getElementById('custom-width');
+    if (customWidth) {
+      customWidth.addEventListener('change', (e) => {
+        const value = parseInt(e.target.value);
+        if (!isNaN(value) && value >= 640 && value <= 3840) {
+          this.settings.resolution.width = value;
+        } else {
+          e.target.value = this.settings.resolution.width;
+        }
+      });
+    }
+    
+    // 自訂解析度高度
+    const customHeight = document.getElementById('custom-height');
+    if (customHeight) {
+      customHeight.addEventListener('change', (e) => {
+        const value = parseInt(e.target.value);
+        if (!isNaN(value) && value >= 480 && value <= 2160) {
+          this.settings.resolution.height = value;
+        } else {
+          e.target.value = this.settings.resolution.height;
+        }
+      });
+    }
   }
   
   /**
@@ -293,6 +339,28 @@ class SettingsModule {
         input.value = this.settings.api[provider].usageLimit;
       }
     });
+    
+    // 解析度設置
+    if (this.settings.resolution) {
+      const resolutionSelect = document.getElementById('resolution-select');
+      const customWidth = document.getElementById('custom-width');
+      const customHeight = document.getElementById('custom-height');
+      const customResolutionDiv = document.querySelector('.custom-resolution');
+      
+      if (resolutionSelect) {
+        resolutionSelect.value = this.settings.resolution.type || '16:9';
+      }
+      
+      if (customWidth && customHeight) {
+        customWidth.value = this.settings.resolution.width || 1920;
+        customHeight.value = this.settings.resolution.height || 1080;
+      }
+      
+      if (customResolutionDiv) {
+        customResolutionDiv.style.display = 
+          (this.settings.resolution.type === 'custom') ? 'block' : 'none';
+      }
+    }
   }
   
   /**
@@ -318,18 +386,26 @@ class SettingsModule {
    * 確認重置設置
    */
   confirmResetSettings() {
-    this.dialogModule.showConfirmDialog(
-      '確定要重置所有設置嗎？這將恢復默認設置，但不會刪除API金鑰。',
-      () => {
+    // 檢查dialogModule是否可用
+    if (this.dialogModule && typeof this.dialogModule.showConfirmDialog === 'function') {
+      this.dialogModule.showConfirmDialog(
+        '確定要重置所有設置嗎？這將恢復默認設置，但不會刪除API金鑰。',
+        () => {
+          this.resetSettings();
+        },
+        null,
+        {
+          title: '重置設置',
+          confirmText: '重置',
+          cancelText: '取消'
+        }
+      );
+    } else {
+      // 如果dialogModule不可用，直接顯示瀏覽器原生確認對話框
+      if (confirm('確定要重置所有設置嗎？這將恢復默認設置，但不會刪除API金鑰。')) {
         this.resetSettings();
-      },
-      null,
-      {
-        title: '重置設置',
-        confirmText: '重置',
-        cancelText: '取消'
       }
-    );
+    }
   }
   
   /**
@@ -383,6 +459,12 @@ class SettingsModule {
         fontColor: '#FFFFFF',
         fontWeight: 'bold',
         textShadow: true
+      },
+      // 投影片解析度設置
+      resolution: {
+        type: '16:9',
+        width: 1920,
+        height: 1080
       }
     };
     
@@ -391,6 +473,26 @@ class SettingsModule {
     
     // 應用主題
     this.applyTheme(this.settings.general.theme);
+
+    // 更新投影片解析度選擇器
+    const resolutionSelect = document.getElementById('resolution-select');
+    if (resolutionSelect) {
+      resolutionSelect.value = this.settings.resolution.type;
+      
+      // 如果有自訂解析度相關UI，也更新它們
+      const customWidth = document.getElementById('custom-width');
+      const customHeight = document.getElementById('custom-height');
+      const customResolutionDiv = document.querySelector('.custom-resolution');
+      
+      if (customWidth && customHeight) {
+        customWidth.value = this.settings.resolution.width;
+        customHeight.value = this.settings.resolution.height;
+      }
+      
+      if (customResolutionDiv) {
+        customResolutionDiv.style.display = this.settings.resolution.type === 'custom' ? 'block' : 'none';
+      }
+    }
     
     // 顯示成功消息
     window.showNotification('設置已重置為默認值', 'info');

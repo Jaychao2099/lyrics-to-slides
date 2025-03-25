@@ -289,7 +289,7 @@ function createMenu() {
         {
           label: '線上說明文件',
           click: async () => {
-            await shell.openExternal('https://lyrics-to-slides-docs.example.com');
+            await shell.openExternal('https://github.com/Jaychao2099/lyrics-to-slides/blob/main/docs/QUICK_START.md');
           }
         },
         {
@@ -305,7 +305,7 @@ function createMenu() {
         {
           label: '報告問題',
           click: async () => {
-            await shell.openExternal('https://github.com/yourusername/lyrics-to-slides/issues');
+            await shell.openExternal('https://github.com/Jaychao2099/lyrics-to-slides/issues');
           }
         },
         {
@@ -314,7 +314,7 @@ function createMenu() {
             dialog.showMessageBox({
               title: '關於 歌曲投影片生成器',
               message: '歌曲投影片生成器',
-              detail: `版本: ${app.getVersion()}\n版權所有 © ${new Date().getFullYear()} 您的公司名稱`,
+              detail: `版本: ${app.getVersion()}\n版權所有 © ${new Date().getFullYear()} Jaychao2099`,
               buttons: ['確定'],
               icon: path.join(__dirname, '../../assets/icons/icon.png')
             });

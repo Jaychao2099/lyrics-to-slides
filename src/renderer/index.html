@@ -97,15 +97,15 @@
   <link rel="stylesheet" href="./styles/main.css" media="print" onload="this.media='all'">
   
   <!-- 按照依賴關係順序加載模組腳本 -->
-  <script src="./scripts/modules/DialogModule.js" defer></script>
-  <script src="./scripts/modules/ProjectModule.js" defer></script>
-  <script src="./scripts/modules/LyricsModule.js" defer></script>
-  <script src="./scripts/modules/SlideModule.js" defer></script>
-  <script src="./scripts/modules/PreviewModule.js" defer></script>
-  <script src="./scripts/modules/ExportModule.js" defer></script>
-  <script src="./scripts/modules/SettingsModule.js" defer></script>
+  <script src="./scripts/modules/DialogModule.js"></script>
+  <script src="./scripts/modules/ProjectModule.js"></script>
+  <script src="./scripts/modules/LyricsModule.js"></script>
+  <script src="./scripts/modules/SlideModule.js"></script>
+  <script src="./scripts/modules/PreviewModule.js"></script>
+  <script src="./scripts/modules/ExportModule.js"></script>
+  <script src="./scripts/modules/SettingsModule.js"></script>
   <!-- 最後加載主渲染腳本 -->
-  <script src="./scripts/renderer.js" defer></script>
+  <script src="./scripts/renderer.js"></script>
 </head>
 <body>
   <!-- 載入畫面 -->
@@ -443,9 +443,12 @@
     </div>
   </div>
   
+  <!-- 主腳本 -->
   <script>
     document.addEventListener('DOMContentLoaded', () => {
         console.log('頁面已完成載入');
+
+        // 移除重複的模組初始化（由renderer.js處理）
 
         // 移除載入畫面
         setTimeout(() => {
