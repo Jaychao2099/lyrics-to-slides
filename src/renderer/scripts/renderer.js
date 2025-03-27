@@ -585,9 +585,7 @@ function setupPageHandlers() {
   if (addParagraphButton) {
     addParagraphButton.addEventListener('click', () => {
       if (window.modules && window.modules.lyricsModule) {
-        window.modules.lyricsModule.addParagraph();
-      } else if (window.lyricsModule && typeof window.lyricsModule.addParagraph === 'function') {
-        window.lyricsModule.addParagraph();
+        window.modules.lyricsModule.addNewParagraph();
       }
     });
   }

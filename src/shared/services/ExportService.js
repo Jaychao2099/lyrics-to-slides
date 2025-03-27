@@ -1,429 +1,657 @@
-const fs = require('fs');
+const fs = require('fs-extra');
 const path = require('path');
-const { EventEmitter } = require('events');
-const PptxGenJS = require('pptxgenjs');
-const jimp = require('jimp');
+const { Marp } = require('@marp-team/marp-core');
 const log = require('electron-log');
 
 /**
- * 投影片導出服務
- * 支持將項目導出為不同格式的投影片
+ * 導出服務類
+ * 負責將歌詞和圖片導出為各種格式的演示文稿
  */
-class ExportService extends EventEmitter {
-  constructor(options = {}) {
-    super();
-    
-    this.options = {
-      // 輸出路徑
-      outputPath: options.outputPath || '',
-      // 臨時文件路徑
-      tempPath: options.tempPath || path.join(process.env.APPDATA || process.env.HOME, '.lyrics-to-slides', 'temp'),
-      // 導出質量
-      quality: options.quality || 'high',
-      // 圖像格式
-      imageFormat: options.imageFormat || 'png',
-      // 字體設置
-      fonts: options.fonts || []
-    };
-    
-    // 確保臨時目錄存在
-    if (!fs.existsSync(this.options.tempPath)) {
-      fs.mkdirSync(this.options.tempPath, { recursive: true });
-    }
-    
-    // 當前導出的任務ID
-    this.currentTaskId = null;
-    
-    // 是否正在導出
-    this.isExporting = false;
-  }
-  
+class ExportService {
   /**
-   * 更新配置選項
-   * @param {Object} options - 新的配置選項
+   * 創建一個導出服務實例
+   * @param {Object} options - 配置選項
    */
-  updateOptions(options) {
-    // 合併選項
+  constructor(options = {}) {
     this.options = {
-      ...this.options,
-      ...options
+      // 輸出目錄
+      outputDir: options.outputDir || path.join(process.env.APPDATA || process.env.HOME, '.lyrics-to-slides', 'exports'),
+      // 缓存目錄
+      cacheDir: options.cacheDir || path.join(process.env.APPDATA || process.env.HOME, '.lyrics-to-slides', 'cache'),
+      // 超時設置
+      timeout: options.timeout || 60000,
+      // Marp 主題
+      theme: options.theme || 'default',
+      // 默認輸出格式
+      defaultFormat: options.defaultFormat || 'html',
+      // 字體設置
+      fonts: options.fonts || {
+        heading: '"Microsoft JhengHei UI", "Microsoft YaHei", Arial, sans-serif',
+        text: '"Microsoft JhengHei UI", "Microsoft YaHei", Arial, sans-serif'
+      }
     };
+    
+    // 初始化 Marp 引擎
+    this.marp = new Marp({
+      html: true, // 允許 HTML
+      math: false, // 禁用數學公式
+      minifyCSS: false, // 不壓縮 CSS
+      script: false, // 不允許 script 標籤
+    });
     
     // 確保輸出目錄存在
-    if (this.options.outputPath && !fs.existsSync(this.options.outputPath)) {
-      fs.mkdirSync(this.options.outputPath, { recursive: true });
-    }
+    this._ensureOutputDirectory();
+    
+    // 當前導出任務
+    this.currentExport = null;
+    this.isCancelled = false;
+    
+    log.info('導出服務已初始化');
   }
   
   /**
-   * 導出投影片
-   * @param {Object} project - 項目數據
-   * @param {string} format - 導出格式 (pptx, pdf, images)
+   * 將投影片數據導出為演示文稿
+   * @param {Object} data - 投影片數據
+   * @param {string} outputPath - 輸出路徑
    * @param {Object} options - 導出選項
+   * @param {Function} progressCallback - 進度回調
    * @returns {Promise<Object>} 導出結果
    */
-  async exportSlideshow(project, format, options = {}) {
-    if (this.isExporting) {
-      throw new Error('另一個導出任務正在進行中');
-    }
-    
-    this.isExporting = true;
-    const taskId = Date.now().toString();
-    this.currentTaskId = taskId;
-    
-    // 設置默認輸出路徑
-    const outputPath = options.outputPath || this.options.outputPath || process.cwd();
-    
-    // 設置默認輸出文件名
-    const defaultFilename = this._sanitizeFilename(project.name || 'slideshow');
-    const filename = options.filename || defaultFilename;
-    
+  async exportSlideshow(data, outputPath, options = {}, progressCallback) {
     try {
-      // 根據格式導出
-      let result;
-      
-      switch (format.toLowerCase()) {
-        case 'pptx':
-          result = await this._exportToPptx(project, outputPath, filename, options);
-          break;
-        case 'pdf':
-          result = await this._exportToPdf(project, outputPath, filename, options);
-          break;
-        case 'images':
-          result = await this._exportToImages(project, outputPath, filename, options);
-          break;
-        default:
-          throw new Error(`不支持的導出格式: ${format}`);
+      // 如果已有導出任務，則取消
+      if (this.currentExport) {
+        await this.cancelExport();
       }
       
-      this.isExporting = false;
-      this.currentTaskId = null;
+      // 重置取消標誌
+      this.isCancelled = false;
       
-      // 觸發完成事件
-      this.emit('export-complete', {
-        taskId,
-        format,
-        result
+      // 設置當前導出任務
+      this.currentExport = {
+        id: `export_${Date.now()}`,
+        startTime: new Date(),
+        data,
+        outputPath,
+        options,
+        progress: 0
+      };
+      
+      // 報告開始進度
+      this._reportProgress(0, '開始導出...', progressCallback);
+      
+      // 檢查數據有效性
+      if (!data || !data.slides || !Array.isArray(data.slides) || data.slides.length === 0) {
+        throw new Error('無效的投影片數據');
+      }
+      
+      // 合併選項
+      const exportOptions = {
+        format: options.format || this.options.defaultFormat,
+        title: options.title || data.title || '歌曲投影片',
+        resolution: options.resolution || '16:9',
+        theme: options.theme || this.options.theme,
+        font: options.font || this.options.fonts.text,
+        fontFamily: options.fontFamily || this.options.fonts.text,
+        fontSize: options.fontSize || '60px',
+        backgroundColor: options.backgroundColor || '#000000',
+        textColor: options.textColor || '#FFFFFF',
+        textShadow: options.textShadow !== undefined ? options.textShadow : true,
+        lineHeight: options.lineHeight || 1.5,
+        padding: options.padding || '50px',
+        includeMetadata: options.includeMetadata !== undefined ? options.includeMetadata : true
+      };
+      
+      // 確保輸出路徑有效
+      const outputFilePath = this._ensureValidPath(outputPath, exportOptions.format);
+      
+      // 解析文件名和目錄
+      const outputDir = path.dirname(outputFilePath);
+      
+      // 確保輸出目錄存在
+      await fs.ensureDir(outputDir);
+      
+      // 報告準備階段
+      this._reportProgress(0.1, '正在準備投影片數據...', progressCallback);
+      
+      // 生成Marp Markdown
+      if (this.isCancelled) throw new Error('導出已取消');
+      const markdown = await this._generateMarkdown(data, exportOptions, (progress) => {
+        this._reportProgress(0.1 + progress * 0.4, '生成Markdown內容...', progressCallback);
       });
       
-      return result;
+      // 報告轉換階段
+      this._reportProgress(0.5, '正在轉換為演示文稿...', progressCallback);
+      
+      // 導出為對應格式
+      let result;
+      switch (exportOptions.format.toLowerCase()) {
+        case 'html':
+          result = await this._exportToHTML(markdown, outputFilePath, exportOptions, progressCallback);
+          break;
+        case 'pdf':
+          result = await this._exportToPDF(markdown, outputFilePath, exportOptions, progressCallback);
+          break;
+        case 'pptx':
+          result = await this._exportToPPTX(markdown, outputFilePath, exportOptions, progressCallback);
+          break;
+        case 'images':
+          result = await this._exportToImages(markdown, outputFilePath, exportOptions, progressCallback);
+          break;
+        default:
+          throw new Error(`不支持的導出格式: ${exportOptions.format}`);
+      }
+      
+      // 報告完成進度
+      this._reportProgress(1, '導出完成', progressCallback);
+      
+      // 清理當前導出任務
+      this.currentExport = null;
+      
+      return {
+        success: true,
+        format: exportOptions.format,
+        outputPath: outputFilePath,
+        slides: data.slides.length,
+        ...result
+      };
     } catch (error) {
-      this.isExporting = false;
-      this.currentTaskId = null;
+      // 記錄錯誤
+      log.error('導出失敗:', error);
       
-      // 觸發錯誤事件
-      this.emit('export-error', {
-        taskId,
-        error: error.message
-      });
+      // 報告錯誤
+      this._reportProgress(0, `導出錯誤: ${error.message}`, progressCallback, true);
       
-      log.error('導出錯誤:', error);
-      throw error;
+      // 清理當前導出任務
+      this.currentExport = null;
+      
+      // 如果是取消錯誤，返回取消結果
+      if (this.isCancelled) {
+        return {
+          success: false,
+          cancelled: true,
+          message: '導出已取消'
+        };
+      }
+      
+      // 返回錯誤結果
+      return {
+        success: false,
+        error: error.message,
+        message: `導出失敗: ${error.message}`
+      };
     }
   }
   
   /**
    * 取消當前導出任務
+   * @returns {Promise<boolean>} 取消是否成功
    */
-  cancelExport() {
-    if (this.isExporting && this.currentTaskId) {
-      this.isExporting = false;
-      const canceledTaskId = this.currentTaskId;
-      this.currentTaskId = null;
-      
-      // 觸發取消事件
-      this.emit('export-canceled', {
-        taskId: canceledTaskId
-      });
-      
-      return true;
+  async cancelExport() {
+    if (!this.currentExport) {
+      return false;
     }
     
-    return false;
+    this.isCancelled = true;
+    log.info('導出任務已取消');
+    
+    // 等待一小段時間，確保其他操作能夠檢查取消標誌
+    await new Promise(resolve => setTimeout(resolve, 100));
+    
+    return true;
   }
   
   /**
-   * 導出為PowerPoint格式
-   * @param {Object} project - 項目數據
-   * @param {string} outputPath - 輸出路徑
-   * @param {string} filename - 文件名
+   * 生成Marp Markdown
+   * @param {Object} data - 投影片數據
    * @param {Object} options - 導出選項
-   * @returns {Promise<Object>} 導出結果
+   * @param {Function} progressCallback - 進度回調
+   * @returns {Promise<string>} 生成的Markdown
    * @private
    */
-  async _exportToPptx(project, outputPath, filename, options) {
-    // 創建新的PowerPoint文檔
-    const pptx = new PptxGenJS();
-    
-    // 設置演示文稿屬性
-    pptx.author = project.song.artist || 'Lyrics to Slides Generator';
-    pptx.title = project.song.title || project.name;
-    pptx.subject = project.song.album || '';
-    
-    // 設置幻燈片大小
-    const { width, height } = project.settings.display;
-    pptx.defineLayout({
-      name: 'CUSTOM',
-      width: width / 72,
-      height: height / 72
-    });
-    pptx.layout = 'CUSTOM';
-    
-    // 當前導出任務ID
-    const taskId = this.currentTaskId;
-    const totalSlides = project.slides.length;
-    
-    // 處理每張幻燈片
-    for (let i = 0; i < project.slides.length; i++) {
-      // 檢查是否已取消
-      if (this.currentTaskId !== taskId) {
-        throw new Error('導出已取消');
+  async _generateMarkdown(data, options, progressCallback) {
+    try {
+      let markdown = '';
+      
+      // 添加全局樣式
+      markdown += `---\nmarp: true\ntheme: ${options.theme}\nsize: ${options.resolution}\nbackgroundSize: cover\npaginate: false\nheader: ''\nfooter: ''\n---\n\n`;
+      
+      // 添加自定義樣式
+      markdown += `<style>\n`;
+      markdown += `section { font-family: ${options.fontFamily}; color: ${options.textColor}; padding: ${options.padding}; line-height: ${options.lineHeight}; }\n`;
+      if (options.textShadow) {
+        markdown += `section p { text-shadow: 0 0 10px rgba(0, 0, 0, 0.7); }\n`;
       }
+      markdown += `</style>\n\n`;
       
-      const slide = project.slides[i];
-      const slideObj = pptx.addSlide();
-      
-      // 設置背景
-      if (slide.background) {
-        if (slide.background.type === 'color') {
-          // 顏色背景
-          slideObj.background = { color: slide.background.value };
-        } else if (slide.background.type === 'image') {
-          // 圖片背景
-          const resource = project.resources.find(r => r.id === slide.background.value);
-          if (resource && resource.data) {
-            const imgData = typeof resource.data === 'string' ? 
-                            Buffer.from(resource.data, 'base64') : 
-                            resource.data;
-            
-            // 根據模板可能需要調整圖片
-            slideObj.background = { data: imgData };
-          } else {
-            // 默認黑色背景
-            slideObj.background = { color: '#000000' };
-          }
-        }
-      }
-      
-      // 添加文本
-      if (slide.text) {
-        const textOptions = {
-          x: slide.textPosition?.x || 0.5,
-          y: slide.textPosition?.y || 0.5,
-          w: '90%',
-          h: '80%',
-          align: (slide.textPosition?.alignment || 'center').toUpperCase(),
-          valign: 'middle',
-          color: project.settings.font.color,
-          fontSize: project.settings.font.size,
-          fontFace: project.settings.font.family,
-          bold: project.settings.font.weight === 'bold',
-          shadow: project.settings.font.shadow ? {
-            type: 'outer',
-            color: project.settings.font.shadowColor,
-            blur: 10,
-            offset: 3,
-            angle: 45
-          } : undefined
-        };
+      // 處理每個投影片
+      for (let i = 0; i < data.slides.length; i++) {
+        // 檢查取消標誌
+        if (this.isCancelled) throw new Error('導出已取消');
         
-        slideObj.addText(slide.text, textOptions);
-      }
-      
-      // 進度更新
-      this.emit('export-progress', {
-        taskId,
-        current: i + 1,
-        total: totalSlides,
-        percentage: Math.round(((i + 1) / totalSlides) * 100)
-      });
-    }
-    
-    // 處理輸出路徑
-    const fullPath = path.join(outputPath, `${filename}.pptx`);
-    
-    // 導出文件
-    await pptx.writeFile({ fileName: fullPath });
-    
-    return {
-      format: 'pptx',
-      path: fullPath,
-      filename: `${filename}.pptx`,
-      slideCount: project.slides.length
-    };
-  }
-  
-  /**
-   * 導出為PDF格式
-   * @param {Object} project - 項目數據
-   * @param {string} outputPath - 輸出路徑
-   * @param {string} filename - 文件名
-   * @param {Object} options - 導出選項
-   * @returns {Promise<Object>} 導出結果
-   * @private
-   */
-  async _exportToPdf(project, outputPath, filename, options) {
-    // 首先導出為PPTX，然後轉換為PDF
-    // 由於PptxGenJS不直接支持PDF導出，我們首先生成PPTX，然後使用其他工具轉換
-    // 此處我們使用臨時文件
-    const tmpFilename = `tmp_${Date.now()}`;
-    const pptxResult = await this._exportToPptx(project, this.options.tempPath, tmpFilename, options);
-    
-    // 處理輸出路徑
-    const fullPath = path.join(outputPath, `${filename}.pdf`);
-    
-    // 這裡我們假設使用了外部工具進行轉換
-    // 在實際應用中，可能需要整合 LibreOffice, unoconv, pdf-puppeteer 等第三方工具
-    // 目前僅返回PPTX路徑，實際實現需要根據環境補充
-    
-    return {
-      format: 'pdf',
-      path: fullPath,
-      pptxPath: pptxResult.path,
-      filename: `${filename}.pdf`,
-      slideCount: project.slides.length,
-      note: '注意：PDF轉換需要外部工具支持，請查看文檔了解如何配置'
-    };
-  }
-  
-  /**
-   * 導出為圖片格式
-   * @param {Object} project - 項目數據
-   * @param {string} outputPath - 輸出路徑
-   * @param {string} filename - 文件名
-   * @param {Object} options - 導出選項
-   * @returns {Promise<Object>} 導出結果
-   * @private
-   */
-  async _exportToImages(project, outputPath, filename, options) {
-    // 創建輸出目錄
-    const dirPath = path.join(outputPath, filename);
-    if (!fs.existsSync(dirPath)) {
-      fs.mkdirSync(dirPath, { recursive: true });
-    }
-    
-    // 當前導出任務ID
-    const taskId = this.currentTaskId;
-    const totalSlides = project.slides.length;
-    const imageFormat = options.imageFormat || this.options.imageFormat;
-    const imageQuality = options.quality || this.options.quality;
-    
-    // 設置質量參數
-    let quality = 80;
-    if (imageQuality === 'low') quality = 60;
-    if (imageQuality === 'high') quality = 90;
-    
-    // 處理每張幻燈片
-    const imagePaths = [];
-    
-    for (let i = 0; i < project.slides.length; i++) {
-      // 檢查是否已取消
-      if (this.currentTaskId !== taskId) {
-        throw new Error('導出已取消');
-      }
-      
-      const slide = project.slides[i];
-      const slideNumber = String(i + 1).padStart(3, '0');
-      const imagePath = path.join(dirPath, `slide_${slideNumber}.${imageFormat}`);
-      
-      // 創建圖像
-      try {
-        // 創建空白圖像
-        const { width, height } = project.settings.display;
-        const image = new jimp(width, height);
+        const slide = data.slides[i];
         
-        // 設置背景
-        if (slide.background) {
-          if (slide.background.type === 'color') {
-            // 顏色背景
-            const color = slide.background.value || '#000000';
-            // 將十六進制顏色轉換為Jimp顏色格式
-            const hexColor = color.replace('#', '');
-            const r = parseInt(hexColor.substr(0, 2), 16);
-            const g = parseInt(hexColor.substr(2, 2), 16);
-            const b = parseInt(hexColor.substr(4, 2), 16);
-            const jimpColor = jimp.rgbaToInt(r, g, b, 255);
-            image.background(jimpColor);
-          } else if (slide.background.type === 'image') {
-            // 圖片背景
-            const resource = project.resources.find(r => r.id === slide.background.value);
-            if (resource && resource.data) {
-              // 讀取圖像數據
-              const backgroundImage = await jimp.read(
-                Buffer.from(typeof resource.data === 'string' ? resource.data : resource.data.toString(), 'base64')
-              );
-              
-              // 調整大小以適應幻燈片
-              backgroundImage.cover(width, height);
-              
-              // 合併到主圖像
-              image.composite(backgroundImage, 0, 0);
-            }
-          }
+        // 報告進度
+        if (typeof progressCallback === 'function') {
+          progressCallback(i / data.slides.length);
         }
         
-        // 添加文本
-        // 注意：Jimp的文本功能有限，若需要高級文本渲染，可能需要結合其他庫
-        // 這裡僅做簡單示例
+        // 添加投影片分隔符
+        if (i > 0) {
+          markdown += '\n---\n\n';
+        }
+        
+        // 添加背景圖片（如果有）
+        if (slide.backgroundImage) {
+          markdown += `![bg](${this._getImagePath(slide.backgroundImage)})\n\n`;
+        } else if (slide.backgroundColor) {
+          markdown += `<!-- _backgroundColor: ${slide.backgroundColor} -->\n\n`;
+        } else {
+          markdown += `<!-- _backgroundColor: ${options.backgroundColor} -->\n\n`;
+        }
+        
+        // 根據文字位置添加樣式
+        let textPosition = '';
+        switch (slide.textPosition || 'center') {
+          case 'top':
+            textPosition = `\n<div style="position: absolute; top: 10%; left: 50%; transform: translateX(-50%); width: 90%; text-align: center;">\n\n`;
+            break;
+          case 'bottom':
+            textPosition = `\n<div style="position: absolute; bottom: 10%; left: 50%; transform: translateX(-50%); width: 90%; text-align: center;">\n\n`;
+            break;
+          case 'center':
+          default:
+            textPosition = `\n<div style="display: flex; justify-content: center; align-items: center; height: 100%; text-align: center;">\n<div>\n\n`;
+            break;
+        }
+        
+        markdown += textPosition;
+        
+        // 添加歌詞文本
         if (slide.text) {
-          // 在實際應用中，可能需要結合canvas或其他庫來處理複雜文本渲染
-          // 此處僅為示例，實際實現可能需要更複雜的文本處理
-          // 需要加載字體...
-          
-          /* 
-          // 以下是示例代碼，實際需要根據所使用字體進行調整
-          const font = await jimp.loadFont(jimp.FONT_SANS_32_WHITE);
-          image.print(
-            font,
-            0,
-            0,
-            {
-              text: slide.text,
-              alignmentX: jimp.HORIZONTAL_ALIGN_CENTER,
-              alignmentY: jimp.VERTICAL_ALIGN_MIDDLE
-            },
-            width,
-            height
-          );
-          */
+          markdown += `${slide.text.trim().replace(/\n/g, '\n\n')}\n\n`;
         }
         
-        // 保存圖像
-        await image.quality(quality).writeAsync(imagePath);
-        imagePaths.push(imagePath);
-      } catch (error) {
-        log.error(`導出幻燈片 ${i+1} 時發生錯誤:`, error);
-        throw new Error(`處理幻燈片 ${i+1} 時發生錯誤: ${error.message}`);
+        // 關閉div標籤
+        if (slide.textPosition === 'center') {
+          markdown += `\n</div>\n</div>\n`;
+        } else {
+          markdown += `\n</div>\n`;
+        }
       }
       
-      // 進度更新
-      this.emit('export-progress', {
-        taskId,
-        current: i + 1,
-        total: totalSlides,
-        percentage: Math.round(((i + 1) / totalSlides) * 100),
-        currentPath: imagePath
-      });
+      return markdown;
+    } catch (error) {
+      log.error('生成Markdown時出錯:', error);
+      throw error;
     }
+  }
+  
+  /**
+   * 導出為HTML
+   * @param {string} markdown - Markdown內容
+   * @param {string} outputPath - 輸出路徑
+   * @param {Object} options - 導出選項
+   * @param {Function} progressCallback - 進度回調
+   * @returns {Promise<Object>} 導出結果
+   * @private
+   */
+  async _exportToHTML(markdown, outputPath, options, progressCallback) {
+    try {
+      // 報告進度
+      this._reportProgress(0.6, '轉換為HTML...', progressCallback);
+      
+      // 使用Marp轉換為HTML
+      const { html, css } = this.marp.render(markdown);
+      
+      // 創建完整的HTML文件
+      const fullHtml = `
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>${options.title}</title>
+  <style>${css}</style>
+  <style>
+    body { margin: 0; padding: 0; overflow: hidden; }
+    .marp-slides { width: 100vw; height: 100vh; }
+    .marp-slide { display: none; }
+    .marp-slide.active { display: block; }
+    
+    /* 控制按鈕 */
+    .controls {
+      position: fixed;
+      bottom: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 1000;
+      background-color: rgba(0, 0, 0, 0.5);
+      padding: 10px;
+      border-radius: 5px;
+      opacity: 0;
+      transition: opacity 0.3s;
+    }
+    .controls:hover { opacity: 1; }
+    .controls button {
+      background: none;
+      border: none;
+      color: white;
+      font-size: 16px;
+      cursor: pointer;
+      padding: 5px 10px;
+    }
+    .controls span {
+      color: white;
+      margin: 0 10px;
+    }
+  </style>
+</head>
+<body>
+  <div class="marp-slides">
+    ${html}
+  </div>
+  
+  <div class="controls">
+    <button id="prev">◀ 上一張</button>
+    <span id="slide-counter">1 / 1</span>
+    <button id="next">下一張 ▶</button>
+    <button id="fullscreen">全螢幕</button>
+  </div>
+  
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      const slides = document.querySelectorAll('.marp-slide');
+      const prevBtn = document.getElementById('prev');
+      const nextBtn = document.getElementById('next');
+      const counter = document.getElementById('slide-counter');
+      const fullscreenBtn = document.getElementById('fullscreen');
+      
+      let currentIndex = 0;
+      const totalSlides = slides.length;
+      
+      // 初始化
+      updateSlides();
+      
+      // 上一張按鈕
+      prevBtn.addEventListener('click', () => {
+        if (currentIndex > 0) {
+          currentIndex--;
+          updateSlides();
+        }
+      });
+      
+      // 下一張按鈕
+      nextBtn.addEventListener('click', () => {
+        if (currentIndex < totalSlides - 1) {
+          currentIndex++;
+          updateSlides();
+        }
+      });
+      
+      // 全螢幕按鈕
+      fullscreenBtn.addEventListener('click', () => {
+        if (!document.fullscreenElement) {
+          document.documentElement.requestFullscreen();
+        } else {
+          document.exitFullscreen();
+        }
+      });
+      
+      // 鍵盤控制
+      document.addEventListener('keydown', (e) => {
+        if (e.key === 'ArrowRight' || e.key === 'PageDown' || e.key === ' ') {
+          if (currentIndex < totalSlides - 1) {
+            currentIndex++;
+            updateSlides();
+          }
+        } else if (e.key === 'ArrowLeft' || e.key === 'PageUp') {
+          if (currentIndex > 0) {
+            currentIndex--;
+            updateSlides();
+          }
+        } else if (e.key === 'Home') {
+          currentIndex = 0;
+          updateSlides();
+        } else if (e.key === 'End') {
+          currentIndex = totalSlides - 1;
+          updateSlides();
+        } else if (e.key === 'f' || e.key === 'F') {
+          if (!document.fullscreenElement) {
+            document.documentElement.requestFullscreen();
+          } else {
+            document.exitFullscreen();
+          }
+        }
+      });
+      
+      // 更新投影片顯示
+      function updateSlides() {
+        slides.forEach((slide, index) => {
+          if (index === currentIndex) {
+            slide.classList.add('active');
+          } else {
+            slide.classList.remove('active');
+          }
+        });
+        
+        counter.textContent = \`\${currentIndex + 1} / \${totalSlides}\`;
+      }
+    });
+  </script>
+</body>
+</html>
+      `;
+      
+      // 報告進度
+      this._reportProgress(0.8, '保存HTML文件...', progressCallback);
+      
+      // 檢查取消標誌
+      if (this.isCancelled) throw new Error('導出已取消');
+      
+      // 寫入文件
+      await fs.writeFile(outputPath, fullHtml, 'utf8');
+      
+      // 報告進度
+      this._reportProgress(0.9, '完成HTML導出', progressCallback);
+      
+      return {
+        format: 'html',
+        filePath: outputPath,
+        size: fullHtml.length
+      };
+    } catch (error) {
+      log.error('導出為HTML時出錯:', error);
+      throw error;
+    }
+  }
+  
+  /**
+   * 導出為PDF（僅占位符，實際實現需要使用無頭瀏覽器或PDF庫）
+   * @param {string} markdown - Markdown內容
+   * @param {string} outputPath - 輸出路徑
+   * @param {Object} options - 導出選項
+   * @param {Function} progressCallback - 進度回調
+   * @returns {Promise<Object>} 導出結果
+   * @private
+   */
+  async _exportToPDF(markdown, outputPath, options, progressCallback) {
+    // 這裡應該使用puppeteer或類似庫實現PDF導出
+    // 為簡化實現，我們先導出為HTML，並提示使用者手動打開並另存為PDF
+    
+    // 修改輸出路徑為HTML
+    const htmlPath = outputPath.replace(/\.pdf$/i, '.html');
+    
+    // 導出為HTML
+    await this._exportToHTML(markdown, htmlPath, options, progressCallback);
     
     return {
-      format: 'images',
-      directory: dirPath,
-      files: imagePaths,
-      count: imagePaths.length,
-      imageFormat
+      format: 'html_for_pdf',
+      message: '已生成HTML文件，請手動打開並另存為PDF',
+      filePath: htmlPath
     };
   }
   
   /**
-   * 清理文件名，移除非法字符
-   * @param {string} filename - 原始文件名
-   * @returns {string} 處理後的文件名
+   * 導出為PPTX（僅占位符，實際實現需要使用PPTX生成庫）
+   * @param {string} markdown - Markdown內容
+   * @param {string} outputPath - 輸出路徑
+   * @param {Object} options - 導出選項
+   * @param {Function} progressCallback - 進度回調
+   * @returns {Promise<Object>} 導出結果
    * @private
    */
-  _sanitizeFilename(filename) {
-    // 移除非法字符
-    return filename.replace(/[\\/:*?"<>|]/g, '_');
+  async _exportToPPTX(markdown, outputPath, options, progressCallback) {
+    // 這裡應該使用pptxgenjs或類似庫實現PPTX導出
+    // 為簡化實現，我們先導出為HTML，並提示使用者手動打開並另存為PPTX
+    
+    // 修改輸出路徑為HTML
+    const htmlPath = outputPath.replace(/\.pptx$/i, '.html');
+    
+    // 導出為HTML
+    await this._exportToHTML(markdown, htmlPath, options, progressCallback);
+    
+    return {
+      format: 'html_for_pptx',
+      message: '已生成HTML文件，請手動打開並另存為PPTX',
+      filePath: htmlPath
+    };
+  }
+  
+  /**
+   * 導出為圖片（僅占位符，實際實現需要使用無頭瀏覽器或圖像庫）
+   * @param {string} markdown - Markdown內容
+   * @param {string} outputPath - 輸出路徑
+   * @param {Object} options - 導出選項
+   * @param {Function} progressCallback - 進度回調
+   * @returns {Promise<Object>} 導出結果
+   * @private
+   */
+  async _exportToImages(markdown, outputPath, options, progressCallback) {
+    // 這裡應該使用puppeteer或類似庫實現圖片導出
+    // 為簡化實現，我們先導出為HTML，並提示使用者手動打開並截圖
+    
+    // 創建輸出目錄
+    const outputDir = outputPath.endsWith('.zip')
+      ? outputPath.slice(0, -4)
+      : outputPath;
+    
+    // 確保目錄存在
+    await fs.ensureDir(outputDir);
+    
+    // 導出HTML到該目錄
+    const htmlPath = path.join(outputDir, 'slides.html');
+    await this._exportToHTML(markdown, htmlPath, options, progressCallback);
+    
+    return {
+      format: 'html_for_images',
+      message: '已生成HTML文件，請手動打開並截圖',
+      filePath: htmlPath,
+      outputDir
+    };
+  }
+  
+  /**
+   * 確保輸出目錄存在
+   * @private
+   */
+  _ensureOutputDirectory() {
+    try {
+      if (!fs.existsSync(this.options.outputDir)) {
+        fs.mkdirSync(this.options.outputDir, { recursive: true });
+        log.info(`創建輸出目錄: ${this.options.outputDir}`);
+      }
+    } catch (error) {
+      log.error(`創建輸出目錄失敗:`, error);
+    }
+  }
+  
+  /**
+   * 確保輸出路徑有效
+   * @param {string} outputPath - 原始輸出路徑
+   * @param {string} format - 導出格式
+   * @returns {string} 有效的輸出路徑
+   * @private
+   */
+  _ensureValidPath(outputPath, format) {
+    // 如果沒有提供路徑，使用默認路徑
+    if (!outputPath) {
+      const timestamp = new Date().toISOString().replace(/[-:.]/g, '').substring(0, 14);
+      return path.join(this.options.outputDir, `slideshow_${timestamp}.${format}`);
+    }
+    
+    // 檢查文件擴展名
+    const extension = `.${format.toLowerCase()}`;
+    if (!outputPath.toLowerCase().endsWith(extension)) {
+      return `${outputPath}${extension}`;
+    }
+    
+    return outputPath;
+  }
+  
+  /**
+   * 獲取圖片路徑
+   * @param {string} imageFile - 圖片文件或URL
+   * @returns {string} 處理後的圖片路徑
+   * @private
+   */
+  _getImagePath(imageFile) {
+    if (!imageFile) return '';
+    
+    // 如果是URL，直接返回
+    if (imageFile.startsWith('http://') || imageFile.startsWith('https://')) {
+      return imageFile;
+    }
+    
+    // 如果是Base64數據，直接返回
+    if (imageFile.startsWith('data:image/')) {
+      return imageFile;
+    }
+    
+    // 否則，嘗試作為本地文件路徑處理
+    try {
+      // 確保文件存在
+      if (fs.existsSync(imageFile)) {
+        return imageFile;
+      } else {
+        // 嘗試在緩存目錄中查找
+        const cachedPath = path.join(this.options.cacheDir, path.basename(imageFile));
+        if (fs.existsSync(cachedPath)) {
+          return cachedPath;
+        }
+      }
+    } catch (error) {
+      log.error(`處理圖片路徑時出錯:`, error);
+    }
+    
+    // 返回空字符串，表示找不到圖片
+    return '';
+  }
+  
+  /**
+   * 報告進度
+   * @param {number} progress - 進度(0-1)
+   * @param {string} message - 進度消息
+   * @param {Function} callback - 回調函數
+   * @param {boolean} isError - 是否為錯誤
+   * @private
+   */
+  _reportProgress(progress, message, callback, isError = false) {
+    // 更新當前任務進度
+    if (this.currentExport) {
+      this.currentExport.progress = progress;
+    }
+    
+    // 如果有回調函數，則調用
+    if (typeof callback === 'function') {
+      callback({
+        progress,
+        message,
+        isError,
+        timestamp: Date.now(),
+        taskId: this.currentExport?.id || null
+      });
+    }
   }
 }
 

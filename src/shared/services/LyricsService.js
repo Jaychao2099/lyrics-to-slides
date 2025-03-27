@@ -14,7 +14,8 @@ class LyricsService {
       // API金鑰
       apiKeys: {
         genius: options.apiKeys?.genius || '',
-        musixmatch: options.apiKeys?.musixmatch || ''
+        musixmatch: options.apiKeys?.musixmatch || '',
+        openai: options.apiKeys?.openai || '',
       },
       // 代理設置
       proxy: options.proxy || null,
@@ -23,7 +24,24 @@ class LyricsService {
       // 緩存設置
       cacheEnabled: options.cacheEnabled !== undefined ? options.cacheEnabled : true,
       // 歌詞來源優先級
-      sourcesPriority: options.sourcesPriority || ['netease', 'kkbox', 'genius', 'musixmatch', 'mojim']
+      sourcesPriority: options.sourcesPriority || ['netease', 'kkbox', 'genius', 'musixmatch', 'mojim'],
+      // API 端點 - 增加這個部分
+      endpoints: {
+        netease: options.endpoints?.netease || 'https://netease-cloud-music-api-psi-sandy.vercel.app',
+        genius: options.endpoints?.genius || 'https://api.genius.com',
+        musixmatch: options.endpoints?.musixmatch || 'https://api.musixmatch.com/ws/1.1',
+        kkbox: options.endpoints?.kkbox || 'https://www.kkbox.com',
+        mojim: options.endpoints?.mojim || 'https://mojim.com',
+        openai: options.endpoints?.openai || 'https://api.openai.com/v1/chat/completions'
+      },
+      // 使用 LLM 支援
+      useLLM: options.useLLM !== undefined ? options.useLLM : true,
+      // LLM 設置
+      llmSettings: {
+        model: options.llmSettings?.model || 'gpt-4o-mini',
+        temperature: options.llmSettings?.temperature || 0.7,
+        maxTokens: options.llmSettings?.maxTokens || 2048
+      }
     };
     
     // 創建帶有適當配置的HTTP客戶端
@@ -41,6 +59,18 @@ class LyricsService {
       searches: new Map(), // 緩存搜索結果
       lyrics: new Map() // 緩存歌詞內容
     };
+    
+    // API 使用計數器
+    this.apiUsage = {
+      netease: { count: 0, lastUsed: null },
+      kkbox: { count: 0, lastUsed: null },
+      genius: { count: 0, lastUsed: null },
+      musixmatch: { count: 0, lastUsed: null },
+      mojim: { count: 0, lastUsed: null },
+      openai: { count: 0, lastUsed: null }
+    };
+    
+    log.info('歌詞服務已初始化');
   }
   
   /**
@@ -320,26 +350,39 @@ class LyricsService {
    * @private
    */
   _processLyrics(lyrics, lyricInfo) {
-    // 如果已處理過，直接返回
-    if (lyrics.processed) {
+    if (!lyrics || !lyrics.text) {
       return lyrics;
     }
     
-    // 將文本分割為段落
-    if (lyrics.text && typeof lyrics.text === 'string') {
-      const paragraphs = this._splitIntoParagraphs(lyrics.text);
-      
-      return {
-        ...lyrics,
-        processed: true,
-        paragraphs
-      };
-    }
+    // 清理歌詞文本
+    let text = lyrics.text;
     
-    return {
-      ...lyrics,
-      processed: true
-    };
+    // 移除時間標記 [00:00.00]
+    text = text.replace(/\[\d+:\d+\.\d+\]/g, '');
+    
+    // 移除多餘的標點符號和特殊字符
+    text = text.replace(/\[.*?\]/g, ''); // 移除方括號內容
+    text = text.replace(/『|』|「|」|《|》|〈|〉|【|】|（|）|\(|\)|\{|\}/g, ''); // 移除各種括號
+    
+    // 清理多餘空行
+    text = text.replace(/\n{3,}/g, '\n\n');
+    
+    // 分段
+    const paragraphs = this._splitIntoParagraphs(text);
+    
+    // 生成段落類型
+    const paragraphsWithTypes = paragraphs.map(paragraph => {
+      return {
+        text: paragraph,
+        type: this._detectParagraphType(paragraph)
+      };
+    });
+    
+    // 更新歌詞對象
+    lyrics.processedText = text;
+    lyrics.paragraphs = paragraphsWithTypes;
+    
+    return lyrics;
   }
   
   /**
@@ -945,11 +988,362 @@ class LyricsService {
   }
   
   /**
+   * 使用OpenAI API搜索歌詞
+   * @param {Object} query - 搜索查詢
+   * @returns {Promise<Array>} 搜索結果
+   */
+  async searchLyricsWithLLM(query) {
+    // 檢查API金鑰
+    if (!this.options.apiKeys.openai) {
+      log.warn('缺少OpenAI API金鑰，無法使用LLM搜索歌詞');
+      return [];
+    }
+    
+    try {
+      // 構建提示詞
+      const prompt = this._buildLLMSearchPrompt(query);
+      
+      // 呼叫OpenAI API
+      const response = await this.httpClient.post(
+        this.options.endpoints.openai,
+        {
+          model: this.options.llmSettings.model,
+          messages: [
+            {
+              role: "system",
+              content: "你是一位專業的音樂知識助手，精通各種歌曲資訊。請幫助用戶尋找歌詞資訊。回覆時，請使用JSON格式，包含歌曲標題、藝人、專輯以及歌詞內容，確保格式一致，便於後續處理。"
+            },
+            {
+              role: "user",
+              content: prompt
+            }
+          ],
+          temperature: this.options.llmSettings.temperature,
+          max_tokens: this.options.llmSettings.maxTokens,
+          top_p: 1,
+          frequency_penalty: 0,
+          presence_penalty: 0
+        },
+        {
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${this.options.apiKeys.openai}`
+          }
+        }
+      );
+      
+      // 記錄API使用情況
+      this.apiUsage.openai.count++;
+      this.apiUsage.openai.lastUsed = new Date().toISOString();
+      
+      // 解析LLM回覆
+      if (response.data && response.data.choices && response.data.choices[0]) {
+        const content = response.data.choices[0].message.content;
+        
+        try {
+          // 嘗試作為JSON解析
+          const jsonMatch = content.match(/```json\n([\s\S]*?)\n```/) || 
+                            content.match(/```\n([\s\S]*?)\n```/) || 
+                            content.match(/\{[\s\S]*?\}/);
+          
+          let jsonContent;
+          if (jsonMatch) {
+            jsonContent = JSON.parse(jsonMatch[0].replace(/```json\n|```\n|```/g, ''));
+          } else {
+            jsonContent = JSON.parse(content);
+          }
+          
+          // 構建結果
+          if (jsonContent.lyrics || jsonContent.text) {
+            const id = `llm_${Date.now().toString(36)}`;
+            return [{
+              id,
+              title: jsonContent.title || query.title,
+              artist: jsonContent.artist || query.artist || 'AI生成',
+              album: jsonContent.album || '未知專輯',
+              source: 'llm',
+              language: this._detectLanguage(jsonContent.title || query.title, jsonContent.artist || query.artist),
+              text: jsonContent.lyrics || jsonContent.text,
+              sourceUrl: '',
+              confidence: 0.95
+            }];
+          }
+        } catch (parseError) {
+          // 如果無法解析為JSON，嘗試提取文本
+          log.warn('無法解析LLM回覆為JSON:', parseError);
+          
+          // 生成一個簡單的結果
+          const id = `llm_${Date.now().toString(36)}`;
+          return [{
+            id,
+            title: query.title,
+            artist: query.artist || 'AI生成',
+            album: '未知專輯',
+            source: 'llm',
+            language: this._detectLanguage(query.title, query.artist),
+            text: content.replace(/```[\s\S]*?```/g, '').trim(), // 移除代碼塊
+            sourceUrl: '',
+            confidence: 0.9
+          }];
+        }
+      }
+      
+      return [];
+    } catch (error) {
+      log.error('使用LLM搜索歌詞時出錯:', error);
+      return [];
+    }
+  }
+  
+  /**
+   * 構建LLM搜索提示詞
+   * @param {Object} query - 搜索查詢
+   * @returns {string} 提示詞
+   * @private
+   */
+  _buildLLMSearchPrompt(query) {
+    let prompt = `請幫我找尋這首歌曲的完整歌詞：`;
+    
+    if (query.title) {
+      prompt += `\n歌名：${query.title}`;
+    }
+    
+    if (query.artist) {
+      prompt += `\n歌手：${query.artist}`;
+    }
+    
+    if (query.album) {
+      prompt += `\n專輯：${query.album}`;
+    }
+    
+    prompt += `\n\n請以JSON格式回覆，包含以下欄位：title（歌名）、artist（歌手）、album（專輯）、lyrics（完整歌詞文本）。
+如果找不到完整歌詞，請盡可能提供部分歌詞或相關資訊。`;
+    
+    return prompt;
+  }
+  
+  /**
+   * 使用LLM處理和優化歌詞
+   * @param {string} lyrics - 原始歌詞文本
+   * @param {Object} options - 處理選項
+   * @returns {Promise<Object>} 處理後的歌詞
+   */
+  async processLyricsWithLLM(lyrics, options = {}) {
+    if (!this.options.apiKeys.openai || !this.options.useLLM) {
+      return {
+        success: false,
+        error: '未啟用LLM處理或缺少API金鑰',
+        originalLyrics: lyrics
+      };
+    }
+    
+    try {
+      // 構建提示詞
+      const prompt = this._buildLLMProcessPrompt(lyrics, options);
+      
+      // 呼叫OpenAI API
+      const response = await this.httpClient.post(
+        this.options.endpoints.openai,
+        {
+          model: this.options.llmSettings.model,
+          messages: [
+            {
+              role: "system",
+              content: "你是一位專業的歌詞編輯專家，能夠優化和結構化歌詞，使其更適合顯示在投影片上。"
+            },
+            {
+              role: "user",
+              content: prompt
+            }
+          ],
+          temperature: 0.3, // 較低的溫度以保持一致性
+          max_tokens: this.options.llmSettings.maxTokens,
+          top_p: 1,
+          frequency_penalty: 0,
+          presence_penalty: 0
+        },
+        {
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${this.options.apiKeys.openai}`
+          }
+        }
+      );
+      
+      // 記錄API使用情況
+      this.apiUsage.openai.count++;
+      this.apiUsage.openai.lastUsed = new Date().toISOString();
+      
+      // 解析LLM回覆
+      if (response.data && response.data.choices && response.data.choices[0]) {
+        const content = response.data.choices[0].message.content;
+        
+        try {
+          // 嘗試作為JSON解析
+          const jsonMatch = content.match(/```json\n([\s\S]*?)\n```/) || 
+                            content.match(/```\n([\s\S]*?)\n```/) || 
+                            content.match(/\{[\s\S]*?\}/);
+          
+          if (jsonMatch) {
+            const jsonContent = JSON.parse(jsonMatch[0].replace(/```json\n|```\n|```/g, ''));
+            
+            return {
+              success: true,
+              processedLyrics: jsonContent.lyrics || jsonContent.processedLyrics,
+              paragraphs: jsonContent.paragraphs || [],
+              slides: jsonContent.slides || [],
+              originalLyrics: lyrics
+            };
+          } else {
+            // 如果不是JSON，嘗試提取結構化的文本
+            const paragraphs = content.split('\n\n').filter(p => p.trim());
+            
+            return {
+              success: true,
+              processedLyrics: content,
+              paragraphs: paragraphs,
+              slides: paragraphs.map(p => ({ text: p.trim() })),
+              originalLyrics: lyrics
+            };
+          }
+        } catch (parseError) {
+          log.warn('無法解析LLM回覆為JSON:', parseError);
+          
+          // 返回原始內容
+          return {
+            success: true,
+            processedLyrics: content.replace(/```[\s\S]*?```/g, '').trim(),
+            paragraphs: content.split('\n\n').filter(p => p.trim()),
+            originalLyrics: lyrics
+          };
+        }
+      }
+      
+      return {
+        success: false,
+        error: '無法從LLM獲取有效回覆',
+        originalLyrics: lyrics
+      };
+    } catch (error) {
+      log.error('使用LLM處理歌詞時出錯:', error);
+      
+      return {
+        success: false,
+        error: error.message,
+        originalLyrics: lyrics
+      };
+    }
+  }
+  
+  /**
+   * 構建LLM歌詞處理提示詞
+   * @param {string} lyrics - 歌詞文本
+   * @param {Object} options - 處理選項
+   * @returns {string} 提示詞
+   * @private
+   */
+  _buildLLMProcessPrompt(lyrics, options) {
+    const maxLines = options.maxLines || 4;
+    
+    let prompt = `請將以下歌詞優化並分段，使其適合顯示在投影片上。每張投影片最多顯示${maxLines}行文本。\n\n`;
+    prompt += `原始歌詞：\n${lyrics}\n\n`;
+    prompt += `請遵循以下規則：
+1. 依照歌曲的自然段落（如：副歌、主歌）進行分組
+2. 如果一個段落超過${maxLines}行，則適當拆分
+3. 保持歌詞的完整性和語意連貫性
+4. 保留原始的排版和空行
+5. 去除時間標記和不必要的標點符號
+6. 以JSON格式回覆，包含：processedLyrics（處理後的完整歌詞）和slides（投影片分段，每個元素包含一張投影片的文字）
+
+感謝你的幫助！`;
+    
+    return prompt;
+  }
+  
+  /**
+   * 獲取API使用情況
+   * @returns {Object} API使用統計
+   */
+  getApiUsage() {
+    return this.apiUsage;
+  }
+  
+  /**
+   * 檢查API金鑰是否有效
+   * @param {string} provider - API提供者
+   * @param {string} apiKey - API金鑰
+   * @returns {Promise<boolean>} 金鑰是否有效
+   */
+  async checkApiKey(provider, apiKey) {
+    try {
+      switch (provider) {
+        case 'genius': {
+          const response = await this.httpClient.get(`${this.options.endpoints.genius}/search?q=test`, {
+            headers: {
+              'Authorization': `Bearer ${apiKey}`
+            }
+          });
+          return response.status === 200;
+        }
+        
+        case 'musixmatch': {
+          const response = await this.httpClient.get(`${this.options.endpoints.musixmatch}/chart.artists.get?page=1&page_size=1&apikey=${apiKey}`);
+          return response.data && response.data.message && response.data.message.header && response.data.message.header.status_code === 200;
+        }
+        
+        case 'openai': {
+          const response = await this.httpClient.post(
+            'https://api.openai.com/v1/chat/completions',
+            {
+              model: 'gpt-4o-mini',
+              messages: [
+                {
+                  role: "user",
+                  content: "Hello"
+                }
+              ],
+              max_tokens: 5
+            },
+            {
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${apiKey}`
+              }
+            }
+          );
+          return response.status === 200;
+        }
+        
+        default:
+          return false;
+      }
+    } catch (error) {
+      log.error(`檢查${provider}的API金鑰時出錯:`, error);
+      return false;
+    }
+  }
+  
+  /**
+   * 更新API金鑰
+   * @param {string} provider - API提供者
+   * @param {string} apiKey - API金鑰
+   * @returns {boolean} 更新是否成功
+   */
+  updateApiKey(provider, apiKey) {
+    if (this.options.apiKeys.hasOwnProperty(provider)) {
+      this.options.apiKeys[provider] = apiKey;
+      return true;
+    }
+    return false;
+  }
+  
+  /**
    * 清除緩存
    */
   clearCache() {
     this.cache.searches.clear();
     this.cache.lyrics.clear();
+    log.info('歌詞服務緩存已清除');
   }
 }
 

@@ -357,17 +357,30 @@
           <section id="settings-section" class="section">
             <div class="section-header">
               <h2>設定</h2>
+              <div class="section-actions">
+                <button id="save-settings-btn" class="action-button primary">
+                  <span class="icon">💾</span>
+                  <span class="label">保存設定</span>
+                </button>
+              </div>
             </div>
             
             <div class="settings-container">
               <div class="settings-group">
-                <h3>應用程式</h3>
+                <h3>基本設定</h3>
+                <div class="setting-item">
+                  <label for="output-path">輸出路徑</label>
+                  <div class="input-with-button">
+                    <input type="text" id="output-path" readonly>
+                    <button id="browse-output-path-btn" class="small-button">瀏覽...</button>
+                  </div>
+                </div>
                 <div class="setting-item">
                   <label for="theme-select">主題</label>
                   <select id="theme-select">
                     <option value="light">淺色</option>
                     <option value="dark">深色</option>
-                    <option value="system">跟隨系統</option>
+                    <option value="auto">系統</option>
                   </select>
                 </div>
                 <div class="setting-item">
@@ -379,75 +392,188 @@
                   </select>
                 </div>
                 <div class="setting-item checkbox">
-                  <label>
-                    <input type="checkbox" id="auto-update-check" checked>
-                    <span>自動檢查更新</span>
-                  </label>
+                  <input type="checkbox" id="auto-update-checkbox">
+                  <label for="auto-update-checkbox">自動檢查更新</label>
                 </div>
               </div>
               
               <div class="settings-group">
-                <h3>投影片</h3>
+                <h3>API 金鑰設定</h3>
+                <p class="setting-description">設置API金鑰以啟用高級功能。金鑰只會儲存在本地，不會傳輸到其他地方。</p>
+                
                 <div class="setting-item">
-                  <label for="resolution-select">預設解析度</label>
-                  <select id="resolution-select">
-                    <option value="16:9">16:9 (1920x1080)</option>
-                    <option value="4:3">4:3 (1024x768)</option>
-                    <option value="custom">自訂</option>
+                  <label for="openai-api-key">OpenAI API金鑰 <span class="required">*</span></label>
+                  <div class="input-with-button">
+                    <input type="password" id="openai-api-key" placeholder="sk-...">
+                    <button id="show-openai-key-btn" class="small-button toggle-password">顯示</button>
+                    <button id="check-openai-key-btn" class="small-button check-key">檢查</button>
+                  </div>
+                  <p class="setting-hint">用於生成圖片和處理歌詞。<a href="https://platform.openai.com/api-keys" class="external-link" target="_blank">獲取金鑰</a></p>
+                </div>
+                
+                <div class="setting-item">
+                  <label for="stabilityai-api-key">Stability AI API金鑰 <span class="optional">(選填)</span></label>
+                  <div class="input-with-button">
+                    <input type="password" id="stabilityai-api-key" placeholder="sk-...">
+                    <button id="show-stabilityai-key-btn" class="small-button toggle-password">顯示</button>
+                    <button id="check-stabilityai-key-btn" class="small-button check-key">檢查</button>
+                  </div>
+                  <p class="setting-hint">用於生成替代圖片。<a href="https://platform.stability.ai/" class="external-link" target="_blank">獲取金鑰</a></p>
+                </div>
+                
+                <div class="setting-item">
+                  <label for="genius-api-key">Genius API金鑰 <span class="optional">(選填)</span></label>
+                  <div class="input-with-button">
+                    <input type="password" id="genius-api-key" placeholder="...">
+                    <button id="show-genius-key-btn" class="small-button toggle-password">顯示</button>
+                    <button id="check-genius-key-btn" class="small-button check-key">檢查</button>
+                  </div>
+                  <p class="setting-hint">用於搜索歌詞。<a href="https://genius.com/api-clients" class="external-link" target="_blank">獲取金鑰</a></p>
+                </div>
+                
+                <div class="setting-item">
+                  <label for="musixmatch-api-key">Musixmatch API金鑰 <span class="optional">(選填)</span></label>
+                  <div class="input-with-button">
+                    <input type="password" id="musixmatch-api-key" placeholder="...">
+                    <button id="show-musixmatch-key-btn" class="small-button toggle-password">顯示</button>
+                    <button id="check-musixmatch-key-btn" class="small-button check-key">檢查</button>
+                  </div>
+                  <p class="setting-hint">用於搜索歌詞。<a href="https://developer.musixmatch.com/" class="external-link" target="_blank">獲取金鑰</a></p>
+                </div>
+                
+                <div class="setting-item checkbox">
+                  <input type="checkbox" id="use-llm-checkbox" checked>
+                  <label for="use-llm-checkbox">使用AI模型輔助搜索和處理歌詞</label>
+                </div>
+              </div>
+              
+              <div class="settings-group">
+                <h3>圖片生成設定</h3>
+                
+                <div class="setting-item">
+                  <label for="image-provider-select">圖片生成服務</label>
+                  <select id="image-provider-select">
+                    <option value="openai">OpenAI DALL-E</option>
+                    <option value="stabilityai">Stability AI</option>
                   </select>
                 </div>
-                <div class="custom-resolution" style="display: none;">
-                  <div class="setting-item">
-                    <label for="custom-width">寬度</label>
-                    <input type="number" id="custom-width" min="640" max="3840" value="1920">
-                  </div>
-                  <div class="setting-item">
-                    <label for="custom-height">高度</label>
-                    <input type="number" id="custom-height" min="480" max="2160" value="1080">
-                  </div>
+                
+                <div class="setting-item openai-option">
+                  <label for="image-model-select">模型</label>
+                  <select id="image-model-select">
+                    <option value="dall-e-3">DALL-E 3</option>
+                    <option value="dall-e-2">DALL-E 2</option>
+                  </select>
+                </div>
+                
+                <div class="setting-item openai-option">
+                  <label for="image-quality-select">圖片品質</label>
+                  <select id="image-quality-select">
+                    <option value="standard">標準</option>
+                    <option value="hd">高清</option>
+                  </select>
+                </div>
+                
+                <div class="setting-item openai-option">
+                  <label for="image-style-select">圖片風格</label>
+                  <select id="image-style-select">
+                    <option value="natural">自然</option>
+                    <option value="vivid">生動</option>
+                  </select>
+                </div>
+                
+                <div class="setting-item stability-option" style="display: none;">
+                  <label for="stability-model-select">模型</label>
+                  <select id="stability-model-select">
+                    <option value="stable-diffusion-xl-1024-v1-0">Stable Diffusion XL 1.0</option>
+                    <option value="stable-diffusion-512-v2-1">Stable Diffusion 2.1</option>
+                  </select>
                 </div>
               </div>
               
-              <!-- API設置 -->
               <div class="settings-group">
-                <h3>API設置</h3>
+                <h3>提示詞模板</h3>
+                <p class="setting-description">設定生成背景圖片的AI提示詞模板。可以使用 {{lyrics}} 代表歌詞內容。</p>
                 
-                <!-- 歌詞API設置 -->
-                <div class="api-section">
-                  <h4>搜尋歌詞/生成投影片</h4>
-                  <div class="api-container">
-                    <div id="lyrics-api-rows" class="api-rows">
-                      <!-- API列將由JavaScript動態添加 -->
-                    </div>
-                    <button id="add-lyrics-api" class="action-button">
-                      <span class="icon">➕</span>
-                      新增API
-                    </button>
-                  </div>
+                <div class="setting-item">
+                  <label for="prompt-template-select">模板</label>
+                  <select id="prompt-template-select">
+                    <option value="default">預設</option>
+                    <option value="abstract">抽象藝術</option>
+                    <option value="nature">自然風景</option>
+                    <option value="worship">敬拜風格</option>
+                    <option value="modern">現代設計</option>
+                    <option value="custom">自定義</option>
+                  </select>
                 </div>
                 
-                <!-- 背景API設置 -->
-                <div class="api-section">
-                  <h4>生成背景</h4>
-                  <div class="api-container">
-                    <div id="background-api-rows" class="api-rows">
-                      <!-- API列將由JavaScript動態添加 -->
-                    </div>
-                    <button id="add-background-api" class="action-button">
-                      <span class="icon">➕</span>
-                      新增API
-                    </button>
-                  </div>
+                <div class="setting-item">
+                  <label for="prompt-template-text">提示詞模板內容</label>
+                  <textarea id="prompt-template-text" rows="6"></textarea>
                 </div>
                 
-                <div class="settings-note">
-                  <p>注意：API金鑰將保存在本地，請妥善保管。使用圖片生成服務可能會產生費用。</p>
+                <div class="setting-item">
+                  <button id="save-template-btn" class="action-button small">保存模板</button>
+                  <button id="reset-template-btn" class="action-button small">重置模板</button>
                 </div>
               </div>
               
-              <div class="settings-actions">
-                <button id="reset-settings-btn" class="action-button">重設為預設值</button>
-                <button id="save-settings-btn" class="action-button primary">保存設定</button>
+              <div class="settings-group">
+                <h3>投影片設定</h3>
+                
+                <div class="setting-item">
+                  <label for="font-family-select">字體</label>
+                  <select id="font-family-select">
+                    <option value="Microsoft JhengHei, Arial, sans-serif">微軟正黑體</option>
+                    <option value="Noto Sans TC, sans-serif">Noto Sans TC</option>
+                    <option value="Arial, sans-serif">Arial</option>
+                    <option value="Helvetica, sans-serif">Helvetica</option>
+                  </select>
+                </div>
+                
+                <div class="setting-item">
+                  <label for="font-size-input">字體大小</label>
+                  <input type="number" id="font-size-input" min="20" max="200" value="60">
+                </div>
+                
+                <div class="setting-item">
+                  <label for="font-color-input">字體顏色</label>
+                  <input type="color" id="font-color-input" value="#FFFFFF">
+                </div>
+                
+                <div class="setting-item checkbox">
+                  <input type="checkbox" id="text-shadow-checkbox" checked>
+                  <label for="text-shadow-checkbox">文字陰影</label>
+                </div>
+                
+                <div class="setting-item">
+                  <label for="line-height-input">行高</label>
+                  <input type="number" id="line-height-input" min="1" max="3" step="0.1" value="1.5">
+                </div>
+                
+                <div class="setting-item">
+                  <label for="max-lines-input">每張投影片最大行數</label>
+                  <input type="number" id="max-lines-input" min="1" max="10" value="4">
+                </div>
+                
+                <div class="setting-item">
+                  <label for="text-position-select">文字位置</label>
+                  <select id="text-position-select">
+                    <option value="center">中央</option>
+                    <option value="top">頂部</option>
+                    <option value="bottom">底部</option>
+                  </select>
+                </div>
+              </div>
+              
+              <div class="settings-group">
+                <h3>資料管理</h3>
+                
+                <div class="setting-item">
+                  <button id="clear-lyrics-cache-btn" class="action-button small">清除歌詞緩存</button>
+                  <button id="clear-images-cache-btn" class="action-button small">清除圖片緩存</button>
+                  <button id="clear-all-cache-btn" class="action-button small danger">清除所有緩存</button>
+                </div>
               </div>
             </div>
           </section>

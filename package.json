@@ -31,6 +31,7 @@
   "dependencies": {
     "@marp-team/marp-core": "^3.9.0",
     "axios": "^1.6.2",
+    "cheerio": "^1.0.0",
     "electron-log": "^5.0.1",
     "electron-store": "^8.1.0",
     "electron-updater": "^6.1.7",

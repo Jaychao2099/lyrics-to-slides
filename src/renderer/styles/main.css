@@ -1,21 +1,24 @@
 /* 主要樣式表 */
 :root {
   /* 基本色彩 */
-  --primary-color: #4d6ae4;
-  --primary-light: #7c90f5;
-  --primary-dark: #3851c5;
-  --accent-color: #ff6b6b;
-  --accent-light: #ff9e9e;
-  --accent-dark: #e64c4c;
-  
-  /* 淺色主題 */
-  --bg-color: #f8f9fa;
-  --bg-secondary: #ffffff;
+  --primary-color: #4a86e8;
+  --secondary-color: #6aa84f;
+  --accent-color: #f1c232;
+  --danger-color: #cc0000;
   --text-color: #333333;
-  --text-secondary: #666666;
-  --border-color: #e0e0e0;
+  --light-text: #666666;
+  --very-light-text: #999999;
+  --bg-color: #f5f5f5;
+  --card-bg: #ffffff;
+  --border-color: #dddddd;
   --hover-color: #f0f0f0;
+  --active-color: #e6e6e6;
   --shadow-color: rgba(0, 0, 0, 0.1);
+  --header-height: 40px;
+  --sidebar-width: 240px;
+  --footer-height: 20px;
+  --border-radius: 4px;
+  --transition-speed: 0.2s;
   
   /* 字體與間距 */
   --font-size-small: 12px;
@@ -39,13 +42,55 @@
 }
 
 /* 深色主題 */
-.dark-theme, [data-theme="dark"] {
-  --bg-color: #121212;
-  --bg-secondary: #1e1e1e;
+@media (prefers-color-scheme: dark) {
+  :root.theme-auto, :root.theme-dark {
+    --primary-color: #4a86e8;
+    --secondary-color: #6aa84f;
+    --accent-color: #f1c232;
+    --danger-color: #ff4444;
+    --text-color: #e8e8e8;
+    --light-text: #cccccc;
+    --very-light-text: #999999;
+    --bg-color: #1e1e1e;
+    --card-bg: #2d2d2d;
+    --border-color: #444444;
+    --hover-color: #383838;
+    --active-color: #404040;
+    --shadow-color: rgba(0, 0, 0, 0.3);
+  }
+}
+
+/* 強制淺色主題 */
+:root.theme-light {
+  --primary-color: #4a86e8;
+  --secondary-color: #6aa84f;
+  --accent-color: #f1c232;
+  --danger-color: #cc0000;
+  --text-color: #333333;
+  --light-text: #666666;
+  --very-light-text: #999999;
+  --bg-color: #f5f5f5;
+  --card-bg: #ffffff;
+  --border-color: #dddddd;
+  --hover-color: #f0f0f0;
+  --active-color: #e6e6e6;
+  --shadow-color: rgba(0, 0, 0, 0.1);
+}
+
+/* 強制深色主題 */
+:root.theme-dark {
+  --primary-color: #4a86e8;
+  --secondary-color: #6aa84f;
+  --accent-color: #f1c232;
+  --danger-color: #ff4444;
   --text-color: #e8e8e8;
-  --text-secondary: #b0b0b0;
-  --border-color: #333333;
-  --hover-color: #252525;
+  --light-text: #cccccc;
+  --very-light-text: #999999;
+  --bg-color: #1e1e1e;
+  --card-bg: #2d2d2d;
+  --border-color: #444444;
+  --hover-color: #383838;
+  --active-color: #404040;
   --shadow-color: rgba(0, 0, 0, 0.3);
 }
 
@@ -60,6 +105,7 @@ html, body {
   color: var(--text-color);
   background-color: var(--bg-color);
   overflow: hidden;
+  transition: background-color var(--transition-speed) ease;
 }
 
 * {
@@ -75,13 +121,13 @@ input, textarea {
 
 /* 標題欄樣式 */
 .title-bar {
-  height: 38px;
+  height: var(--header-height);
   display: flex;
   align-items: center;
   justify-content: space-between;
   padding: 0 var(--space-md);
-  background-color: var(--bg-secondary);
-  border-bottom: 1px solid var(--border-color);
+  background-color: var(--primary-color);
+  color: white;
   -webkit-app-region: drag;
 }
 
@@ -108,12 +154,12 @@ input, textarea {
   border-radius: var(--border-radius-sm);
   cursor: pointer;
   font-size: var(--font-size-medium);
-  color: var(--text-secondary);
+  color: white;
   transition: background-color var(--transition-fast);
 }
 
 .window-control:hover {
-  background-color: var(--hover-color);
+  background-color: rgba(255, 255, 255, 0.1);
 }
 
 #close-button:hover {
@@ -124,18 +170,19 @@ input, textarea {
 /* 主布局 */
 .main-container {
   display: flex;
-  height: calc(100vh - 38px);
+  height: calc(100vh - var(--header-height));
   overflow: hidden;
 }
 
 /* 側邊欄樣式 */
 .sidebar {
-  width: 240px;
+  width: var(--sidebar-width);
   height: 100%;
-  background-color: var(--bg-secondary);
+  background-color: var(--card-bg);
   border-right: 1px solid var(--border-color);
   display: flex;
   flex-direction: column;
+  transition: all var(--transition-speed) ease;
 }
 
 .project-info {
@@ -151,7 +198,7 @@ input, textarea {
 
 .project-meta {
   font-size: var(--font-size-small);
-  color: var(--text-secondary);
+  color: var(--light-text);
 }
 
 .main-nav {
@@ -178,7 +225,7 @@ input, textarea {
 }
 
 .nav-item.active {
-  background-color: rgba(var(--primary-color-rgb), 0.1);
+  background-color: var(--active-color);
   color: var(--primary-color);
   font-weight: 600;
 }
@@ -204,7 +251,7 @@ input, textarea {
   padding: var(--space-sm) var(--space-md);
   border: 1px solid var(--border-color);
   border-radius: var(--border-radius-sm);
-  background-color: var(--bg-secondary);
+  background-color: var(--card-bg);
   color: var(--text-color);
   cursor: pointer;
   transition: all var(--transition-fast);
@@ -218,11 +265,31 @@ input, textarea {
 .action-button.primary {
   background-color: var(--primary-color);
   color: white;
-  border-color: var(--primary-dark);
+  border-color: var(--primary-color);
 }
 
 .action-button.primary:hover {
-  background-color: var(--primary-dark);
+  background-color: #3a76d8;
+}
+
+.action-button.secondary {
+  background-color: var(--secondary-color);
+  color: white;
+  border-color: var(--secondary-color);
+}
+
+.action-button.secondary:hover {
+  background-color: #5a983f;
+}
+
+.action-button.danger {
+  background-color: var(--danger-color);
+  color: white;
+  border-color: var(--danger-color);
+}
+
+.action-button.danger:hover {
+  background-color: #b30000;
 }
 
 .action-button .icon {
@@ -297,7 +364,7 @@ input, textarea {
   flex: 1;
   overflow-y: auto;
   padding: var(--space-md);
-  background-color: var(--bg-secondary);
+  background-color: var(--card-bg);
   border: 1px solid var(--border-color);
   border-radius: var(--border-radius-md);
   box-shadow: 0 2px 4px var(--shadow-color);
@@ -318,7 +385,7 @@ input, textarea {
   justify-content: center;
   border: 1px solid var(--border-color);
   border-radius: var(--border-radius-sm);
-  background-color: var(--bg-secondary);
+  background-color: var(--card-bg);
   cursor: pointer;
   transition: all var(--transition-fast);
 }
@@ -338,7 +405,7 @@ input, textarea {
   width: 200px;
   overflow-y: auto;
   padding: var(--space-md);
-  background-color: var(--bg-secondary);
+  background-color: var(--card-bg);
   border: 1px solid var(--border-color);
   border-radius: var(--border-radius-md);
   margin-right: var(--space-md);
@@ -355,7 +422,7 @@ input, textarea {
   display: flex;
   align-items: center;
   justify-content: center;
-  background-color: var(--bg-secondary);
+  background-color: var(--card-bg);
   border: 1px solid var(--border-color);
   border-radius: var(--border-radius-md);
   margin-bottom: var(--space-md);
@@ -363,7 +430,7 @@ input, textarea {
 }
 
 .slide-properties {
-  background-color: var(--bg-secondary);
+  background-color: var(--card-bg);
   border: 1px solid var(--border-color);
   border-radius: var(--border-radius-md);
   padding: var(--space-md);
@@ -397,7 +464,7 @@ input, textarea {
   padding: var(--space-xs) var(--space-sm);
   border: 1px solid var(--border-color);
   border-radius: var(--border-radius-sm);
-  background-color: var(--bg-secondary);
+  background-color: var(--card-bg);
   cursor: pointer;
   transition: all var(--transition-fast);
 }
@@ -409,7 +476,7 @@ input, textarea {
 .position-btn.active, .align-btn.active {
   background-color: var(--primary-color);
   color: white;
-  border-color: var(--primary-dark);
+  border-color: var(--primary-color);
 }
 
 /* 預覽區塊樣式 */
@@ -435,7 +502,7 @@ input, textarea {
   justify-content: center;
   border: 1px solid var(--border-color);
   border-radius: 50%;
-  background-color: var(--bg-secondary);
+  background-color: var(--card-bg);
   cursor: pointer;
   transition: all var(--transition-fast);
 }
@@ -454,7 +521,7 @@ input, textarea {
   display: flex;
   align-items: center;
   justify-content: center;
-  background-color: var(--bg-secondary);
+  background-color: var(--card-bg);
   border: 1px solid var(--border-color);
   border-radius: var(--border-radius-md);
   box-shadow: 0 2px 4px var(--shadow-color);
@@ -475,7 +542,7 @@ input, textarea {
 }
 
 .option-group {
-  background-color: var(--bg-secondary);
+  background-color: var(--card-bg);
   border: 1px solid var(--border-color);
   border-radius: var(--border-radius-md);
   padding: var(--space-md);
@@ -515,7 +582,7 @@ input, textarea {
   padding: var(--space-sm);
   border: 1px solid var(--border-color);
   border-radius: var(--border-radius-sm);
-  background-color: var(--bg-secondary);
+  background-color: var(--card-bg);
 }
 
 .export-actions {
@@ -552,7 +619,7 @@ input, textarea {
 }
 
 .settings-group {
-  background-color: var(--bg-secondary);
+  background-color: var(--card-bg);
   border: 1px solid var(--border-color);
   border-radius: var(--border-radius-md);
   padding: var(--space-md);
@@ -618,7 +685,7 @@ input, textarea {
 
 .api-note {
   font-size: var(--font-size-small);
-  color: var(--text-secondary);
+  color: var(--light-text);
   margin-top: var(--space-md);
 }
 
@@ -644,7 +711,7 @@ input, textarea {
 }
 
 .dialog {
-  background-color: var(--bg-secondary);
+  background-color: var(--card-bg);
   border-radius: var(--border-radius-md);
   box-shadow: 0 4px 8px var(--shadow-color);
   width: 100%;
@@ -670,7 +737,7 @@ input, textarea {
   border: none;
   font-size: var(--font-size-large);
   cursor: pointer;
-  color: var(--text-secondary);
+  color: var(--light-text);
 }
 
 .dialog-body {
@@ -701,7 +768,7 @@ input, textarea {
   transform: translateX(-50%);
   padding: var(--space-xs) var(--space-sm);
   background-color: var(--text-color);
-  color: var(--bg-secondary);
+  color: var(--card-bg);
   border-radius: var(--border-radius-sm);
   font-size: var(--font-size-small);
   white-space: nowrap;
