@@ -422,6 +422,24 @@
                 </div>
                 
                 <div class="setting-item">
+                  <label for="google-api-key">Google API金鑰 <span class="required">*</span></label>
+                  <div class="input-with-button">
+                    <input type="password" id="google-api-key" placeholder="AIza...">
+                    <button id="show-google-key-btn" class="small-button toggle-password">顯示</button>
+                    <button id="check-google-key-btn" class="small-button check-key">檢查</button>
+                  </div>
+                  <p class="setting-hint">用於搜索歌詞。<a href="https://console.cloud.google.com/apis/credentials" class="external-link" target="_blank">獲取金鑰</a></p>
+                </div>
+                
+                <div class="setting-item">
+                  <label for="search-engine-id">Google 自訂搜尋引擎 ID <span class="required">*</span></label>
+                  <div class="input-with-button">
+                    <input type="text" id="search-engine-id" placeholder="填入您的Custom Search Engine ID">
+                  </div>
+                  <p class="setting-hint">與Google API金鑰配合使用。<a href="https://programmablesearchengine.google.com/controlpanel/create" class="external-link" target="_blank">建立搜尋引擎</a></p>
+                </div>
+                
+                <div class="setting-item">
                   <label for="genius-api-key">Genius API金鑰 <span class="optional">(選填)</span></label>
                   <div class="input-with-button">
                     <input type="password" id="genius-api-key" placeholder="...">
@@ -440,53 +458,83 @@
                   </div>
                   <p class="setting-hint">用於搜索歌詞。<a href="https://developer.musixmatch.com/" class="external-link" target="_blank">獲取金鑰</a></p>
                 </div>
+              </div>
+              
+              <div class="settings-group">
+                <h3>API 功能配置</h3>
+                <p class="setting-description">設定各功能使用的API服務。</p>
                 
-                <div class="setting-item checkbox">
-                  <input type="checkbox" id="use-llm-checkbox" checked>
-                  <label for="use-llm-checkbox">使用AI模型輔助搜索和處理歌詞</label>
+                <div class="setting-item" id="lyrics-search-section">
+                  <label for="lyrics-search-select">歌詞搜尋服務</label>
+                  <select id="lyrics-search-select" disabled>
+                    <option value="google" selected>Google 搜尋 (推薦)</option>
+                  </select>
+                  <div class="api-warning" id="lyrics-search-warning">
+                    請先設定Google API金鑰和搜尋引擎ID
+                  </div>
+                </div>
+                
+                <div class="setting-item" id="image-generation-section">
+                  <label for="image-generation-select">圖片生成服務</label>
+                  <select id="image-generation-select" disabled>
+                    <option value="openai" selected>OpenAI DALL-E (推薦)</option>
+                  </select>
+                  <div class="api-warning" id="image-gen-warning">
+                    請先設定OpenAI API金鑰
+                  </div>
+                </div>
+                
+                <div class="setting-item" id="slide-creation-section">
+                  <label for="slide-creation-select">投影片建構服務</label>
+                  <select id="slide-creation-select" disabled>
+                    <option value="openai" selected>OpenAI GPT (推薦)</option>
+                  </select>
+                  <div class="api-warning" id="slide-creation-warning">
+                    請先設定OpenAI API金鑰
+                  </div>
                 </div>
               </div>
               
               <div class="settings-group">
-                <h3>圖片生成設定</h3>
+                <h3>圖片生成設置</h3>
                 
                 <div class="setting-item">
-                  <label for="image-provider-select">圖片生成服務</label>
+                  <label for="image-provider-select">圖片生成服務提供商</label>
                   <select id="image-provider-select">
                     <option value="openai">OpenAI DALL-E</option>
                     <option value="stabilityai">Stability AI</option>
                   </select>
                 </div>
                 
-                <div class="setting-item openai-option">
-                  <label for="image-model-select">模型</label>
+                <div class="setting-item openai-options">
+                  <label for="image-model-select">模型選擇 (OpenAI)</label>
                   <select id="image-model-select">
-                    <option value="dall-e-3">DALL-E 3</option>
-                    <option value="dall-e-2">DALL-E 2</option>
+                    <option value="dall-e-3">DALL-E 3 (高畫質)</option>
+                    <option value="dall-e-2">DALL-E 2 (較快)</option>
                   </select>
                 </div>
                 
-                <div class="setting-item openai-option">
-                  <label for="image-quality-select">圖片品質</label>
+                <div class="setting-item openai-options">
+                  <label for="image-quality-select">畫質 (OpenAI)</label>
                   <select id="image-quality-select">
                     <option value="standard">標準</option>
-                    <option value="hd">高清</option>
+                    <option value="hd">高畫質 (更貴)</option>
                   </select>
                 </div>
                 
-                <div class="setting-item openai-option">
-                  <label for="image-style-select">圖片風格</label>
+                <div class="setting-item openai-options">
+                  <label for="image-style-select">風格 (OpenAI)</label>
                   <select id="image-style-select">
                     <option value="natural">自然</option>
                     <option value="vivid">生動</option>
                   </select>
                 </div>
                 
-                <div class="setting-item stability-option" style="display: none;">
-                  <label for="stability-model-select">模型</label>
+                <div class="setting-item stability-options" style="display:none;">
+                  <label for="stability-model-select">模型選擇 (Stability)</label>
                   <select id="stability-model-select">
-                    <option value="stable-diffusion-xl-1024-v1-0">Stable Diffusion XL 1.0</option>
-                    <option value="stable-diffusion-512-v2-1">Stable Diffusion 2.1</option>
+                    <option value="stable-diffusion-xl-1024-v1-0">Stable Diffusion XL</option>
+                    <option value="stable-diffusion-512-v2-1">Stable Diffusion v2.1</option>
                   </select>
                 </div>
               </div>

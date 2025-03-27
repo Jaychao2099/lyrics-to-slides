@@ -29,11 +29,17 @@ class SettingsModule {
         openai: '',
         stabilityai: '',
         genius: '',
-        musixmatch: ''
+        musixmatch: '',
+        google: ''
       },
+      searchEngineId: '',
       promptTemplates: {},
       slidesSettings: {},
-      useLLM: true,
+      apiConfigs: {
+        lyricsSearch: 'google',
+        imageGeneration: 'openai',
+        slideCreation: 'openai'
+      },
       imageProvider: 'openai',
       imageModel: 'dall-e-3',
       imageStyle: 'natural',
@@ -81,19 +87,27 @@ class SettingsModule {
     this.stabilityaiApiKeyInput = document.getElementById('stabilityai-api-key');
     this.geniusApiKeyInput = document.getElementById('genius-api-key');
     this.musixmatchApiKeyInput = document.getElementById('musixmatch-api-key');
-    this.useLLMCheckbox = document.getElementById('use-llm-checkbox');
+    this.googleApiKeyInput = document.getElementById('google-api-key');
+    this.searchEngineIdInput = document.getElementById('search-engine-id');
+    
+    // API分類設置
+    this.lyricsSearchSelect = document.getElementById('lyrics-search-select');
+    this.imageGenerationSelect = document.getElementById('image-generation-select');
+    this.slideCreationSelect = document.getElementById('slide-creation-select');
     
     // 顯示/隱藏密碼按鈕
     this.showOpenaiKeyBtn = document.getElementById('show-openai-key-btn');
     this.showStabilityaiKeyBtn = document.getElementById('show-stabilityai-key-btn');
     this.showGeniusKeyBtn = document.getElementById('show-genius-key-btn');
     this.showMusixmatchKeyBtn = document.getElementById('show-musixmatch-key-btn');
+    this.showGoogleKeyBtn = document.getElementById('show-google-key-btn');
     
     // 檢查API金鑰按鈕
     this.checkOpenaiKeyBtn = document.getElementById('check-openai-key-btn');
     this.checkStabilityaiKeyBtn = document.getElementById('check-stabilityai-key-btn');
     this.checkGeniusKeyBtn = document.getElementById('check-genius-key-btn');
     this.checkMusixmatchKeyBtn = document.getElementById('check-musixmatch-key-btn');
+    this.checkGoogleKeyBtn = document.getElementById('check-google-key-btn');
     
     // 圖片生成設置
     this.imageProviderSelect = document.getElementById('image-provider-select');
@@ -153,6 +167,9 @@ class SettingsModule {
     if (this.showMusixmatchKeyBtn && this.musixmatchApiKeyInput) {
       this.showMusixmatchKeyBtn.addEventListener('click', () => this.togglePasswordVisibility(this.musixmatchApiKeyInput, this.showMusixmatchKeyBtn));
     }
+    if (this.showGoogleKeyBtn && this.googleApiKeyInput) {
+      this.showGoogleKeyBtn.addEventListener('click', () => this.togglePasswordVisibility(this.googleApiKeyInput, this.showGoogleKeyBtn));
+    }
     
     // 檢查API金鑰
     if (this.checkOpenaiKeyBtn && this.openaiApiKeyInput) {
@@ -166,6 +183,20 @@ class SettingsModule {
     }
     if (this.checkMusixmatchKeyBtn && this.musixmatchApiKeyInput) {
       this.checkMusixmatchKeyBtn.addEventListener('click', () => this.checkApiKey('musixmatch', this.musixmatchApiKeyInput.value));
+    }
+    if (this.checkGoogleKeyBtn && this.googleApiKeyInput) {
+      this.checkGoogleKeyBtn.addEventListener('click', () => this.checkApiKey('google', this.googleApiKeyInput.value));
+    }
+    
+    // API分類選擇
+    if (this.lyricsSearchSelect) {
+      this.lyricsSearchSelect.addEventListener('change', () => this.updateApiConfigs());
+    }
+    if (this.imageGenerationSelect) {
+      this.imageGenerationSelect.addEventListener('change', () => this.updateApiConfigs());
+    }
+    if (this.slideCreationSelect) {
+      this.slideCreationSelect.addEventListener('change', () => this.updateApiConfigs());
     }
     
     // 圖片生成服務切換
@@ -209,11 +240,67 @@ class SettingsModule {
       // 從主進程獲取設置
       const settings = await window.electronAPI.getStoreValue('settings') || {};
       
+      console.log('從主進程獲取的設置:', settings);
+      
+      // 確保有默認的apiConfigs
+      if (!settings.apiConfigs) {
+        settings.apiConfigs = {
+          lyricsSearch: 'google',
+          imageGeneration: 'openai',
+          slideCreation: 'openai'
+        };
+      }
+      
+      // 確保apiKeys存在
+      if (!settings.apiKeys) {
+        settings.apiKeys = {};
+      }
+      
       // 更新本地設置
       this.settings = settings;
       
+      // 獨立載入輸出路徑
+      if (!this.settings.outputPath) {
+        try {
+          this.settings.outputPath = await window.electronAPI.getStoreValue('outputPath') || '';
+          console.log('已載入輸出路徑:', this.settings.outputPath);
+        } catch (pathError) {
+          console.error('獲取輸出路徑時出錯:', pathError);
+        }
+      }
+      
+      // 獨立載入搜尋引擎ID
+      if (!this.settings.searchEngineId) {
+        try {
+          this.settings.searchEngineId = await window.electronAPI.getStoreValue('searchEngineId') || '';
+          console.log('已載入搜尋引擎ID:', this.settings.searchEngineId);
+        } catch (idError) {
+          console.error('獲取搜尋引擎ID時出錯:', idError);
+        }
+      }
+      
+      // 獨立載入Google API金鑰
+      try {
+        const googleApiKey = await window.electronAPI.getStoreValue('apiKeys.google') || '';
+        if (googleApiKey) {
+          if (!this.settings.apiKeys) {
+            this.settings.apiKeys = {};
+          }
+          this.settings.apiKeys.google = googleApiKey;
+          console.log('已載入Google API金鑰:', googleApiKey ? '已設置' : '未設置');
+        }
+      } catch (googleKeyError) {
+        console.error('獲取Google API金鑰時出錯:', googleKeyError);
+      }
+      
       // 更新UI
       this.updateSettingsUI();
+      
+      // 更新API UI狀態
+      this.updateApiUIState();
+      
+      // 更新搜尋配置狀態
+      this.updateSearchConfigUI();
       
       // 應用主題
       this.applyTheme(settings.theme || 'light');
@@ -230,26 +317,93 @@ class SettingsModule {
    */
   updateSettingsUI() {
     // 基本設置
-    this.outputPathInput.value = this.settings.outputPath || '';
-    this.themeSelect.value = this.settings.theme || 'light';
-    this.languageSelect.value = this.settings.locale || 'zh-TW';
-    this.autoUpdateCheckbox.checked = this.settings.autoUpdate !== false;
+    if (this.outputPathInput) {
+      this.outputPathInput.value = this.settings.outputPath || '';
+      console.log('設置輸出路徑UI:', this.settings.outputPath);
+    } else {
+      console.warn('輸出路徑輸入框不存在');
+    }
+    
+    if (this.themeSelect) {
+      this.themeSelect.value = this.settings.theme || 'light';
+    }
+    
+    if (this.languageSelect) {
+      this.languageSelect.value = this.settings.locale || 'zh-TW';
+    }
+    
+    if (this.autoUpdateCheckbox) {
+      this.autoUpdateCheckbox.checked = this.settings.autoUpdate !== false;
+    }
     
     // API金鑰設置
-    this.openaiApiKeyInput.value = this.settings.apiKeys?.openai || '';
-    this.stabilityaiApiKeyInput.value = this.settings.apiKeys?.stabilityai || '';
-    this.geniusApiKeyInput.value = this.settings.apiKeys?.genius || '';
-    this.musixmatchApiKeyInput.value = this.settings.apiKeys?.musixmatch || '';
-    this.useLLMCheckbox.checked = this.settings.useLLM !== false;
+    if (this.openaiApiKeyInput) {
+      this.openaiApiKeyInput.value = this.settings.apiKeys?.openai || '';
+    }
+    
+    if (this.stabilityaiApiKeyInput) {
+      this.stabilityaiApiKeyInput.value = this.settings.apiKeys?.stabilityai || '';
+    }
+    
+    if (this.geniusApiKeyInput) {
+      this.geniusApiKeyInput.value = this.settings.apiKeys?.genius || '';
+    }
+    
+    if (this.musixmatchApiKeyInput) {
+      this.musixmatchApiKeyInput.value = this.settings.apiKeys?.musixmatch || '';
+    }
+    
+    if (this.googleApiKeyInput) {
+      this.googleApiKeyInput.value = this.settings.apiKeys?.google || '';
+      console.log('設置Google API金鑰UI:', this.settings.apiKeys?.google ? '已設置' : '未設置');
+    }
+    
+    if (this.searchEngineIdInput) {
+      this.searchEngineIdInput.value = this.settings.searchEngineId || '';
+      console.log('設置搜索引擎ID UI:', this.settings.searchEngineId);
+    }
+    
+    // 確保apiConfigs存在
+    if (!this.settings.apiConfigs) {
+      this.settings.apiConfigs = {
+        lyricsSearch: 'google',
+        imageGeneration: 'openai',
+        slideCreation: 'openai'
+      };
+    }
+    
+    // API分類設置
+    if (this.lyricsSearchSelect) {
+      this.lyricsSearchSelect.value = this.settings.apiConfigs.lyricsSearch || 'google';
+    }
+    
+    if (this.imageGenerationSelect) {
+      this.imageGenerationSelect.value = this.settings.apiConfigs.imageGeneration || 'openai';
+    }
+    
+    if (this.slideCreationSelect) {
+      this.slideCreationSelect.value = this.settings.apiConfigs.slideCreation || 'openai';
+    }
     
     // 圖片生成設置
-    this.imageProviderSelect.value = this.settings.imageProvider || 'openai';
-    this.imageModelSelect.value = this.settings.imageModel || 'dall-e-3';
-    this.imageQualitySelect.value = this.settings.imageQuality || 'standard';
-    this.imageStyleSelect.value = this.settings.imageStyle || 'natural';
+    if (this.imageProviderSelect) {
+      this.imageProviderSelect.value = this.settings.imageProvider || 'openai';
+    }
     
-    if (this.settings.stabilityModel) {
-      this.stabilityModelSelect.value = this.settings.stabilityModel;
+    if (this.imageModelSelect) {
+      this.imageModelSelect.value = this.settings.imageModel || 'dall-e-3';
+    }
+    
+    if (this.imageQualitySelect) {
+      this.imageQualitySelect.value = this.settings.imageQuality || 'standard';
+    }
+    
+    if (this.imageStyleSelect) {
+      this.imageStyleSelect.value = this.settings.imageStyle || 'natural';
+    }
+    
+    if (this.stabilityModelSelect) {
+      this.stabilityModelSelect.value = this.settings.stabilityModel || 'stable-diffusion-xl-1024-v1-0';
     }
     
     // 提示詞模板
@@ -259,13 +413,34 @@ class SettingsModule {
     
     // 投影片設置
     const slideSettings = this.settings.slidesSettings || {};
-    this.fontFamilySelect.value = slideSettings.fontFamily || 'Microsoft JhengHei, Arial, sans-serif';
-    this.fontSizeInput.value = slideSettings.fontSize || 60;
-    this.fontColorInput.value = slideSettings.fontColor || '#FFFFFF';
-    this.textShadowCheckbox.checked = slideSettings.textShadow !== false;
-    this.lineHeightInput.value = slideSettings.lineHeight || 1.5;
-    this.maxLinesInput.value = slideSettings.maxLinesPerSlide || 4;
-    this.textPositionSelect.value = slideSettings.textPosition || 'center';
+    
+    if (this.fontFamilySelect) {
+      this.fontFamilySelect.value = slideSettings.fontFamily || 'Microsoft JhengHei, Arial, sans-serif';
+    }
+    
+    if (this.fontSizeInput) {
+      this.fontSizeInput.value = slideSettings.fontSize || 60;
+    }
+    
+    if (this.fontColorInput) {
+      this.fontColorInput.value = slideSettings.fontColor || '#FFFFFF';
+    }
+    
+    if (this.textShadowCheckbox) {
+      this.textShadowCheckbox.checked = slideSettings.textShadow !== false;
+    }
+    
+    if (this.lineHeightInput) {
+      this.lineHeightInput.value = slideSettings.lineHeight || 1.5;
+    }
+    
+    if (this.maxLinesInput) {
+      this.maxLinesInput.value = slideSettings.maxLinesPerSlide || 4;
+    }
+    
+    if (this.textPositionSelect) {
+      this.textPositionSelect.value = slideSettings.textPosition || 'center';
+    }
     
     // 更新圖片提供商選項顯示
     this.toggleImageProviderOptions();
@@ -276,49 +451,59 @@ class SettingsModule {
    */
   async saveSettings() {
     try {
-      // 收集設置值
+      // 收集設置
       const settings = {
-        theme: this.themeSelect ? this.themeSelect.value : 'light',
-        outputPath: this.outputPathInput ? this.outputPathInput.value : '',
-        autoUpdate: this.autoUpdateCheckbox ? this.autoUpdateCheckbox.checked : true,
-        locale: this.languageSelect ? this.languageSelect.value : 'zh-TW',
-        apiKeys: {
-          openai: this.openaiApiKeyInput ? this.openaiApiKeyInput.value : '',
-          stabilityai: this.stabilityaiApiKeyInput ? this.stabilityaiApiKeyInput.value : '',
-          genius: this.geniusApiKeyInput ? this.geniusApiKeyInput.value : '',
-          musixmatch: this.musixmatchApiKeyInput ? this.musixmatchApiKeyInput.value : ''
-        },
-        promptTemplates: this.promptTemplates || {},
-        slidesSettings: {
-          fontFamily: this.fontFamilySelect ? this.fontFamilySelect.value : 'Microsoft JhengHei, Arial, sans-serif',
-          fontSize: this.fontSizeInput ? parseInt(this.fontSizeInput.value, 10) : 60,
-          fontColor: this.fontColorInput ? this.fontColorInput.value : '#FFFFFF',
-          textShadow: this.textShadowCheckbox ? this.textShadowCheckbox.checked : true,
-          lineHeight: this.lineHeightInput ? parseFloat(this.lineHeightInput.value) : 1.5,
-          maxLinesPerSlide: this.maxLinesInput ? parseInt(this.maxLinesInput.value, 10) : 4,
-          textPosition: this.textPositionSelect ? this.textPositionSelect.value : 'center'
-        },
-        useLLM: this.useLLMCheckbox ? this.useLLMCheckbox.checked : true,
-        imageProvider: this.imageProviderSelect ? this.imageProviderSelect.value : 'openai',
-        imageModel: this.imageModelSelect ? this.imageModelSelect.value : 'dall-e-3',
-        imageQuality: this.imageQualitySelect ? this.imageQualitySelect.value : 'standard',
-        imageStyle: this.imageStyleSelect ? this.imageStyleSelect.value : 'natural',
-        stabilityModel: this.stabilityModelSelect ? this.stabilityModelSelect.value : ''
+        theme: this.themeSelect.value,
+        outputPath: this.outputPathInput.value,
+        locale: this.languageSelect.value,
+        autoUpdate: this.autoUpdateCheckbox.checked,
+        searchEngineId: this.searchEngineIdInput?.value || '',
+        apiConfigs: {
+          lyricsSearch: this.lyricsSearchSelect?.value || 'google',
+          imageGeneration: this.imageGenerationSelect?.value || 'openai',
+          slideCreation: this.slideCreationSelect?.value || 'openai'
+        }
       };
+
+      // 收集API金鑰
+      if (!settings.apiKeys) {
+        settings.apiKeys = {};
+      }
+      settings.apiKeys.openai = this.openaiApiKeyInput?.value || '';
+      settings.apiKeys.stabilityai = this.stabilityaiApiKeyInput?.value || '';
+      settings.apiKeys.genius = this.geniusApiKeyInput?.value || '';
+      settings.apiKeys.musixmatch = this.musixmatchApiKeyInput?.value || '';
+      settings.apiKeys.google = this.googleApiKeyInput?.value || '';
+
+      console.log('保存設置:', settings);
       
-      // 保存到主進程
-      const result = await window.electronAPI.setStoreValue('settings', settings);
-      
-      if (result) {
-        window.showNotification('設置已保存', 'success');
-        
-        // 更新本地設置
+      // 單獨保存Google API金鑰
+      try {
+        const googleApiKey = this.googleApiKeyInput?.value || '';
+        if (googleApiKey) {
+          // 首先獲取現有的apiKeys
+          let apiKeys = await window.electronAPI.getStoreValue('apiKeys') || {};
+          // 更新Google API金鑰
+          apiKeys.google = googleApiKey;
+          // 保存回store
+          await window.electronAPI.setStoreValue('apiKeys', apiKeys);
+          console.log('已單獨保存Google API金鑰:', googleApiKey ? '已設置' : '未設置');
+        }
+      } catch (googleKeyError) {
+        console.error('保存Google API金鑰時出錯:', googleKeyError);
+      }
+
+      // 更新設置
+      const result = await window.electronAPI.updateSettings(settings);
+
+      if (result.success) {
+        window.showNotification('設置已保存');
         this.settings = settings;
-        
+
         // 應用主題
         this.applyTheme(settings.theme);
       } else {
-        throw new Error('保存設置失敗');
+        window.showNotification('保存設置失敗: ' + (result.error || '未知錯誤'), 'error');
       }
     } catch (error) {
       console.error('保存設置失敗:', error);
@@ -337,7 +522,14 @@ class SettingsModule {
       // 監聽結果
       window.electronAPI.receive('output-path-selected', (path) => {
         if (path) {
+          console.log('接收到選擇的輸出路徑:', path);
           this.outputPathInput.value = path;
+          this.settings.outputPath = path;
+          
+          // 提示用戶保存設置以應用更改
+          window.showNotification('請點擊"保存設置"按鈕以儲存輸出路徑', 'info');
+        } else {
+          console.warn('未選擇輸出路徑或選擇已取消');
         }
       });
     } catch (error) {
@@ -395,6 +587,9 @@ class SettingsModule {
           isValid = apiKey.length > 10;
           break;
         case 'musixmatch':
+          isValid = apiKey.length > 10;
+          break;
+        case 'google':
           isValid = apiKey.length > 10;
           break;
         default:
@@ -501,15 +696,16 @@ class SettingsModule {
   }
   
   /**
-   * 切換圖片生成服務選項
+   * 切換圖片生成提供商選項
    */
   toggleImageProviderOptions() {
-    const provider = this.imageProviderSelect.value;
+    const provider = this.imageProviderSelect?.value || 'openai';
     
-    // 顯示/隱藏相應選項
-    const openaiOptions = document.querySelectorAll('.openai-option');
-    const stabilityOptions = document.querySelectorAll('.stability-option');
+    // 獲取所有OpenAI選項
+    const openaiOptions = document.querySelectorAll('.openai-options');
+    const stabilityOptions = document.querySelectorAll('.stability-options');
     
+    // 根據所選提供商顯示/隱藏選項
     if (provider === 'openai') {
       openaiOptions.forEach(el => el.style.display = 'block');
       stabilityOptions.forEach(el => el.style.display = 'none');
@@ -517,6 +713,9 @@ class SettingsModule {
       openaiOptions.forEach(el => el.style.display = 'none');
       stabilityOptions.forEach(el => el.style.display = 'block');
     }
+    
+    // 更新設置
+    this.settings.imageProvider = provider;
   }
   
   /**
@@ -682,6 +881,147 @@ class SettingsModule {
       console.error(`獲取設置 ${key} 失敗:`, error);
       return defaultValue;
     }
+  }
+  
+  /**
+   * 更新API配置
+   */
+  updateApiConfigs() {
+    // 僅允許特定的API服務用於各功能
+    if (this.lyricsSearchSelect) {
+      this.settings.apiConfigs.lyricsSearch = 'google'; // 強制使用Google
+      this.lyricsSearchSelect.value = 'google';
+    }
+    
+    if (this.imageGenerationSelect) {
+      this.settings.apiConfigs.imageGeneration = 'openai'; // 強制使用OpenAI
+      this.imageGenerationSelect.value = 'openai';
+    }
+    
+    if (this.slideCreationSelect) {
+      this.settings.apiConfigs.slideCreation = 'openai'; // 強制使用OpenAI
+      this.slideCreationSelect.value = 'openai';
+    }
+    
+    // 更新相關UI元素狀態
+    this.updateApiUIState();
+  }
+  
+  /**
+   * 更新API UI狀態
+   */
+  updateApiUIState() {
+    try {
+      // 確保apiConfigs存在
+      if (!this.settings.apiConfigs) {
+        this.settings.apiConfigs = {
+          lyricsSearch: 'google',
+          imageGeneration: 'openai',
+          slideCreation: 'openai'
+        };
+      }
+      
+      // 檢查Google API金鑰和搜尋引擎ID是否已填寫
+      const hasGoogleConfig = (this.settings.apiKeys?.google && this.settings.searchEngineId) ? true : false;
+      
+      // 檢查OpenAI API金鑰是否已填寫
+      const hasOpenAIConfig = this.settings.apiKeys?.openai ? true : false;
+      
+      // 顯示相應的警告或提示
+      const lyricsSearchWarning = document.getElementById('lyrics-search-warning');
+      if (lyricsSearchWarning) {
+        lyricsSearchWarning.style.display = hasGoogleConfig ? 'none' : 'block';
+      }
+      
+      const imageGenWarning = document.getElementById('image-gen-warning');
+      if (imageGenWarning) {
+        imageGenWarning.style.display = hasOpenAIConfig ? 'none' : 'block';
+      }
+      
+      const slideCreationWarning = document.getElementById('slide-creation-warning');
+      if (slideCreationWarning) {
+        slideCreationWarning.style.display = hasOpenAIConfig ? 'none' : 'block';
+      }
+      
+      // 更新搜尋功能UI狀態
+      this.updateSearchConfigUI();
+      
+    } catch (error) {
+      console.error('更新API UI狀態時出錯:', error);
+    }
+  }
+  
+  /**
+   * 更新搜尋配置UI狀態
+   */
+  updateSearchConfigUI() {
+    try {
+      // 根據Google API設定的狀態啟用或禁用搜尋功能
+      const hasGoogleConfig = (this.settings.apiKeys?.google && this.settings.searchEngineId) ? true : false;
+      
+      // 更新搜尋區塊的視覺狀態
+      const searchSection = document.getElementById('lyrics-search-section');
+      if (searchSection) {
+        searchSection.classList.toggle('disabled-api-section', !hasGoogleConfig);
+      }
+      
+      // 啟用或禁用搜尋設置控件
+      const searchControls = document.querySelectorAll('.lyrics-search-control');
+      searchControls.forEach(control => {
+        control.disabled = !hasGoogleConfig;
+      });
+      
+      // 顯示或隱藏警告
+      const searchWarning = document.getElementById('lyrics-search-warning');
+      if (searchWarning) {
+        searchWarning.style.display = hasGoogleConfig ? 'none' : 'block';
+        searchWarning.textContent = hasGoogleConfig ? '' : '請設置Google API金鑰和搜尋引擎ID以啟用歌詞搜尋功能';
+      }
+      
+    } catch (error) {
+      console.error('更新搜尋配置UI狀態時出錯:', error);
+    }
+  }
+  
+  /**
+   * 更新與LLM相關的選項
+   */
+  updateLLMRelatedOptions() {
+    // 檢查是否有OpenAI API金鑰
+    const hasOpenAIKey = this.settings.apiKeys.openai && this.settings.apiKeys.openai.trim().length > 0;
+    
+    // 檢查是否有Google API金鑰和搜尋引擎ID
+    const hasGoogleConfig = this.settings.apiKeys.google && this.settings.searchEngineId;
+    
+    // 更新UI元素
+    const apiSections = {
+      'lyrics-search': hasGoogleConfig,
+      'image-generation': hasOpenAIKey,
+      'slide-creation': hasOpenAIKey
+    };
+    
+    // 更新各API功能區塊的狀態
+    Object.entries(apiSections).forEach(([sectionId, isEnabled]) => {
+      const section = document.getElementById(`${sectionId}-section`);
+      if (section) {
+        const controls = section.querySelectorAll('select, button:not(.api-key-action)');
+        controls.forEach(control => {
+          control.disabled = !isEnabled;
+        });
+        
+        // 更新區塊的視覺樣式
+        section.classList.toggle('disabled-api-section', !isEnabled);
+        
+        // 顯示或隱藏提示
+        const warning = document.getElementById(`${sectionId}-warning`);
+        if (warning) {
+          warning.style.display = isEnabled ? 'none' : 'block';
+        }
+      }
+    });
+    
+    // 特別處理圖片生成相關選項
+    this.toggleImageProviderOptions();
   }
 }
 

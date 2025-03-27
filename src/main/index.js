@@ -61,6 +61,7 @@ const projectManager = new ProjectManager({
 
 const lyricsService = new LyricsService({
   apiKeys: store.get('apiKeys'),
+  searchEngineId: store.get('searchEngineId', ''),
   defaultLanguage: store.get('locale', 'zh-TW'),
   cacheEnabled: true,
   sourcesPriority: store.get('lyricsSourcesPriority', ['netease', 'kkbox', 'genius', 'musixmatch', 'mojim']),
@@ -630,6 +631,7 @@ function setupIPC() {
       autoUpdate: store.get('autoUpdate', true),
       locale: store.get('locale', 'zh-TW'),
       apiKeys: store.get('apiKeys', {}),
+      searchEngineId: store.get('searchEngineId', ''),
       promptTemplates: store.get('promptTemplates', {}),
       slidesSettings: store.get('slidesSettings', {}),
       lyricsSourcesPriority: store.get('lyricsSourcesPriority', ['netease', 'kkbox', 'genius', 'musixmatch', 'mojim']),
@@ -641,8 +643,10 @@ function setupIPC() {
     };
   });
   
-  ipcMain.handle('update-settings', (event, settings) => {
+  ipcMain.handle('update-settings', async (event, settings) => {
     try {
+      log.info('更新設置:', JSON.stringify(settings, null, 2));
+      
       // 更新設置
       Object.entries(settings).forEach(([key, value]) => {
         store.set(key, value);
@@ -650,23 +654,37 @@ function setupIPC() {
       
       // 如果更新了API金鑰，則更新服務
       if (settings.apiKeys) {
-        lyricsService.updateOptions({ apiKeys: settings.apiKeys });
+        // 單獨處理Google API金鑰
+        if (settings.apiKeys.google !== undefined) {
+          const apiKeys = store.get('apiKeys') || {};
+          apiKeys.google = settings.apiKeys.google;
+          store.set('apiKeys', apiKeys);
+          log.info('已單獨保存Google API金鑰:', settings.apiKeys.google ? '已設置' : '未設置');
+        }
+        
+        lyricsService.updateOptions({ 
+          apiKeys: settings.apiKeys, 
+          searchEngineId: settings.searchEngineId 
+        });
         imageGenerationService.updateOptions({ apiKeys: settings.apiKeys });
       }
       
-      // 如果更新了提示詞模板，則更新服務
-      if (settings.promptTemplates) {
-        imageGenerationService.updateOptions({ promptTemplates: settings.promptTemplates });
+      // 如果更新了搜尋引擎ID，則保存並更新lyricsService
+      if (settings.searchEngineId !== undefined) {
+        store.set('searchEngineId', settings.searchEngineId);
+        log.info('已保存搜尋引擎ID:', settings.searchEngineId);
+        lyricsService.updateOptions({ searchEngineId: settings.searchEngineId });
       }
       
-      // 如果更新了輸出路徑，則更新服務
+      // 如果更新了輸出路徑，則保存
       if (settings.outputPath) {
-        exportService.options.outputDir = settings.outputPath;
+        store.set('outputPath', settings.outputPath);
+        log.info('已保存輸出路徑:', settings.outputPath);
       }
       
       return { success: true };
     } catch (error) {
-      log.error('更新設置時出錯:', error);
+      log.error('更新設置失敗:', error);
       return { success: false, error: error.message };
     }
   });
@@ -691,16 +709,23 @@ function setupIPC() {
   
   // 選擇輸出路徑
   ipcMain.on('select-output-path', async () => {
-    const { filePaths, canceled } = await dialog.showOpenDialog(mainWindow, {
-      title: '選擇輸出目錄',
-      defaultPath: store.get('outputPath', app.getPath('downloads')),
-      properties: ['openDirectory', 'createDirectory']
-    });
-    
-    if (!canceled && filePaths.length > 0) {
-      store.set('outputPath', filePaths[0]);
-      exportService.options.outputDir = filePaths[0];
-      mainWindow.webContents.send('output-path-selected', filePaths[0]);
+    try {
+      const { filePaths, canceled } = await dialog.showOpenDialog(mainWindow, {
+        title: '選擇輸出目錄',
+        defaultPath: store.get('outputPath', app.getPath('downloads')),
+        properties: ['openDirectory', 'createDirectory']
+      });
+      
+      if (!canceled && filePaths.length > 0) {
+        const selectedPath = filePaths[0];
+        store.set('outputPath', selectedPath);
+        exportService.options.outputDir = selectedPath;
+        mainWindow.webContents.send('output-path-selected', selectedPath);
+        log.info('用戶選擇了新的輸出路徑:', selectedPath);
+      }
+    } catch (error) {
+      log.error('選擇輸出路徑時出錯:', error);
+      mainWindow.webContents.send('output-path-selected', null);
     }
   });
   
@@ -944,5 +969,23 @@ process.on('uncaughtException', (error) => {
       }
       app.exit(1);
     });
+  }
+});
+
+// 在應用即將退出前保存緩存
+app.on('before-quit', () => {
+  try {
+    console.log('應用程序即將關閉，正在保存緩存...');
+    
+    // 如果lyricsService存在且有_saveCache方法，調用它
+    if (lyricsService && typeof lyricsService._saveCache === 'function') {
+      lyricsService._saveCache();
+    }
+    
+    // 如果有其他服務需要保存緩存，也在此處添加
+    
+    console.log('緩存已保存');
+  } catch (error) {
+    console.error('保存緩存時發生錯誤:', error);
   }
 }); 

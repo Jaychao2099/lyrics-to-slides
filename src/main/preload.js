@@ -212,6 +212,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getStoreValue: (key) => ipcRenderer.invoke('get-store-value', key),
   setStoreValue: (key, value) => ipcRenderer.invoke('set-store-value', key, value),
   
+  // 更新設置
+  updateSettings: (settings) => ipcRenderer.invoke('update-settings', settings),
+  
   // 項目相關功能
   loadProject: (filePath) => ipcRenderer.invoke('load-project', filePath),
   exportSlideshow: (options) => ipcRenderer.invoke('export-slideshow', options),
