@@ -49,6 +49,7 @@
   "devDependencies": {
     "@types/better-sqlite3": "*",
     "@types/cheerio": "*",
+    "@types/jest": "^29.5.14",
     "@types/node": "*",
     "@types/node-fetch": "*",
     "@types/react": "*",
@@ -60,6 +61,7 @@
     "html-webpack-plugin": "^5.6.3",
     "mkdirp": "^3.0.1",
     "style-loader": "^4.0.0",
+    "ts-jest": "^29.3.0",
     "ts-loader": "^9.5.2",
     "typescript": "*",
     "webpack": "^5.98.0",

@@ -24,7 +24,7 @@ function initDatabase() {
   // 創建數據庫連接
   db = new Database(DB_PATH);
 
-  // 創建表
+  // 創建 songs 表
   db.exec(`
     CREATE TABLE IF NOT EXISTS songs (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -36,6 +36,25 @@ function initDatabase() {
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL
     )
+  `);
+  
+  // 創建 images 表
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS images (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      song_id INTEGER NOT NULL,
+      image_path TEXT NOT NULL,
+      prompt TEXT,
+      created_at TEXT NOT NULL,
+      FOREIGN KEY (song_id) REFERENCES songs(id) ON DELETE CASCADE
+    )
+  `);
+
+  // 創建索引以優化查詢效能
+  db.exec(`
+    CREATE INDEX IF NOT EXISTS idx_images_song_id ON images(song_id);
+    CREATE INDEX IF NOT EXISTS idx_songs_title ON songs(title);
+    CREATE INDEX IF NOT EXISTS idx_songs_artist ON songs(artist);
   `);
 
   return db;
