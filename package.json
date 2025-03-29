@@ -1,0 +1,62 @@
+{
+  "name": "lyrics-to-slides",
+  "version": "1.0.0",
+  "description": "將歌曲名稱轉換為精美投影片的桌面應用程式",
+  "main": "dist/main/index.js",
+  "scripts": {
+    "start": "electron .",
+    "dev": "npm run build && npm start",
+    "build": "tsc",
+    "watch": "tsc -w",
+    "rebuild": "electron-rebuild",
+    "test": "jest"
+  },
+  "keywords": [
+    "electron",
+    "lyrics",
+    "slides",
+    "presentation",
+    "marp"
+  ],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@emotion/react": "*",
+    "@emotion/styled": "*",
+    "@marp-team/marp-cli": "^4.1.2",
+    "@marp-team/marp-core": "^4.0.1",
+    "@mui/icons-material": "*",
+    "@mui/material": "*",
+    "better-sqlite3": "*",
+    "cheerio": "*",
+    "electron-store": "*",
+    "eslint": "^9.23.0",
+    "i18next": "^24.2.3",
+    "i18next-react": "^0.2.2",
+    "jest": "^29.7.0",
+    "markdown-it": "^14.1.0",
+    "node-fetch": "^2",
+    "openai": "^4.90.0",
+    "prettier": "^3.5.3",
+    "react": "*",
+    "react-dom": "*",
+    "react-router-dom": "^7.4.1",
+    "typescript": "*"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "*",
+    "@types/cheerio": "*",
+    "@types/node": "*",
+    "@types/node-fetch": "*",
+    "@types/react": "*",
+    "@types/react-dom": "*",
+    "electron": "*",
+    "electron-builder": "*",
+    "electron-rebuild": "*",
+    "html-webpack-plugin": "^5.6.3",
+    "typescript": "*",
+    "webpack": "^5.98.0",
+    "webpack-cli": "^6.0.1",
+    "webpack-dev-server": "^5.2.1"
+  }
+}
