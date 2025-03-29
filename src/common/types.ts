@@ -51,11 +51,16 @@ export interface ElectronAPI {
   generateImage: (songTitle: string, lyrics: string, promptTemplate: string) => Promise<string>;
   generateSlides: (lyrics: string, imageUrl: string, promptTemplate: string) => Promise<string>;
   previewSlides: (marpContent: string) => Promise<void>;
-  exportSlides: (marpContent: string, format: string, outputPath: string) => Promise<string>;
+  exportToPDF: (marpContent: string, outputPath: string) => Promise<string>;
+  exportToPPTX: (marpContent: string, outputPath: string) => Promise<string>;
+  exportToHTML: (marpContent: string, outputPath: string) => Promise<string>;
+  batchExport: (marpContent: string, formats: string[], outputPath: string) => Promise<string[]>;
   getSettings: () => Promise<Settings>;
   saveSettings: (settings: Settings) => Promise<void>;
   selectDirectory: () => Promise<string>;
   getSongs: () => Promise<Song[]>;
+  openFile: (filePath: string) => Promise<boolean>;
+  openDirectory: (filePath: string) => Promise<boolean>;
   onProgressUpdate: (callback: (progress: number, status: string) => void) => () => void;
 }
 

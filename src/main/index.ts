@@ -1,7 +1,7 @@
 /// <reference types="electron" />
 /// <reference types="node" />
 
-import { app, BrowserWindow, ipcMain, dialog } from 'electron';
+import { app, BrowserWindow, ipcMain, dialog, shell } from 'electron';
 import path from 'path';
 import url from 'url';
 import { SettingsService } from './services/settings';
@@ -244,6 +244,32 @@ function setupIpcHandlers() {
     } catch (error) {
       console.error('批量匯出失敗:', error);
       mainWindow?.webContents.send('progress-update', 0, '批量匯出失敗');
+      throw error;
+    }
+  });
+  
+  // 打開已生成的文件
+  ipcMain.handle('open-file', async (_event, filePath) => {
+    try {
+      const result = await shell.openPath(filePath);
+      if (result !== '') {
+        throw new Error(result);
+      }
+      return true;
+    } catch (error) {
+      console.error('打開檔案失敗:', error);
+      throw error;
+    }
+  });
+  
+  // 打開包含文件的目錄
+  ipcMain.handle('open-directory', async (_event, filePath) => {
+    try {
+      const dirPath = path.dirname(filePath);
+      await shell.openPath(dirPath);
+      return true;
+    } catch (error) {
+      console.error('打開目錄失敗:', error);
       throw error;
     }
   });

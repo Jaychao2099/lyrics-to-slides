@@ -64,6 +64,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // 取得歌曲列表
   getSongs: () => ipcRenderer.invoke('get-songs'),
   
+  // 打開文件
+  openFile: (filePath: string) => ipcRenderer.invoke('open-file', filePath),
+  
+  // 打開目錄
+  openDirectory: (filePath: string) => ipcRenderer.invoke('open-directory', filePath),
+  
   // 監聽進度更新
   onProgressUpdate: (callback: (progress: number, status: string) => void) => {
     const listener = (_event: any, progress: number, status: string) => callback(progress, status);
