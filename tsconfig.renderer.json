@@ -7,7 +7,7 @@
     "resolveJsonModule": true,
     "allowSyntheticDefaultImports": true,
     "sourceMap": true,
-    "outDir": "dist",
+    "outDir": "dist/renderer",
     "baseUrl": ".",
     "paths": {
       "*": ["node_modules/*"]
@@ -18,5 +18,8 @@
     "forceConsistentCasingInFileNames": true,
     "lib": ["DOM", "DOM.Iterable", "ESNext"]
   },
-  "include": ["src/**/*"]
+  "include": [
+    "src/renderer/**/*",
+    "src/common/**/*"
+  ]
 } 
