@@ -48,8 +48,11 @@ export interface GenerationStatus {
 export interface ElectronAPI {
   getAppVersion: () => Promise<string>;
   searchLyrics: (songTitle: string, artist: string) => Promise<LyricsSearchResult[]>;
-  generateImage: (songTitle: string, lyrics: string, promptTemplate: string) => Promise<string>;
-  generateSlides: (lyrics: string, imageUrl: string, promptTemplate: string) => Promise<string>;
+  generateImage: (songTitle: string, lyrics: string, songId?: number) => Promise<{songId: number, imagePath: string}>;
+  regenerateImage: (songId: number, songTitle: string, lyrics: string) => Promise<{songId: number, imagePath: string}>;
+  generateSlides: (songId: number, songTitle: string, artist: string, lyrics: string, imagePath: string) => Promise<string>;
+  updateSlides: (songId: number, slidesContent: string) => Promise<boolean>;
+  getSlides: (songId: number) => Promise<string>;
   previewSlides: (marpContent: string) => Promise<void>;
   exportToPDF: (marpContent: string, outputPath: string) => Promise<string>;
   exportToPPTX: (marpContent: string, outputPath: string) => Promise<string>;
@@ -62,6 +65,7 @@ export interface ElectronAPI {
   openFile: (filePath: string) => Promise<boolean>;
   openDirectory: (filePath: string) => Promise<boolean>;
   onProgressUpdate: (callback: (progress: number, status: string) => void) => () => void;
+  getLogs: (logType?: string) => Promise<string>;
 }
 
 // 擴展 Window 接口

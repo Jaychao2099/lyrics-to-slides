@@ -47,12 +47,18 @@ const ImageGeneration: React.FC<ImageGenerationProps> = ({ songTitle, lyrics, on
       setIsGenerating(true);
       setError('');
       
-      // 通過API生成圖片
-      const result = await window.electronAPI.generateImage(songTitle, lyrics, '') as unknown as ImageGenerationResult;
+      // 通過API生成圖片 - 根據main/index.ts中的定義:
+      // ipcMain.handle('generate-image', async (_event, songTitle, lyrics, songId = -1)
+      const result = await window.electronAPI.generateImage(
+        songTitle, 
+        lyrics, 
+        songId >= 0 ? songId : undefined
+      );
       
-      if (result && result.imagePath && result.songId) {
+      if (result && typeof result === 'object' && 'imagePath' in result && 'songId' in result) {
         setImageUrl(result.imagePath);
         setSongId(result.songId);
+        onImageGenerated(result.imagePath);
       } else {
         throw new Error('生成圖片失敗');
       }
@@ -71,13 +77,21 @@ const ImageGeneration: React.FC<ImageGenerationProps> = ({ songTitle, lyrics, on
       setError('');
       setRating(null);
       
-      // 通過API重新生成圖片
-      const result = await window.electronAPI.generateImage(songTitle, lyrics, '') as unknown as ImageGenerationResult;
+      // 通過API重新生成圖片 - 根據main/index.ts中的定義:
+      // ipcMain.handle('regenerate-image', async (_event, songId, songTitle, lyrics)
+      // 和preload/index.ts中的定義:
+      // regenerateImage: (songId: number, songTitle: string, lyrics: string)
+      const result = await window.electronAPI.regenerateImage(
+        songId,
+        songTitle,
+        lyrics
+      );
       
-      if (result && result.imagePath) {
+      if (result && typeof result === 'object' && 'imagePath' in result) {
         setImageUrl(result.imagePath);
         setSnackbarMessage('圖片已重新生成');
         setSnackbarOpen(true);
+        onImageGenerated(result.imagePath);
       } else {
         throw new Error('重新生成圖片失敗');
       }

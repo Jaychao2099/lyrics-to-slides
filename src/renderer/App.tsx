@@ -13,21 +13,37 @@ import {
   Step,
   StepLabel,
   Button,
-  LinearProgress
+  LinearProgress,
+  Divider,
+  List,
+  ListItem,
+  ListItemButton,
+  ListItemIcon,
+  ListItemText,
+  Drawer
 } from '@mui/material';
+import { 
+  Settings as SettingsIcon,
+  BugReport as BugReportIcon,
+  Search as SearchIcon,
+  Image as ImageIcon,
+  Slideshow as SlideshowIcon,
+  Save as SaveIcon
+} from '@mui/icons-material';
 import { Settings } from '../common/types';
 import LyricsSearch from './components/LyricsSearch';
 import ImageGeneration from './components/ImageGeneration';
 import SlideEditor from './components/SlideEditor';
 import SlideExport from './components/SlideExport';
 import SettingsPanel from './components/SettingsPanel';
+import LogViewer from './components/LogViewer';
 
 // 步驟定義
 const steps = [
-  { label: '歌詞搜尋', key: 'lyrics-search' },
-  { label: '圖片生成', key: 'image-generation' },
-  { label: '投影片編輯', key: 'slide-editor' },
-  { label: '匯出', key: 'export' }
+  { label: '歌詞搜尋', key: 'lyrics-search', icon: <SearchIcon /> },
+  { label: '圖片生成', key: 'image-generation', icon: <ImageIcon /> },
+  { label: '投影片編輯', key: 'slide-editor', icon: <SlideshowIcon /> },
+  { label: '匯出', key: 'export', icon: <SaveIcon /> }
 ];
 
 // 創建應用主題
@@ -62,6 +78,8 @@ const App: React.FC = () => {
     slideContent: ''
   });
   const [showSettings, setShowSettings] = useState(false);
+  const [showDebugLogs, setShowDebugLogs] = useState(false);
+  const [drawerOpen, setDrawerOpen] = useState(true);
 
   // 載入設定
   useEffect(() => {
@@ -112,6 +130,11 @@ const App: React.FC = () => {
     setActiveStep((prevStep) => Math.max(prevStep - 1, 0));
   };
 
+  // 切換抽屜
+  const toggleDrawer = () => {
+    setDrawerOpen(!drawerOpen);
+  };
+
   // 根據當前步驟渲染對應內容
   const renderStepContent = () => {
     switch (activeStep) {
@@ -158,6 +181,16 @@ const App: React.FC = () => {
             slideContent={songData.slideContent}
           />
         );
+      case 4:
+        return (
+          <SettingsPanel 
+            settings={settings!} 
+            onSave={handleSettingsChange}
+            onCancel={() => setActiveStep(0)}
+          />
+        );
+      case 5:
+        return <LogViewer />;
       default:
         return <div>未知步驟</div>;
     }
@@ -181,8 +214,11 @@ const App: React.FC = () => {
             <Typography variant="h6" component="div" sx={{ flexGrow: 1 }}>
               歌曲投影片生成器
             </Typography>
-            <Button color="inherit" onClick={() => setShowSettings(!showSettings)}>
+            <Button color="inherit" onClick={() => setActiveStep(4)}>
               設定
+            </Button>
+            <Button color="inherit" onClick={() => setActiveStep(5)}>
+              調試日誌
             </Button>
           </Toolbar>
         </AppBar>
@@ -196,39 +232,94 @@ const App: React.FC = () => {
           </Box>
         )}
         
-        <Container component="main" sx={{ flexGrow: 1, py: 4 }}>
-          {showSettings ? (
-            <SettingsPanel 
-              settings={settings} 
-              onSave={handleSettingsChange}
-              onCancel={() => setShowSettings(false)}
-            />
-          ) : (
+        <Box sx={{ display: 'flex', flexGrow: 1 }}>
+          <Drawer
+            variant="permanent"
+            open={drawerOpen}
+            sx={{
+              width: 240,
+              flexShrink: 0,
+              '& .MuiDrawer-paper': {
+                width: 240,
+                boxSizing: 'border-box',
+                position: 'relative'
+              },
+            }}
+          >
+            <List>
+              {steps.map((step, index) => (
+                <ListItem key={step.key} disablePadding>
+                  <ListItemButton
+                    selected={activeStep === index}
+                    onClick={() => setActiveStep(index)}
+                    disabled={index > 0 && !songData.title}
+                  >
+                    <ListItemIcon>
+                      {step.icon}
+                    </ListItemIcon>
+                    <ListItemText primary={step.label} />
+                  </ListItemButton>
+                </ListItem>
+              ))}
+              
+              <Divider sx={{ my: 2 }} />
+              
+              <ListItem disablePadding>
+                <ListItemButton
+                  selected={activeStep === 4}
+                  onClick={() => setActiveStep(4)}
+                >
+                  <ListItemIcon>
+                    <SettingsIcon />
+                  </ListItemIcon>
+                  <ListItemText primary="設定" />
+                </ListItemButton>
+              </ListItem>
+              
+              <ListItem disablePadding>
+                <ListItemButton
+                  selected={activeStep === 5}
+                  onClick={() => setActiveStep(5)}
+                >
+                  <ListItemIcon>
+                    <BugReportIcon />
+                  </ListItemIcon>
+                  <ListItemText primary="調試日誌" />
+                </ListItemButton>
+              </ListItem>
+            </List>
+          </Drawer>
+          
+          <Container component="main" sx={{ flexGrow: 1, p: 3 }}>
             <Paper elevation={3} sx={{ p: 3 }}>
-              <Stepper activeStep={activeStep} sx={{ mb: 4 }}>
-                {steps.map((step) => (
-                  <Step key={step.key}>
-                    <StepLabel>{step.label}</StepLabel>
-                  </Step>
-                ))}
-              </Stepper>
+              {activeStep < 4 && (
+                <Stepper activeStep={activeStep} sx={{ mb: 4 }}>
+                  {steps.map((step) => (
+                    <Step key={step.key}>
+                      <StepLabel>{step.label}</StepLabel>
+                    </Step>
+                  ))}
+                </Stepper>
+              )}
               
               <Box sx={{ mb: 2 }}>
                 {renderStepContent()}
               </Box>
               
-              <Box sx={{ display: 'flex', justifyContent: 'space-between', pt: 2 }}>
-                <Button 
-                  color="inherit"
-                  disabled={activeStep === 0} 
-                  onClick={handleBack}
-                >
-                  返回
-                </Button>
-              </Box>
+              {activeStep < 4 && (
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', pt: 2 }}>
+                  <Button 
+                    color="inherit"
+                    disabled={activeStep === 0} 
+                    onClick={handleBack}
+                  >
+                    返回
+                  </Button>
+                </Box>
+              )}
             </Paper>
-          )}
-        </Container>
+          </Container>
+        </Box>
         
         <Box component="footer" sx={{ py: 2, bgcolor: 'background.paper', textAlign: 'center' }}>
           <Typography variant="body2" color="text.secondary">

@@ -3,6 +3,30 @@
 
 import { contextBridge, ipcRenderer } from 'electron';
 
+// 定義 ElectronAPI 接口以支持 TypeScript 檢查
+interface ElectronAPI {
+  getAppVersion: () => Promise<string>;
+  searchLyrics: (songTitle: string, artist: string) => Promise<any>;
+  generateImage: (songTitle: string, lyrics: string, songId?: number) => Promise<{songId: number, imagePath: string}>;
+  regenerateImage: (songId: number, songTitle: string, lyrics: string) => Promise<{songId: number, imagePath: string}>;
+  generateSlides: (songId: number, songTitle: string, artist: string, lyrics: string, imagePath: string) => Promise<string>;
+  updateSlides: (songId: number, slidesContent: string) => Promise<boolean>;
+  getSlides: (songId: number) => Promise<string>;
+  previewSlides: (marpContent: string) => Promise<string>;
+  exportToPDF: (marpContent: string, outputPath: string) => Promise<string>;
+  exportToPPTX: (marpContent: string, outputPath: string) => Promise<string>;
+  exportToHTML: (marpContent: string, outputPath: string) => Promise<string>;
+  batchExport: (marpContent: string, formats: string[], outputPath: string) => Promise<string[]>;
+  getSettings: () => Promise<any>;
+  saveSettings: (settings: any) => Promise<boolean>;
+  selectDirectory: () => Promise<string>;
+  getSongs: () => Promise<any[]>;
+  openFile: (filePath: string) => Promise<boolean>;
+  openDirectory: (filePath: string) => Promise<boolean>;
+  onProgressUpdate: (callback: (progress: number, status: string) => void) => (() => void);
+  getLogs: (logType?: string) => Promise<string>;
+}
+
 // 暴露給渲染進程的 API
 contextBridge.exposeInMainWorld('electronAPI', {
   // 獲取應用版本
@@ -13,8 +37,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.invoke('search-lyrics', songTitle, artist),
   
   // 圖片生成
-  generateImage: (songId: number, songTitle: string, lyrics: string) => 
-    ipcRenderer.invoke('generate-image', songId, songTitle, lyrics),
+  generateImage: (songTitle: string, lyrics: string, songId?: number) => 
+    ipcRenderer.invoke('generate-image', songTitle, lyrics, songId),
   
   // 重新生成圖片
   regenerateImage: (songId: number, songTitle: string, lyrics: string) => 
@@ -77,5 +101,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
     return () => {
       ipcRenderer.removeListener('progress-update', listener);
     };
-  }
-}); 
+  },
+  
+  // 取得日誌
+  getLogs: (logType: string = 'api') => 
+    ipcRenderer.invoke('get-logs', logType)
+} as ElectronAPI); 

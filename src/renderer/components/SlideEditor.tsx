@@ -52,10 +52,13 @@ const SlideEditor: React.FC<SlideEditorProps> = ({ lyrics, imageUrl, onSlidesCre
       setError('');
       
       // 通過API生成投影片
+      // 按照 generateSlides: (songId: number, songTitle: string, artist: string, lyrics: string, imagePath: string)
       const result = await window.electronAPI.generateSlides(
+        -1, // 臨時songId
+        'Untitled', // 臨時標題
+        '', // 臨時藝術家
         lyrics, 
-        imageUrl, 
-        ''
+        imageUrl
       );
       
       if (result) {
