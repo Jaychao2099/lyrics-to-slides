@@ -1,63 +1,71 @@
 {
   "name": "lyrics-to-slides",
   "version": "1.0.0",
-  "description": "將歌曲轉換為精美投影片的桌面應用程式",
-  "main": "src/main/index.js",
+  "description": "將歌曲名稱轉換為精美投影片的桌面應用程式",
+  "main": "dist/main/index.js",
   "scripts": {
     "start": "electron .",
-    "dev": "electron . --dev",
-    "reset": "npm cache clean --force && rimraf node_modules && npm install",
-    "build": "electron-builder",
-    "build:win": "electron-builder --win",
-    "build:mac": "electron-builder --mac",
+    "dev": "npm run build && npm start",
+    "build": "npm run build:main && npm run build:renderer",
+    "build:main": "tsc -p tsconfig.main.json",
+    "build:renderer": "webpack",
+    "copy-html": "node -e \"const fs=require('fs'); const path=require('path'); const mkdirp=require('mkdirp'); const dir=path.join('dist','renderer'); mkdirp.sync(dir); fs.copyFileSync(path.join('src','renderer','index.html'), path.join(dir,'index.html'));\"",
+    "watch": "tsc -w",
+    "rebuild": "electron-rebuild",
     "test": "jest"
   },
   "keywords": [
+    "electron",
     "lyrics",
     "slides",
     "presentation",
-    "music",
-    "electron",
-    "ai"
+    "marp"
   ],
   "author": "",
-  "license": "MIT",
-  "devDependencies": {
-    "electron": "^28.2.0",
-    "electron-builder": "^24.9.1",
-    "jest": "^29.7.0",
-    "rimraf": "^5.0.10"
-  },
+  "license": "ISC",
   "dependencies": {
-    "@marp-team/marp-core": "^3.9.0",
-    "axios": "^1.6.2",
-    "electron-log": "^5.0.1",
-    "electron-store": "^8.1.0",
-    "electron-updater": "^6.1.7",
-    "react": "^18.2.0",
-    "react-dom": "^18.2.0",
-    "tailwindcss": "^3.4.0"
+    "@emotion/react": "*",
+    "@emotion/styled": "*",
+    "@marp-team/marp-cli": "^4.1.2",
+    "@marp-team/marp-core": "^4.0.1",
+    "@mui/icons-material": "*",
+    "@mui/material": "*",
+    "better-sqlite3": "*",
+    "cheerio": "*",
+    "electron-store": "*",
+    "eslint": "^9.23.0",
+    "i18next": "^24.2.3",
+    "i18next-react": "^0.2.2",
+    "jest": "^29.7.0",
+    "markdown-it": "^14.1.0",
+    "node-fetch": "^2",
+    "openai": "^4.90.0",
+    "prettier": "^3.5.3",
+    "react": "*",
+    "react-dom": "*",
+    "react-router-dom": "^7.4.1",
+    "typescript": "*"
   },
-  "build": {
-    "appId": "com.lyricsslides.app",
-    "productName": "歌曲投影片生成器",
-    "mac": {
-      "category": "public.app-category.productivity",
-      "target": [
-        "dmg"
-      ],
-      "icon": "assets/icons/icon.icns"
-    },
-    "win": {
-      "target": [
-        "nsis",
-        "portable"
-      ],
-      "icon": "assets/icons/icon.ico"
-    },
-    "directories": {
-      "buildResources": "assets",
-      "output": "dist"
-    }
+  "devDependencies": {
+    "@types/better-sqlite3": "*",
+    "@types/cheerio": "*",
+    "@types/jest": "^29.5.14",
+    "@types/node": "*",
+    "@types/node-fetch": "*",
+    "@types/react": "*",
+    "@types/react-dom": "*",
+    "css-loader": "^7.1.2",
+    "electron": "*",
+    "electron-builder": "*",
+    "electron-rebuild": "*",
+    "html-webpack-plugin": "^5.6.3",
+    "mkdirp": "^3.0.1",
+    "style-loader": "^4.0.0",
+    "ts-jest": "^29.3.0",
+    "ts-loader": "^9.5.2",
+    "typescript": "*",
+    "webpack": "^5.98.0",
+    "webpack-cli": "^6.0.1",
+    "webpack-dev-server": "^5.2.1"
   }
 }
