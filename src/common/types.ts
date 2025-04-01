@@ -67,6 +67,22 @@ export interface ElectronAPI {
   onProgressUpdate: (callback: (progress: number, status: string) => void) => () => void;
   getLogs: (logType?: string) => Promise<string>;
   onMainProcessLog: (callback: (log: {source: string, message: string, level: string}) => void) => () => void;
+  // 新增的功能 - 本地圖片匯入
+  selectLocalImage: () => Promise<string>;
+  importLocalImage: (songId: number, localImagePath: string) => Promise<{songId: number, imagePath: string}>;
+  // 新增的功能 - 緩存管理
+  getCacheSize: () => Promise<{
+    totalSize: { totalSizeBytes: number; totalSizeMB: string };
+    images: { totalSizeBytes: number; totalSizeMB: string; fileCount: number };
+    slides: { totalSizeBytes: number; totalSizeMB: string; fileCount: number };
+    lyrics: { totalSizeBytes: number; totalSizeMB: string; fileCount: number; songCount: number };
+  }>;
+  clearCache: () => Promise<{
+    success: boolean;
+    deletedImages: number;
+    deletedSlides: number;
+    deletedLyrics: number;
+  }>;
 }
 
 // 擴展 Window 接口

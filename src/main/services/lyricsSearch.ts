@@ -9,13 +9,150 @@ import { LyricsSearchResult } from '../../common/types';
 import { app, BrowserWindow } from 'electron';
 import { LoggerService } from './logger';
 import * as path from 'path';
-import * as fs from 'fs';
+import * as fs from 'fs/promises';
 
 /**
  * 歌詞搜尋服務
  * 實現規格書中第3.1節的功能
  */
 export class LyricsSearchService {
+  // 緩存目錄
+  private static lyricsCacheDir = path.join(app.getPath('userData'), 'cache', 'lyrics');
+
+  /**
+   * 初始化緩存目錄
+   */
+  private static async initCacheDir(): Promise<void> {
+    try {
+      await fs.mkdir(this.lyricsCacheDir, { recursive: true });
+    } catch (error) {
+      console.error('建立歌詞緩存目錄失敗:', error);
+      await LoggerService.error('建立歌詞緩存目錄失敗', error);
+    }
+  }
+
+  /**
+   * 獲取緩存大小
+   * @returns 緩存大小信息（總大小和檔案數量）
+   */
+  public static async getCacheSize(): Promise<{ totalSizeBytes: number; totalSizeMB: string; fileCount: number }> {
+    const startTime = LoggerService.apiStart('LyricsSearchService', 'getCacheSize', {});
+    
+    try {
+      // 確保緩存目錄存在
+      await this.initCacheDir();
+      
+      // 讀取目錄中的所有檔案
+      const files = await fs.readdir(this.lyricsCacheDir);
+      let totalSize = 0;
+      let fileCount = 0;
+      
+      // 計算總大小
+      for (const file of files) {
+        try {
+          const filePath = path.join(this.lyricsCacheDir, file);
+          const stats = await fs.stat(filePath);
+          
+          if (stats.isFile()) {
+            totalSize += stats.size;
+            fileCount++;
+          }
+        } catch (e) {
+          await LoggerService.error(`無法讀取緩存檔案 ${file} 的信息`, e);
+        }
+      }
+      
+      // 獲取數據庫中的歌詞數據大小
+      const db = DatabaseService.init();
+      const songCount = db.prepare('SELECT COUNT(*) as count FROM songs').get() as { count: number };
+      
+      const totalSizeMB = (totalSize / (1024 * 1024)).toFixed(2);
+      
+      const result = {
+        totalSizeBytes: totalSize,
+        totalSizeMB: `${totalSizeMB} MB`,
+        fileCount: fileCount,
+        songCount: songCount.count
+      };
+      
+      await LoggerService.apiSuccess('LyricsSearchService', 'getCacheSize', {}, result, startTime);
+      
+      return result;
+    } catch (error) {
+      console.error('獲取緩存大小失敗:', error);
+      await LoggerService.apiError('LyricsSearchService', 'getCacheSize', {}, error, startTime);
+      throw error;
+    }
+  }
+
+  /**
+   * 清除歌詞緩存
+   * @returns 清除結果
+   */
+  public static async clearCache(): Promise<{ success: boolean; deletedCount: number }> {
+    const startTime = LoggerService.apiStart('LyricsSearchService', 'clearCache', {});
+    
+    try {
+      // 確保緩存目錄存在
+      await this.initCacheDir();
+      
+      // 讀取目錄中的所有檔案
+      const files = await fs.readdir(this.lyricsCacheDir);
+      let deletedCount = 0;
+      
+      // 刪除所有檔案
+      for (const file of files) {
+        try {
+          const filePath = path.join(this.lyricsCacheDir, file);
+          const stats = await fs.stat(filePath);
+          
+          if (stats.isFile()) {
+            await fs.unlink(filePath);
+            deletedCount++;
+          }
+        } catch (e) {
+          await LoggerService.error(`無法刪除緩存檔案 ${file}`, e);
+        }
+      }
+      
+      // 完全刪除資料庫中的歌曲記錄
+      try {
+        const db = DatabaseService.init();
+        
+        // 先檢查表是否存在
+        const tableExists = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='songs'").get();
+        
+        if (tableExists) {
+          const deleteQuery = "DELETE FROM songs";
+          await LoggerService.logDatabaseOperation('刪除', deleteQuery, []);
+          db.prepare(deleteQuery).run();
+          await LoggerService.info('刪除資料庫中的歌曲記錄成功');
+        } else {
+          await LoggerService.info('songs 表不存在，跳過資料庫清理');
+        }
+      } catch (dbError) {
+        await LoggerService.error('刪除資料庫中的歌曲記錄失敗', dbError);
+      }
+      
+      const result = {
+        success: true,
+        deletedCount
+      };
+      
+      await LoggerService.apiSuccess('LyricsSearchService', 'clearCache', {}, result, startTime);
+      
+      return result;
+    } catch (error) {
+      console.error('清除緩存失敗:', error);
+      await LoggerService.apiError('LyricsSearchService', 'clearCache', {}, error, startTime);
+      
+      return {
+        success: false,
+        deletedCount: 0
+      };
+    }
+  }
+
   /**
    * 主進程日誌輸出
    * @param message 日誌訊息

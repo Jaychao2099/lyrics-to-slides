@@ -75,7 +75,8 @@ const App: React.FC = () => {
     artist: '',
     lyrics: '',
     imageUrl: '',
-    slideContent: ''
+    slideContent: '',
+    songId: -1
   });
   const [showSettings, setShowSettings] = useState(false);
   const [showDebugLogs, setShowDebugLogs] = useState(false);
@@ -157,8 +158,12 @@ const App: React.FC = () => {
           <ImageGeneration 
             songTitle={songData.title}
             lyrics={songData.lyrics}
-            onImageGenerated={(imageUrl) => {
-              setSongData(prev => ({ ...prev, imageUrl }));
+            onImageGenerated={(imageUrl, generatedSongId) => {
+              setSongData(prev => ({ 
+                ...prev, 
+                imageUrl,
+                songId: generatedSongId || prev.songId 
+              }));
               handleNext();
             }}
             onNavigateToSettings={() => setActiveStep(4)}
@@ -169,6 +174,7 @@ const App: React.FC = () => {
           <SlideEditor 
             lyrics={songData.lyrics}
             imageUrl={songData.imageUrl}
+            songId={songData.songId}
             onSlidesCreated={(slideContent) => {
               setSongData(prev => ({ ...prev, slideContent }));
               handleNext();

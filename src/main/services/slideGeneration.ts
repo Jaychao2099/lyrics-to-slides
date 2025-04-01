@@ -7,6 +7,7 @@ import * as fs from 'fs/promises';
 import OpenAI from 'openai';
 import { SettingsService } from './settings';
 import { DatabaseService } from './database';
+import { LoggerService } from './logger';
 
 /**
  * 投影片生成服務
@@ -140,7 +141,7 @@ style: |
       
       const finalPrompt = promptTemplate
         .replace('{{lyrics}}', lyrics)
-        .replace('{{imageUrl}}', relativePath)
+        .replace('{{imageUrl}}', imagePath) // 使用絕對路徑
         .replace('{{songTitle}}', songTitle)
         .replace('{{artist}}', artist);
 
@@ -245,5 +246,122 @@ style: |
   public static async previewSlides(slidesContent: string): Promise<void> {
     // 此功能留給渲染進程實現，因為需要在UI中顯示
     console.log('預覽投影片功能由渲染進程實現');
+  }
+
+  /**
+   * 獲取緩存大小
+   * @returns 緩存大小信息（總大小和檔案數量）
+   */
+  public static async getCacheSize(): Promise<{ totalSizeBytes: number; totalSizeMB: string; fileCount: number }> {
+    const startTime = LoggerService.apiStart('SlideGenerationService', 'getCacheSize', {});
+    
+    try {
+      // 確保緩存目錄存在
+      await this.initCacheDir();
+      
+      // 讀取目錄中的所有檔案
+      const files = await fs.readdir(this.slidesCacheDir);
+      let totalSize = 0;
+      let fileCount = 0;
+      
+      // 計算總大小
+      for (const file of files) {
+        try {
+          const filePath = path.join(this.slidesCacheDir, file);
+          const stats = await fs.stat(filePath);
+          
+          if (stats.isFile()) {
+            totalSize += stats.size;
+            fileCount++;
+          }
+        } catch (e) {
+          await LoggerService.error(`無法讀取緩存檔案 ${file} 的信息`, e);
+        }
+      }
+      
+      const totalSizeMB = (totalSize / (1024 * 1024)).toFixed(2);
+      
+      const result = {
+        totalSizeBytes: totalSize,
+        totalSizeMB: `${totalSizeMB} MB`,
+        fileCount
+      };
+      
+      await LoggerService.apiSuccess('SlideGenerationService', 'getCacheSize', {}, result, startTime);
+      
+      return result;
+    } catch (error) {
+      console.error('獲取緩存大小失敗:', error);
+      await LoggerService.apiError('SlideGenerationService', 'getCacheSize', {}, error, startTime);
+      throw error;
+    }
+  }
+
+  /**
+   * 清除投影片緩存
+   * @returns 清除結果
+   */
+  public static async clearCache(): Promise<{ success: boolean; deletedCount: number }> {
+    const startTime = LoggerService.apiStart('SlideGenerationService', 'clearCache', {});
+    
+    try {
+      // 確保緩存目錄存在
+      await this.initCacheDir();
+      
+      // 讀取目錄中的所有檔案
+      const files = await fs.readdir(this.slidesCacheDir);
+      let deletedCount = 0;
+      
+      // 刪除所有檔案
+      for (const file of files) {
+        try {
+          const filePath = path.join(this.slidesCacheDir, file);
+          const stats = await fs.stat(filePath);
+          
+          if (stats.isFile()) {
+            await fs.unlink(filePath);
+            deletedCount++;
+          }
+        } catch (e) {
+          await LoggerService.error(`無法刪除緩存檔案 ${file}`, e);
+        }
+      }
+      
+      // 清除資料庫中的投影片記錄
+      try {
+        const db = DatabaseService.init();
+        
+        // 先檢查表是否存在
+        const tableExists = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='slides'").get();
+        
+        if (tableExists) {
+          const deleteQuery = 'DELETE FROM slides';
+          await LoggerService.logDatabaseOperation('刪除', deleteQuery, []);
+          db.prepare(deleteQuery).run();
+          await LoggerService.info('清除資料庫中的投影片記錄成功');
+        } else {
+          await LoggerService.info('slides 表不存在，跳過資料庫清理');
+        }
+      } catch (dbError) {
+        await LoggerService.error('清除資料庫中的投影片記錄失敗', dbError);
+      }
+      
+      const result = {
+        success: true,
+        deletedCount
+      };
+      
+      await LoggerService.apiSuccess('SlideGenerationService', 'clearCache', {}, result, startTime);
+      
+      return result;
+    } catch (error) {
+      console.error('清除緩存失敗:', error);
+      await LoggerService.apiError('SlideGenerationService', 'clearCache', {}, error, startTime);
+      
+      return {
+        success: false,
+        deletedCount: 0
+      };
+    }
   }
 } 

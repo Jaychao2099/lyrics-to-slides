@@ -26,6 +26,10 @@ interface ElectronAPI {
   onProgressUpdate: (callback: (progress: number, status: string) => void) => (() => void);
   getLogs: (logType?: string) => Promise<string>;
   onMainProcessLog: (callback: (log: {source: string, message: string, level: string}) => void) => (() => void);
+  selectLocalImage: () => Promise<string>;
+  importLocalImage: (songId: number, localImagePath: string) => Promise<{songId: number, imagePath: string}>;
+  getCacheSize: () => Promise<any>;
+  clearCache: () => Promise<any>;
 }
 
 // 暴露給渲染進程的 API
@@ -94,6 +98,19 @@ contextBridge.exposeInMainWorld('electronAPI', {
   
   // 打開目錄
   openDirectory: (filePath: string) => ipcRenderer.invoke('open-directory', filePath),
+  
+  // 選擇本地圖片
+  selectLocalImage: () => ipcRenderer.invoke('select-local-image'),
+  
+  // 匯入本地圖片
+  importLocalImage: (songId: number, localImagePath: string) => 
+    ipcRenderer.invoke('import-local-image', songId, localImagePath),
+  
+  // 獲取緩存大小
+  getCacheSize: () => ipcRenderer.invoke('get-cache-size'),
+  
+  // 清除緩存
+  clearCache: () => ipcRenderer.invoke('clear-cache'),
   
   // 監聽進度更新
   onProgressUpdate: (callback: (progress: number, status: string) => void) => {

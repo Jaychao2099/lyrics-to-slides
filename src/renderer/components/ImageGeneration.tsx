@@ -11,10 +11,13 @@ import {
   Stack,
   Rating,
   Snackbar,
-  Link,
-  Divider
+  Tabs,
+  Tab
 } from '@mui/material';
 import SettingsIcon from '@mui/icons-material/Settings';
+import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
+import UploadFileIcon from '@mui/icons-material/UploadFile';
+import CachedIcon from '@mui/icons-material/Cached';
 
 // 定義API返回類型
 interface ImageGenerationResult {
@@ -22,11 +25,18 @@ interface ImageGenerationResult {
   imagePath: string;
 }
 
+// 定義組件屬性
 interface ImageGenerationProps {
   songTitle: string;
   lyrics: string;
-  onImageGenerated: (imageUrl: string) => void;
-  onNavigateToSettings?: () => void;
+  onImageGenerated: (imagePath: string, songId: number) => void;
+  onNavigateToSettings: () => void;
+}
+
+// 定義圖片來源選項
+enum ImageSourceOption {
+  AI = 'ai',
+  LOCAL = 'local'
 }
 
 const ImageGeneration: React.FC<ImageGenerationProps> = ({ 
@@ -43,15 +53,14 @@ const ImageGeneration: React.FC<ImageGenerationProps> = ({
   const [snackbarOpen, setSnackbarOpen] = useState<boolean>(false);
   const [snackbarMessage, setSnackbarMessage] = useState<string>('');
   const [isConfirmed, setIsConfirmed] = useState<boolean>(false);
+  const [imageSource, setImageSource] = useState<ImageSourceOption>(ImageSourceOption.AI);
 
-  // 當組件載入後自動生成圖片
+  // 移除自動生成，用戶需要手動點擊生成按鈕
   useEffect(() => {
-    if (songTitle && lyrics && !imageUrl && !isGenerating) {
-      generateImage();
-    }
-  }, [songTitle, lyrics]);
+    // 不再自動生成圖片
+  }, []);
 
-  // 生成圖片
+  // 生成圖片 - AI 方式
   const generateImage = async () => {
     try {
       setIsGenerating(true);
@@ -81,112 +90,178 @@ const ImageGeneration: React.FC<ImageGenerationProps> = ({
     }
   };
 
-  // 重新生成圖片
-  const regenerateImage = async () => {
+  // 匯入本地圖片
+  const importLocalImage = async () => {
     try {
+      // 選擇本地圖片
+      const localImagePath = await window.electronAPI.selectLocalImage();
+      if (!localImagePath) return;
+      
       setIsGenerating(true);
       setError('');
-      setRating(null);
       setIsConfirmed(false);
       
-      // 通過API重新生成圖片 - 根據main/index.ts中的定義:
-      // ipcMain.handle('regenerate-image', async (_event, songId, songTitle, lyrics)
-      // 和preload/index.ts中的定義:
-      // regenerateImage: (songId: number, songTitle: string, lyrics: string)
-      const result = await window.electronAPI.regenerateImage(
-        songId,
-        songTitle,
-        lyrics
+      // 匯入本地圖片
+      const result = await window.electronAPI.importLocalImage(
+        songId >= 0 ? songId : -1,
+        localImagePath
       );
       
-      if (result && typeof result === 'object' && 'imagePath' in result) {
+      if (result && typeof result === 'object' && 'imagePath' in result && 'songId' in result) {
         setImageUrl(result.imagePath);
-        setSnackbarMessage('圖片已重新生成');
-        setSnackbarOpen(true);
+        setSongId(result.songId);
         // 不再自動調用 onImageGenerated，等待用戶確認
       } else {
-        throw new Error('重新生成圖片失敗');
+        throw new Error('匯入圖片失敗');
       }
     } catch (err: any) {
-      setError(err.message || '重新生成圖片時發生錯誤');
-      console.error('圖片重新生成錯誤:', err);
+      setError(err.message || '匯入圖片時發生錯誤');
+      console.error('圖片匯入錯誤:', err);
     } finally {
       setIsGenerating(false);
     }
   };
 
-  // 處理圖片評分
-  const handleRatingChange = (event: React.SyntheticEvent, newValue: number | null) => {
+  // 重新生成圖片
+  const regenerateImage = async () => {
+    try {
+      if (songId < 0) {
+        setError('無法重新生成圖片，沒有有效的歌曲ID');
+        return;
+      }
+
+      setIsGenerating(true);
+      setError('');
+      setIsConfirmed(false);
+      
+      // 根據圖片來源選擇重新生成或匯入
+      if (imageSource === ImageSourceOption.AI) {
+        const result = await window.electronAPI.regenerateImage(
+          songId,
+          songTitle,
+          lyrics
+        );
+        
+        if (result && 'imagePath' in result) {
+          setImageUrl(result.imagePath);
+          setRating(null);
+        } else {
+          throw new Error('重新生成圖片失敗');
+        }
+      } else {
+        await importLocalImage();
+      }
+    } catch (err: any) {
+      setError(err.message || '重新生成圖片時發生錯誤');
+      console.error('重新生成圖片錯誤:', err);
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
+  // 處理圖片評分變化
+  const handleRatingChange = (_event: React.ChangeEvent<{}>, newValue: number | null) => {
     setRating(newValue);
-    if (newValue && newValue < 3) {
-      setSnackbarMessage('評分較低，您可以點擊"重新生成"嘗試獲得更好的結果');
+  };
+
+  // 確認圖片選擇
+  const confirmImage = () => {
+    if (imageUrl && songId >= 0) {
+      onImageGenerated(imageUrl, songId);
+      setIsConfirmed(true);
+      setSnackbarMessage('已確認使用此背景圖片');
       setSnackbarOpen(true);
     }
   };
 
-  // 關閉提示訊息
+  // 處理圖片來源切換
+  const handleImageSourceChange = (_event: React.SyntheticEvent, newValue: ImageSourceOption) => {
+    setImageSource(newValue);
+  };
+
+  // 關閉提示消息
   const handleSnackbarClose = () => {
     setSnackbarOpen(false);
   };
 
-  // 確認圖片並進入下一步
-  const confirmImage = () => {
-    setIsConfirmed(true);
-    onImageGenerated(imageUrl);
-  };
-
-  // 導航到設定頁面
-  const goToSettings = () => {
-    if (onNavigateToSettings) {
-      onNavigateToSettings();
-    }
-  };
-
   return (
     <Box>
-      <Typography variant="h5" gutterBottom>
-        圖片生成
-      </Typography>
+      <Snackbar
+        open={snackbarOpen}
+        autoHideDuration={6000}
+        onClose={handleSnackbarClose}
+        message={snackbarMessage}
+      />
       
-      <Typography variant="body1" paragraph>
-        歌曲標題: {songTitle}
-      </Typography>
-      
-      {error && (
-        <Alert severity="error" sx={{ mb: 2 }}>
-          {error}
-        </Alert>
-      )}
-      
-      <Paper elevation={3} sx={{ p: 2, mb: 3 }}>
-        <Box sx={{ width: '100%' }}>
-          <Box sx={{ mb: 2 }}>
-            <Typography variant="subtitle1" gutterBottom>
-              生成的背景圖片:
-            </Typography>
-            
-            {/* 提示詞設定提示 */}
-            <Alert severity="info" sx={{ mb: 2 }}>
-              如需更改圖片生成效果，您可以先
-              <Link 
-                component="button"
-                variant="body2"
-                onClick={goToSettings}
-                sx={{ mx: 1 }}
+      <Paper elevation={1} sx={{ p: 2, mb: 2 }}>
+        <Box sx={{ mb: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <Typography variant="h6">背景圖片</Typography>
+          <Button 
+            startIcon={<SettingsIcon />}
+            onClick={onNavigateToSettings}
+            size="small"
+          >
+            API設定
+          </Button>
+        </Box>
+        
+        <Box sx={{ mb: 3 }}>
+          <Tabs
+            value={imageSource}
+            onChange={handleImageSourceChange}
+            aria-label="image source options"
+          >
+            <Tab 
+              icon={<AutoAwesomeIcon />} 
+              label="AI生成圖片" 
+              value={ImageSourceOption.AI}
+            />
+            <Tab 
+              icon={<UploadFileIcon />} 
+              label="匯入本地圖片" 
+              value={ImageSourceOption.LOCAL}
+            />
+          </Tabs>
+        </Box>
+        
+        {error && (
+          <Alert severity="error" sx={{ mb: 2 }}>
+            {error}
+          </Alert>
+        )}
+        
+        <Box>
+          {imageSource === ImageSourceOption.AI ? (
+            <Box sx={{ display: 'flex', justifyContent: 'flex-start', mb: 2 }}>
+              <Button
+                variant="contained"
+                color="primary"
+                onClick={generateImage}
+                disabled={isGenerating || !songTitle || !lyrics}
               >
-                <SettingsIcon fontSize="small" sx={{ verticalAlign: 'middle', mr: 0.5 }} />
-                前往設定頁面
-              </Link>
-              進行提示詞修改，保存設定後再回來。
-            </Alert>
-          </Box>
+                {isGenerating ? '生成中...' : '使用AI生成圖片'}
+              </Button>
+            </Box>
+          ) : (
+            <Box sx={{ display: 'flex', justifyContent: 'flex-start', mb: 2 }}>
+              <Button
+                variant="contained"
+                color="primary"
+                onClick={importLocalImage}
+                disabled={isGenerating}
+                startIcon={<UploadFileIcon />}
+              >
+                選擇本地圖片
+              </Button>
+            </Box>
+          )}
           
           <Box>
             {isGenerating ? (
               <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: 300 }}>
                 <CircularProgress />
                 <Typography variant="body2" sx={{ ml: 2 }}>
-                  正在生成符合歌詞風格的背景圖片...
+                  {imageSource === ImageSourceOption.AI ? '正在生成符合歌詞風格的背景圖片...' : '正在匯入本地圖片...'}
                 </Typography>
               </Box>
             ) : imageUrl ? (
@@ -214,50 +289,29 @@ const ImageGeneration: React.FC<ImageGenerationProps> = ({
                     color="primary"
                     onClick={regenerateImage}
                     disabled={isGenerating}
+                    startIcon={<CachedIcon />}
                   >
-                    重新生成
+                    {imageSource === ImageSourceOption.AI ? '重新生成' : '更換圖片'}
+                  </Button>
+                  
+                  <Button
+                    variant="contained"
+                    color="success"
+                    onClick={confirmImage}
+                    disabled={isConfirmed}
+                  >
+                    確認使用此圖片
                   </Button>
                 </Stack>
               </Box>
             ) : (
               <Typography variant="body2" color="text.secondary">
-                尚未生成圖片
+                {imageSource === ImageSourceOption.AI ? '尚未生成圖片' : '尚未選擇本地圖片'}
               </Typography>
             )}
           </Box>
         </Box>
       </Paper>
-      
-      <Divider sx={{ my: 2 }} />
-      
-      <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-        {imageUrl && !isGenerating && (
-          <Button 
-            variant="contained" 
-            color="primary"
-            onClick={confirmImage}
-            disabled={isConfirmed}
-          >
-            確認圖片並前往下一步
-          </Button>
-        )}
-        
-        {!isGenerating && !imageUrl && (
-          <Button 
-            variant="outlined" 
-            onClick={generateImage}
-          >
-            生成圖片
-          </Button>
-        )}
-      </Box>
-      
-      <Snackbar
-        open={snackbarOpen}
-        autoHideDuration={6000}
-        onClose={handleSnackbarClose}
-        message={snackbarMessage}
-      />
     </Box>
   );
 };

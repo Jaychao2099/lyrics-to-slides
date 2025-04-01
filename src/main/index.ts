@@ -19,6 +19,17 @@ const isDev = process.env.NODE_ENV === 'development';
 // 保持對 window 對象的全局引用，避免被 JavaScript 垃圾回收機制回收
 let mainWindow: BrowserWindow | null = null;
 
+// 發送日誌到渲染進程
+function sendLogToRenderer(type: string, message: string, level: 'info' | 'error' | 'warn' = 'info') {
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send('log-message', { 
+      source: 'main',
+      message,
+      level
+    });
+  }
+}
+
 // 創建主窗口
 function createWindow() {
   mainWindow = new BrowserWindow({
@@ -394,7 +405,126 @@ function setupIpcHandlers() {
     }
   });
   
-  // 在此添加更多 IPC 處理器...
+  // 添加日誌監聽處理器
+  ipcMain.handle('log-message', (_event, message, level = 'info') => {
+    if (level === 'error') {
+      console.error(message);
+    } else if (level === 'warn') {
+      console.warn(message);
+    } else {
+      console.log(message);
+    }
+    
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('log-message', { 
+        source: 'renderer',
+        message,
+        level
+      });
+    }
+    return true;
+  });
+  
+  // 匯入本地圖片
+  ipcMain.handle('import-local-image', async (_event, songId, localImagePath) => {
+    const startTime = LoggerService.apiStart('IPC', 'import-local-image', { songId, localImagePath });
+    try {
+      mainWindow?.webContents.send('progress-update', 10, '正在匯入本地圖片...');
+      
+      await LoggerService.info(`匯入本地圖片請求: songId=${songId}, localImagePath=${localImagePath}`);
+      
+      const imagePath = await ImageGenerationService.importLocalImage(songId, localImagePath);
+      
+      mainWindow?.webContents.send('progress-update', 100, '本地圖片匯入完成');
+      
+      const response = { songId, imagePath };
+      await LoggerService.apiSuccess('IPC', 'import-local-image', { songId }, response, startTime);
+      
+      return response;
+    } catch (error) {
+      console.error('匯入本地圖片失敗:', error);
+      mainWindow?.webContents.send('progress-update', 0, '匯入本地圖片失敗');
+      await LoggerService.apiError('IPC', 'import-local-image', { songId, localImagePath }, error, startTime);
+      throw error;
+    }
+  });
+  
+  // 選擇本地圖片
+  ipcMain.handle('select-local-image', async () => {
+    if (!mainWindow) return '';
+    
+    try {
+      const result = await dialog.showOpenDialog(mainWindow, {
+        properties: ['openFile'],
+        filters: [
+          { name: '圖片檔案', extensions: ['jpg', 'jpeg', 'png', 'gif', 'webp'] }
+        ]
+      });
+      
+      if (result.canceled) {
+        return '';
+      } else {
+        return result.filePaths[0];
+      }
+    } catch (error) {
+      console.error('選擇本地圖片失敗:', error);
+      throw error;
+    }
+  });
+  
+  // 獲取緩存大小
+  ipcMain.handle('get-cache-size', async () => {
+    try {
+      // 獲取各個緩存的大小
+      const imgCacheSize = await ImageGenerationService.getCacheSize();
+      const slidesCacheSize = await SlideGenerationService.getCacheSize();
+      const lyricsCacheSize = await LyricsSearchService.getCacheSize();
+      
+      // 計算總大小
+      const totalSizeBytes = imgCacheSize.totalSizeBytes + slidesCacheSize.totalSizeBytes + lyricsCacheSize.totalSizeBytes;
+      const totalSizeMB = (totalSizeBytes / (1024 * 1024)).toFixed(2);
+      
+      // 組合結果
+      return {
+        totalSize: {
+          totalSizeBytes,
+          totalSizeMB: `${totalSizeMB} MB`,
+        },
+        images: imgCacheSize,
+        slides: slidesCacheSize,
+        lyrics: lyricsCacheSize
+      };
+    } catch (error) {
+      console.error('獲取緩存大小失敗:', error);
+      throw error;
+    }
+  });
+  
+  // 清除緩存
+  ipcMain.handle('clear-cache', async () => {
+    try {
+      mainWindow?.webContents.send('progress-update', 10, '正在清除緩存...');
+      
+      // 清除各個緩存
+      const imgCacheResult = await ImageGenerationService.clearCache();
+      const slidesCacheResult = await SlideGenerationService.clearCache();
+      const lyricsCacheResult = await LyricsSearchService.clearCache();
+      
+      mainWindow?.webContents.send('progress-update', 100, '緩存清除完成');
+      
+      // 組合結果
+      return {
+        success: imgCacheResult.success && slidesCacheResult.success && lyricsCacheResult.success,
+        deletedImages: imgCacheResult.deletedCount,
+        deletedSlides: slidesCacheResult.deletedCount,
+        deletedLyrics: lyricsCacheResult.deletedCount
+      };
+    } catch (error) {
+      console.error('清除緩存失敗:', error);
+      mainWindow?.webContents.send('progress-update', 0, '清除緩存失敗');
+      throw error;
+    }
+  });
 }
 
 // 在這裡可以添加 IPC 事件監聽器，用於主進程與渲染進程通信

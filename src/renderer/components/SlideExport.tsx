@@ -63,8 +63,9 @@ const SlideExport: React.FC<SlideExportProps> = ({ songTitle, slideContent }) =>
   const [snackbarMessage, setSnackbarMessage] = useState<string>('');
   const [exportProgress, setExportProgress] = useState<ExportProgress[]>([]);
   const [overallProgress, setOverallProgress] = useState<number>(0);
+  const [logs, setLogs] = useState<string[]>([]);
 
-  // 載入預設輸出路徑
+  // 載入預設輸出路徑並設置日誌監聽器
   useEffect(() => {
     const loadDefaultPath = async () => {
       try {
@@ -78,7 +79,27 @@ const SlideExport: React.FC<SlideExportProps> = ({ songTitle, slideContent }) =>
     };
     
     loadDefaultPath();
+    
+    // 監聽主進程發送的日誌
+    const unsubscribe = window.electronAPI.onMainProcessLog((log) => {
+      setLogs(prevLogs => [...prevLogs, `[${log.level}] ${log.message}`]);
+      
+      // 如果是匯出相關的錯誤，直接顯示在界面上
+      if (log.level === 'error' && log.message.includes('匯出')) {
+        setError(log.message);
+      }
+    });
+    
+    // 卸載時清理監聽器
+    return () => {
+      unsubscribe();
+    };
   }, []);
+  
+  // 清除日誌
+  const clearLogs = () => {
+    setLogs([]);
+  };
 
   // 處理匯出格式變更
   const handleFormatChange = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -533,6 +554,32 @@ const SlideExport: React.FC<SlideExportProps> = ({ songTitle, slideContent }) =>
               </List>
             </CardContent>
           </Card>
+        )}
+        
+        {/* 添加日誌顯示區域 */}
+        {isExporting && logs.length > 0 && (
+          <Box sx={{ mt: 3 }}>
+            <Typography variant="subtitle2" gutterBottom>
+              匯出日誌:
+            </Typography>
+            <Card variant="outlined" sx={{ mt: 1, maxHeight: 200, overflow: 'auto' }}>
+              <CardContent sx={{ p: 1 }}>
+                <Button size="small" onClick={clearLogs} sx={{ mb: 1 }}>
+                  清除日誌
+                </Button>
+                {logs.map((log, index) => (
+                  <Typography key={index} variant="body2" component="div" sx={{ 
+                    fontFamily: 'monospace', 
+                    fontSize: '0.8rem',
+                    color: log.includes('[error]') ? 'error.main' : 
+                           log.includes('[warn]') ? 'warning.main' : 'text.primary'
+                  }}>
+                    {log}
+                  </Typography>
+                ))}
+              </CardContent>
+            </Card>
+          </Box>
         )}
       </Paper>
       
