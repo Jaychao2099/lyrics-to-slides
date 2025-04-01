@@ -84,18 +84,55 @@ export class SlideGenerationService {
 
       // 獲取投影片生成提示詞模板
       const promptTemplate = SettingsService.getSetting('slidesPromptTemplate') || 
-        `你是一個專業的文件轉換助手，專精於將歌詞轉換成符合Marp投影片格式的Markdown文件。請遵循以下要求：
-        
-        1. 將每個段落或每2-3行歌詞放在一張投影片上
-        2. 使用"---"作為投影片分隔符
-        3. 在每張投影片頂部加入背景圖片：![bg]({{imageUrl}})
-        4. 文字應置中顯示，使用大字體
-        5. 文字顏色應確保在背景上清晰可見，請使用白色並添加陰影
-        6. 不要添加任何不在原歌詞中的內容
-        7. 第一張投影片顯示歌曲標題和歌手名稱(如有提供)
-        
-        歌詞內容：
-        {{lyrics}}`;
+        `請將以下歌詞轉換為符合 Marp 投影片格式的 Markdown。請遵循以下要求：
+1. 仔細判斷歌詞的段落屬性。根據段落分段後，將每個段落放在一張投影片上，並使用"---"作為投影片分隔符
+2. 在每張投影片頂部加入背景圖片：![bg]({{imageUrl}})
+3. 不要添加任何不在原歌詞中的內容
+4. 每首歌的第一張投影片顯示"# 歌曲標題"
+5. 每行歌詞開頭用"# "標註
+6. 輸出時不需要任何額外的解釋或說明，僅輸出純 Markdown 內容
+範例：
+---
+marp: true
+color: "black"
+style: |
+  section {
+    text-align: center;
+  }
+  h1 {
+    -webkit-text-stroke: 0.2px white;
+  }
+
+---
+
+![bg](./images/test-bg1.png)
+
+# 第一首歌曲名稱
+
+---
+
+![bg](./images/test-bg1.png)
+
+# 第一行歌詞
+# 第二行歌詞
+# 第三行歌詞
+# 第四行歌詞
+
+---
+
+![bg](./images/test-bg2.png)
+
+# 第二首歌曲名稱
+
+---
+
+![bg](./images/test-bg2.png)
+
+# 第一行歌詞
+# 第二行歌詞
+
+歌詞內容：
+{{lyrics}}`;
 
       // 替換提示詞中的變數
       const relativePath = path.relative(this.slidesCacheDir, imagePath)

@@ -66,6 +66,7 @@ export interface ElectronAPI {
   openDirectory: (filePath: string) => Promise<boolean>;
   onProgressUpdate: (callback: (progress: number, status: string) => void) => () => void;
   getLogs: (logType?: string) => Promise<string>;
+  onMainProcessLog: (callback: (log: {source: string, message: string, level: string}) => void) => () => void;
 }
 
 // 擴展 Window 接口

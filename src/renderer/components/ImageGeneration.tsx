@@ -10,8 +10,11 @@ import {
   Paper, 
   Stack,
   Rating,
-  Snackbar
+  Snackbar,
+  Link,
+  Divider
 } from '@mui/material';
+import SettingsIcon from '@mui/icons-material/Settings';
 
 // 定義API返回類型
 interface ImageGenerationResult {
@@ -23,9 +26,15 @@ interface ImageGenerationProps {
   songTitle: string;
   lyrics: string;
   onImageGenerated: (imageUrl: string) => void;
+  onNavigateToSettings?: () => void;
 }
 
-const ImageGeneration: React.FC<ImageGenerationProps> = ({ songTitle, lyrics, onImageGenerated }) => {
+const ImageGeneration: React.FC<ImageGenerationProps> = ({ 
+  songTitle, 
+  lyrics, 
+  onImageGenerated, 
+  onNavigateToSettings 
+}) => {
   const [imageUrl, setImageUrl] = useState<string>('');
   const [isGenerating, setIsGenerating] = useState<boolean>(false);
   const [error, setError] = useState<string>('');
@@ -33,6 +42,7 @@ const ImageGeneration: React.FC<ImageGenerationProps> = ({ songTitle, lyrics, on
   const [rating, setRating] = useState<number | null>(null);
   const [snackbarOpen, setSnackbarOpen] = useState<boolean>(false);
   const [snackbarMessage, setSnackbarMessage] = useState<string>('');
+  const [isConfirmed, setIsConfirmed] = useState<boolean>(false);
 
   // 當組件載入後自動生成圖片
   useEffect(() => {
@@ -46,6 +56,7 @@ const ImageGeneration: React.FC<ImageGenerationProps> = ({ songTitle, lyrics, on
     try {
       setIsGenerating(true);
       setError('');
+      setIsConfirmed(false);
       
       // 通過API生成圖片 - 根據main/index.ts中的定義:
       // ipcMain.handle('generate-image', async (_event, songTitle, lyrics, songId = -1)
@@ -58,7 +69,7 @@ const ImageGeneration: React.FC<ImageGenerationProps> = ({ songTitle, lyrics, on
       if (result && typeof result === 'object' && 'imagePath' in result && 'songId' in result) {
         setImageUrl(result.imagePath);
         setSongId(result.songId);
-        onImageGenerated(result.imagePath);
+        // 不再自動調用 onImageGenerated，等待用戶確認
       } else {
         throw new Error('生成圖片失敗');
       }
@@ -76,6 +87,7 @@ const ImageGeneration: React.FC<ImageGenerationProps> = ({ songTitle, lyrics, on
       setIsGenerating(true);
       setError('');
       setRating(null);
+      setIsConfirmed(false);
       
       // 通過API重新生成圖片 - 根據main/index.ts中的定義:
       // ipcMain.handle('regenerate-image', async (_event, songId, songTitle, lyrics)
@@ -91,7 +103,7 @@ const ImageGeneration: React.FC<ImageGenerationProps> = ({ songTitle, lyrics, on
         setImageUrl(result.imagePath);
         setSnackbarMessage('圖片已重新生成');
         setSnackbarOpen(true);
-        onImageGenerated(result.imagePath);
+        // 不再自動調用 onImageGenerated，等待用戶確認
       } else {
         throw new Error('重新生成圖片失敗');
       }
@@ -117,6 +129,19 @@ const ImageGeneration: React.FC<ImageGenerationProps> = ({ songTitle, lyrics, on
     setSnackbarOpen(false);
   };
 
+  // 確認圖片並進入下一步
+  const confirmImage = () => {
+    setIsConfirmed(true);
+    onImageGenerated(imageUrl);
+  };
+
+  // 導航到設定頁面
+  const goToSettings = () => {
+    if (onNavigateToSettings) {
+      onNavigateToSettings();
+    }
+  };
+
   return (
     <Box>
       <Typography variant="h5" gutterBottom>
@@ -139,6 +164,21 @@ const ImageGeneration: React.FC<ImageGenerationProps> = ({ songTitle, lyrics, on
             <Typography variant="subtitle1" gutterBottom>
               生成的背景圖片:
             </Typography>
+            
+            {/* 提示詞設定提示 */}
+            <Alert severity="info" sx={{ mb: 2 }}>
+              如需更改圖片生成效果，您可以先
+              <Link 
+                component="button"
+                variant="body2"
+                onClick={goToSettings}
+                sx={{ mx: 1 }}
+              >
+                <SettingsIcon fontSize="small" sx={{ verticalAlign: 'middle', mr: 0.5 }} />
+                前往設定頁面
+              </Link>
+              進行提示詞修改，保存設定後再回來。
+            </Alert>
           </Box>
           
           <Box>
@@ -188,15 +228,19 @@ const ImageGeneration: React.FC<ImageGenerationProps> = ({ songTitle, lyrics, on
         </Box>
       </Paper>
       
+      <Divider sx={{ my: 2 }} />
+      
       <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-        <Button 
-          variant="contained" 
-          color="primary"
-          onClick={() => onImageGenerated(imageUrl)}
-          disabled={!imageUrl || isGenerating}
-        >
-          下一步
-        </Button>
+        {imageUrl && !isGenerating && (
+          <Button 
+            variant="contained" 
+            color="primary"
+            onClick={confirmImage}
+            disabled={isConfirmed}
+          >
+            確認圖片並前往下一步
+          </Button>
+        )}
         
         {!isGenerating && !imageUrl && (
           <Button 

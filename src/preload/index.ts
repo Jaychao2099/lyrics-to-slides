@@ -25,6 +25,7 @@ interface ElectronAPI {
   openDirectory: (filePath: string) => Promise<boolean>;
   onProgressUpdate: (callback: (progress: number, status: string) => void) => (() => void);
   getLogs: (logType?: string) => Promise<string>;
+  onMainProcessLog: (callback: (log: {source: string, message: string, level: string}) => void) => (() => void);
 }
 
 // 暴露給渲染進程的 API
@@ -105,5 +106,14 @@ contextBridge.exposeInMainWorld('electronAPI', {
   
   // 取得日誌
   getLogs: (logType: string = 'api') => 
-    ipcRenderer.invoke('get-logs', logType)
+    ipcRenderer.invoke('get-logs', logType),
+    
+  // 監聽主進程日誌
+  onMainProcessLog: (callback: (log: {source: string, message: string, level: string}) => void) => {
+    const listener = (_event: any, log: {source: string, message: string, level: string}) => callback(log);
+    ipcRenderer.on('main-process-log', listener);
+    return () => {
+      ipcRenderer.removeListener('main-process-log', listener);
+    };
+  }
 } as ElectronAPI); 

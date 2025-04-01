@@ -161,6 +161,7 @@ const App: React.FC = () => {
               setSongData(prev => ({ ...prev, imageUrl }));
               handleNext();
             }}
+            onNavigateToSettings={() => setActiveStep(4)}
           />
         );
       case 2:

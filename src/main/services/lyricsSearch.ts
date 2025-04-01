@@ -6,12 +6,63 @@ import * as cheerio from 'cheerio';
 import { SettingsService } from './settings';
 import { DatabaseService } from './database';
 import { LyricsSearchResult } from '../../common/types';
+import { app, BrowserWindow } from 'electron';
+import { LoggerService } from './logger';
+import * as path from 'path';
+import * as fs from 'fs';
 
 /**
  * 歌詞搜尋服務
  * 實現規格書中第3.1節的功能
  */
 export class LyricsSearchService {
+  /**
+   * 主進程日誌輸出
+   * @param message 日誌訊息
+   * @param level 日誌級別
+   */
+  private static log(message: string, level: 'info' | 'error' | 'warn' = 'info'): void {
+    // 使用 LoggerService 記錄日誌
+    const logMessage = `[LyricsSearchService] ${message}`;
+    
+    switch (level) {
+      case 'error':
+        console.error(logMessage);
+        // 非同步記錄到文件
+        LoggerService.error(message).catch(err => 
+          console.error(`記錄錯誤日誌失敗: ${err}`)
+        );
+        break;
+      case 'warn':
+        console.warn(logMessage);
+        // 非同步記錄到文件
+        LoggerService.warn(message).catch(err => 
+          console.error(`記錄警告日誌失敗: ${err}`)
+        );
+        break;
+      default:
+        console.log(logMessage);
+        // 非同步記錄到文件
+        LoggerService.info(message).catch(err => 
+          console.error(`記錄信息日誌失敗: ${err}`)
+        );
+    }
+    
+    // 同時發送到渲染進程以便在開發者工具中查看
+    try {
+      const windows = BrowserWindow.getAllWindows();
+      if (windows.length > 0) {
+        windows[0].webContents.send('main-process-log', {
+          source: 'LyricsSearchService',
+          message: message,
+          level: level
+        });
+      }
+    } catch (err) {
+      // 忽略傳送失敗
+    }
+  }
+
   /**
    * 搜尋歌詞
    * @param songTitle 歌曲名稱
@@ -23,6 +74,7 @@ export class LyricsSearchService {
       // 先嘗試從數據庫獲取緩存的歌詞
       const cachedSongs = DatabaseService.searchSongs(songTitle);
       if (cachedSongs.length > 0) {
+        this.log(`從數據庫找到 ${cachedSongs.length} 個緩存歌詞結果`);
         return cachedSongs.map(song => ({
           title: song.title,
           artist: song.artist,
@@ -32,14 +84,18 @@ export class LyricsSearchService {
       }
 
       // 如果沒有緩存，則通過Google API搜尋
+      this.log(`使用 Google API 搜尋歌詞: ${songTitle} ${artist}`);
       const lyricsUrl = await this.searchLyricsUrl(songTitle, artist);
       if (!lyricsUrl) {
+        this.log('無法找到相關歌詞', 'error');
         throw new Error('無法找到相關歌詞');
       }
 
       // 獲取歌詞內容
+      this.log(`找到歌詞網址: ${lyricsUrl}，開始解析歌詞內容`);
       const lyrics = await this.fetchLyricsFromUrl(lyricsUrl);
       if (!lyrics) {
+        this.log('無法解析歌詞內容', 'error');
         throw new Error('無法解析歌詞內容');
       }
 
@@ -52,6 +108,7 @@ export class LyricsSearchService {
       };
 
       // 將結果存入數據庫
+      this.log(`歌詞解析成功，保存到數據庫`);
       DatabaseService.addSong({
         title: songTitle,
         artist: artist,
@@ -60,7 +117,7 @@ export class LyricsSearchService {
 
       return [result];
     } catch (error) {
-      console.error('搜尋歌詞時發生錯誤:', error);
+      this.log(`搜尋歌詞時發生錯誤: ${error}`, 'error');
       throw error;
     }
   }
@@ -76,6 +133,7 @@ export class LyricsSearchService {
     const searchEngineId = SettingsService.getSetting('googleSearchEngineId');
 
     if (!googleApiKey || !searchEngineId) {
+      this.log('Google API配置缺失，請在設定中配置', 'error');
       throw new Error('Google API配置缺失，請在設定中配置');
     }
 
@@ -84,19 +142,20 @@ export class LyricsSearchService {
     if (artist) {
       query += ` ${artist}`;
     }
-    query += ` 歌詞 lyrics`;
+    query += ` 歌詞 lyrics 繁體中文`;
     
-    console.log(`搜尋歌詞URL，查詢: ${query}`);
+    this.log(`搜尋歌詞URL，查詢: ${query}`);
 
     // 構建API URL
     const url = `https://www.googleapis.com/customsearch/v1?q=${encodeURIComponent(query)}&key=${googleApiKey}&cx=${searchEngineId}`;
 
     try {
+      this.log(`發送 Google API 請求`);
       const response = await fetch(url);
       const data = await response.json() as any;
 
       if (data.error) {
-        console.error('Google API 返回錯誤:', data.error.message);
+        this.log(`Google API 返回錯誤: ${data.error.message}`, 'error');
         throw new Error(`Google API 錯誤: ${data.error.message}`);
       }
 
@@ -115,20 +174,20 @@ export class LyricsSearchService {
         for (const site of preferredSites) {
           const match = data.items.find((item: any) => item.link.includes(site));
           if (match) {
-            console.log(`找到優先網站 ${site} 的歌詞頁面: ${match.link}`);
+            this.log(`找到優先網站 ${site} 的歌詞頁面: ${match.link}`);
             return match.link;
           }
         }
         
         // 如果沒有優先網站，返回第一個結果
-        console.log(`沒有找到優先網站，使用第一個結果: ${data.items[0].link}`);
+        this.log(`沒有找到優先網站，使用第一個結果: ${data.items[0].link}`);
         return data.items[0].link;
       }
       
-      console.log('未找到歌詞頁面');
+      this.log('未找到歌詞頁面', 'warn');
       return null;
     } catch (error) {
-      console.error('搜尋歌詞URL時發生錯誤:', error);
+      this.log(`搜尋歌詞URL時發生錯誤: ${error}`, 'error');
       throw error;
     }
   }
@@ -140,7 +199,7 @@ export class LyricsSearchService {
    */
   private static async fetchLyricsFromUrl(url: string): Promise<string | null> {
     try {
-      console.log(`開始從 ${url} 獲取歌詞...`);
+      this.log(`開始從 ${url} 獲取歌詞...`);
       
       // 嘗試最多3次獲取內容
       let html = '';
@@ -158,16 +217,16 @@ export class LyricsSearchService {
           });
           
           if (!response.ok) {
-            console.error(`獲取頁面失敗，HTTP狀態碼: ${response.status}`);
+            this.log(`獲取頁面失敗，HTTP狀態碼: ${response.status}`, 'error');
             throw new Error(`HTTP Error: ${response.status}`);
           }
 
           html = await response.text();
-          console.log(`成功獲取頁面內容，長度: ${html.length} 字符`);
+          this.log(`成功獲取頁面內容，長度: ${html.length} 字符`);
           break; // 成功獲取，跳出循環
         } catch (error) {
           attempts++;
-          console.error(`第 ${attempts} 次嘗試獲取頁面失敗:`, error);
+          this.log(`第 ${attempts} 次嘗試獲取頁面失敗: ${error}`, 'error');
           
           if (attempts >= 3) {
             throw error; // 嘗試次數用完，重新拋出錯誤
@@ -182,14 +241,14 @@ export class LyricsSearchService {
       const lyrics = this.parseAndCleanLyrics(html, url);
       
       if (!lyrics) {
-        console.error(`無法從 ${url} 解析出歌詞內容`);
+        this.log(`無法從 ${url} 解析出歌詞內容`, 'error');
       } else {
-        console.log(`成功解析出歌詞，長度: ${lyrics.length} 字符`);
+        this.log(`成功解析出歌詞，長度: ${lyrics.length} 字符`);
       }
       
       return lyrics;
     } catch (error) {
-      console.error('獲取歌詞內容時發生錯誤:', error);
+      this.log(`獲取歌詞內容時發生錯誤: ${error}`, 'error');
       throw error;
     }
   }
@@ -205,11 +264,11 @@ export class LyricsSearchService {
       const $ = cheerio.load(html);
       let lyrics = '';
 
-      console.log(`開始解析歌詞網頁: ${url}`);
+      this.log(`開始解析歌詞網頁: ${url}`);
       
       // 打印HTML內容進行調試
-      console.log(`HTML 內容長度: ${html.length}`);
-      console.log(`HTML 內容前100字符: ${html.substring(0, 100)}`);
+      this.log(`HTML 內容長度: ${html.length}`);
+      this.log(`HTML 內容前100字符: ${html.substring(0, 100)}`);
 
       // 根據不同的歌詞網站使用不同的解析策略
       if (url.includes('genius.com')) {
@@ -229,7 +288,7 @@ export class LyricsSearchService {
           });
         }
         
-        console.log(`Genius 歌詞解析結果長度: ${lyrics.length}`);
+        this.log(`Genius 歌詞解析結果長度: ${lyrics.length}`);
       } else if (url.includes('azlyrics.com')) {
         // AZLyrics 歌詞解析
         lyrics = $('.ringtone').next().text().trim();
@@ -238,11 +297,11 @@ export class LyricsSearchService {
           lyrics = $('.lyricsh').nextUntil('.ringtone').text().trim();
         }
         
-        console.log(`AZLyrics 歌詞解析結果長度: ${lyrics.length}`);
+        this.log(`AZLyrics 歌詞解析結果長度: ${lyrics.length}`);
       } else if (url.includes('metrolyrics.com')) {
         // MetroLyrics 歌詞解析
         lyrics = $('.verse').map((_: number, elem: cheerio.Element) => $(elem).text().trim()).get().join('\n\n');
-        console.log(`MetroLyrics 歌詞解析結果長度: ${lyrics.length}`);
+        this.log(`MetroLyrics 歌詞解析結果長度: ${lyrics.length}`);
       } else if (url.includes('lyrics.com')) {
         // Lyrics.com 歌詞解析
         lyrics = $('#lyric-body-text').text().trim();
@@ -250,26 +309,26 @@ export class LyricsSearchService {
           lyrics = $('.lyric-body').text().trim();
         }
         
-        console.log(`Lyrics.com 歌詞解析結果長度: ${lyrics.length}`);
+        this.log(`Lyrics.com 歌詞解析結果長度: ${lyrics.length}`);
       } else if (url.includes('musixmatch.com')) {
         // Musixmatch 歌詞解析
         lyrics = $('.mxm-lyrics__content').map((_: number, elem: cheerio.Element) => $(elem).text().trim()).get().join('\n\n');
-        console.log(`Musixmatch 歌詞解析結果長度: ${lyrics.length}`);
+        this.log(`Musixmatch 歌詞解析結果長度: ${lyrics.length}`);
       } else if (url.includes('songlyrics.com')) {
         // SongLyrics 歌詞解析
         lyrics = $('#songLyricsDiv').text().trim();
-        console.log(`SongLyrics 歌詞解析結果長度: ${lyrics.length}`);
+        this.log(`SongLyrics 歌詞解析結果長度: ${lyrics.length}`);
       } else if (url.includes('kkbox.com')) {
         // KKBOX 歌詞解析 (適合中文歌曲)
         lyrics = $('.lyrics').text().trim();
-        console.log(`KKBOX 歌詞解析結果長度: ${lyrics.length}`);
+        this.log(`KKBOX 歌詞解析結果長度: ${lyrics.length}`);
       } else if (url.includes('mojim.com')) {
         // 魔鏡歌詞網 (適合中文歌曲)
         lyrics = $('#fsZx3').text().trim();
         if (!lyrics) {
           lyrics = $('.lyric-text').text().trim();
         }
-        console.log(`魔鏡歌詞網解析結果長度: ${lyrics.length}`);
+        this.log(`魔鏡歌詞網解析結果長度: ${lyrics.length}`);
       } else {
         // 通用解析策略：尋找可能包含歌詞的最大文本區塊
         const textBlocks = $('div, p').map((_: number, el: cheerio.Element) => {
@@ -280,9 +339,9 @@ export class LyricsSearchService {
         textBlocks.sort((a, b) => b.length - a.length);
         
         // 輸出前5個最大的文本區塊進行診斷
-        console.log('前5個最大文本區塊:');
+        this.log('前5個最大文本區塊:');
         textBlocks.slice(0, 5).forEach((block, index) => {
-          console.log(`區塊 ${index + 1}: 長度=${block.length}, 前30字符="${block.text.substring(0, 30)}..."`);
+          this.log(`區塊 ${index + 1}: 長度=${block.length}, 前30字符="${block.text.substring(0, 30)}..."`);
         });
         
         // 嘗試找出最可能是歌詞的文本區塊
@@ -292,7 +351,7 @@ export class LyricsSearchService {
           // 歌詞通常有多行且包含換行符
           if (text.includes('\n') && text.length > 100) {
             lyrics = text;
-            console.log(`通用策略找到可能的歌詞，長度: ${lyrics.length}`);
+            this.log(`通用策略找到可能的歌詞，長度: ${lyrics.length}`);
             break;
           }
         }
@@ -300,7 +359,7 @@ export class LyricsSearchService {
         // 如果沒有找到多行文本，就使用最長的文本區塊
         if (!lyrics && textBlocks.length > 0) {
           lyrics = textBlocks[0].text;
-          console.log(`使用最長文本區塊作為歌詞，長度: ${lyrics.length}`);
+          this.log(`使用最長文本區塊作為歌詞，長度: ${lyrics.length}`);
         }
       }
 
@@ -310,12 +369,12 @@ export class LyricsSearchService {
       }
       
       // 如果所有策略都失敗了，輸出一些頁面信息以幫助調試
-      console.error('無法解析歌詞，頁面的主要內容:');
-      console.error($('body').text().substring(0, 500) + '...');
+      this.log('無法解析歌詞，頁面的主要內容:', 'error');
+      this.log($('body').text().substring(0, 500) + '...', 'error');
       
       return null;
     } catch (error) {
-      console.error('解析歌詞時發生錯誤:', error);
+      this.log(`解析歌詞時發生錯誤: ${error}`, 'error');
       return null;
     }
   }

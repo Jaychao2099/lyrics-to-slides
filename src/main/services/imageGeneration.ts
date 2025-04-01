@@ -116,7 +116,7 @@ export class ImageGenerationService {
 
       // 獲取圖片生成提示詞模板
       const promptTemplate = SettingsService.getSetting('imagePromptTemplate') || 
-        '為以下歌詞創建背景圖片：「{{lyrics}}」，風格：簡約現代，適合教會或歌唱聚會使用的投影片背景，不要包含任何文字或人物，只需要創作和諧、簡約的抽象背景。';
+        '請仔細思考歌詞內容，找出詩歌中最關鍵的元素，為教會詩歌 {{songTitle}} 繪製一張簡約、抽象、適合教會聚會使用的投影片背景。注意：必須"絕對無任何文字"、"絕對無任何人物"。淺色調、單一色調、色差柔和、高畫質、高品質、細節極少，16:9。歌詞內容: {{lyrics}}';
 
       // 替換提示詞中的變數
       // 取歌詞的前300個字符，避免提示詞過長
@@ -138,6 +138,7 @@ export class ImageGenerationService {
       let imageResponse;
       try {
         imageResponse = await this.openai.images.generate({
+          model: "dall-e-3", // 或 "dall-e-2"
           prompt: finalPrompt,
           n: 1,
           size: "1024x1024",

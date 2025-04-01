@@ -144,6 +144,11 @@ const LyricsSearch: React.FC<LyricsSearchProps> = ({ onSearchComplete }) => {
                     {result.artist}
                   </Typography>
                 )}
+                {result.source && (
+                  <Typography variant="caption" display="block" sx={{ mb: 1 }}>
+                    來源: <a href={result.source} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()}>{result.source}</a>
+                  </Typography>
+                )}
                 <Divider sx={{ my: 1 }} />
                 <Typography variant="body2" sx={{ whiteSpace: 'pre-line' }}>
                   {formatLyricsPreview(result.lyrics)}
@@ -155,14 +160,19 @@ const LyricsSearch: React.FC<LyricsSearchProps> = ({ onSearchComplete }) => {
       )}
 
       {selectedResult && (
-        <Box sx={{ mt: 3, display: 'flex', justifyContent: 'flex-end' }}>
-          <Button
-            variant="contained"
-            color="primary"
-            onClick={handleConfirm}
-          >
-            使用此歌詞
-          </Button>
+        <Box sx={{ mt: 3 }}>
+          <Alert severity="info" sx={{ mb: 2 }}>
+            提示：選擇歌詞後，您可以在之後的步驟中編輯歌詞內容。
+          </Alert>
+          <Box sx={{ display: 'flex', justifyContent: 'flex-end' }}>
+            <Button
+              variant="contained"
+              color="primary"
+              onClick={handleConfirm}
+            >
+              使用此歌詞
+            </Button>
+          </Box>
         </Box>
       )}
     </Box>
