@@ -90,7 +90,7 @@ export class SlideGenerationService {
 3. 不要添加任何不在原歌詞中的內容
 4. 每首歌的第一張投影片顯示"# 歌曲標題"
 5. 每行歌詞開頭用"# "標註
-6. 輸出時不需要任何額外的解釋或說明，僅輸出純 Markdown 內容
+6. 輸出時不需要任何額外的解釋、說明、"\`\`\`markdown"等字符，僅輸出純 Markdown 內容
 範例：
 ---
 marp: true

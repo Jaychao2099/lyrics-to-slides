@@ -116,7 +116,7 @@ export class ImageGenerationService {
 
       // 獲取圖片生成提示詞模板
       const promptTemplate = SettingsService.getSetting('imagePromptTemplate') || 
-        '請仔細思考歌詞內容，找出詩歌中最關鍵的元素，為教會詩歌 {{songTitle}} 繪製一張簡約、抽象、適合教會聚會使用的投影片背景。注意：必須"絕對無任何文字"、"絕對無任何人物"。淺色調、單一色調、色差柔和、高畫質、高品質、細節極少，16:9。歌詞內容: {{lyrics}}';
+        '請Positive Prompt: A minimalist and abstract background inspired by the lyrics of {{songTitle}}, designed for church worship slides. Soft pastel tones, monochromatic color scheme, smooth gradients, high resolution, high quality. The image should be simple, elegant, and calming, with minimal details and no distractions. lyrics: {{lyrics}}\nNegative Prompt: people, faces, human figures, silhouettes, body parts, hands, eyes, text, symbols, complex patterns, high contrast, clutter, excessive details, surreal elements';
 
       // 替換提示詞中的變數
       // 取歌詞的前300個字符，避免提示詞過長
