@@ -86,7 +86,7 @@ export class SlideGenerationService {
       // 獲取投影片生成提示詞模板
       const promptTemplate = SettingsService.getSetting('slidesPromptTemplate') || 
         `請將以下歌詞轉換為符合 Marp 投影片格式的 Markdown。請遵循以下要求：
-1. 仔細判斷歌詞的段落屬性。根據段落分段後，將每個段落放在一張投影片上，並使用"---"作為投影片分隔符
+1. 仔細判斷歌詞的段落屬性(如主歌、副歌...)，注意：用"空格"分開的句子算同一行。根據段落分段後，將每個段落放在一張投影片上，並使用"---"作為投影片分隔符
 2. 在每張投影片頂部加入背景圖片：![bg]({{imageUrl}})
 3. 不要添加任何不在原歌詞中的內容
 4. 每首歌的第一張投影片顯示"# 歌曲標題"

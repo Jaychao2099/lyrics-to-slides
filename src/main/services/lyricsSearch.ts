@@ -206,56 +206,90 @@ export class LyricsSearchService {
    * @param artist 歌手/樂團名稱
    * @returns 搜尋結果
    */
-  public static async searchLyrics(songTitle: string, artist: string = ''): Promise<LyricsSearchResult[]> {
+  public static async searchLyrics(
+    songTitle: string,
+    artist?: string
+  ): Promise<LyricsSearchResult[]> {
+    console.log(`[LyricsSearch] 搜尋歌詞: ${songTitle}, 歌手: ${artist || 'N/A'}`);
+    
+    // 初始化結果陣列
+    const results: LyricsSearchResult[] = [];
+    
     try {
-      // 先嘗試從數據庫獲取緩存的歌詞
-      const cachedSongs = DatabaseService.searchSongs(songTitle);
-      if (cachedSongs.length > 0) {
-        this.log(`從數據庫找到 ${cachedSongs.length} 個緩存歌詞結果`);
-        return cachedSongs.map(song => ({
-          title: song.title,
-          artist: song.artist,
-          lyrics: song.lyrics,
-          source: ''
-        }));
+      // 檢查緩存
+      if (!artist) {
+        // 搜尋確切標題匹配的所有歌曲
+        const cachedSongs = await DatabaseService.searchSongsByExactTitle(songTitle);
+        
+        if (cachedSongs.length > 0) {
+          console.log(`[LyricsSearch] 找到緩存歌曲: ${cachedSongs.length}首`);
+          
+          // 將所有緩存歌曲添加到結果中
+          cachedSongs.forEach(song => {
+            results.push({
+              title: song.title,
+              artist: song.artist,
+              lyrics: song.lyrics,
+              source: '', // 緩存歌曲沒有來源URL
+              fromCache: true,
+              songId: song.id
+            });
+          });
+        }
       }
+      
+      // 如果沒有找到緩存結果，或者指定了歌手，則嘗試API搜尋
+      if (results.length === 0 || artist) {
+        // 構建URL
+        const searchTerm = encodeURIComponent(`${songTitle}${artist ? ' ' + artist : ''} lyrics`);
+        const searchUrl = `https://www.google.com/search?q=${searchTerm}`;
+        
+        console.log(`[LyricsSearch] 沒有緩存結果，嘗試搜尋: ${searchUrl}`);
+        
+        try {
+          // 執行 Google 搜尋查找歌詞網頁
+          const searchPageHtml = await this.fetchPage(searchUrl);
+          const lyricsUrl = this.extractLyricsUrl(searchPageHtml);
 
-      // 如果沒有緩存，則通過Google API搜尋
-      this.log(`使用 Google API 搜尋歌詞: ${songTitle} ${artist}`);
-      const lyricsUrl = await this.searchLyricsUrl(songTitle, artist);
-      if (!lyricsUrl) {
-        this.log('無法找到相關歌詞', 'error');
-        throw new Error('無法找到相關歌詞');
+          if (lyricsUrl) {
+            console.log(`[LyricsSearch] 找到歌詞URL: ${lyricsUrl}`);
+            
+            // 獲取歌詞
+            const lyrics = await this.scrapeLyrics(lyricsUrl);
+            
+            if (lyrics) {
+              // 創建搜尋結果
+              const apiResult: LyricsSearchResult = {
+                title: songTitle,
+                artist: artist || '',
+                lyrics,
+                source: lyricsUrl,
+                fromApi: true
+              };
+              
+              // 將 API 搜尋結果添加到結果陣列的最前面
+              results.unshift(apiResult);
+            } else {
+              console.log('[LyricsSearch] 無法解析歌詞內容');
+            }
+          } else {
+            console.log('[LyricsSearch] 找不到歌詞URL');
+          }
+        } catch (err) {
+          console.error('[LyricsSearch] API搜尋失敗:', err);
+          // 如果API搜尋失敗但有緩存結果，仍然返回緩存結果
+          if (results.length > 0) {
+            console.log('[LyricsSearch] API搜尋失敗，但返回緩存結果');
+          } else {
+            throw new Error('歌詞搜尋失敗');
+          }
+        }
       }
-
-      // 獲取歌詞內容
-      this.log(`找到歌詞網址: ${lyricsUrl}，開始解析歌詞內容`);
-      const lyrics = await this.fetchLyricsFromUrl(lyricsUrl);
-      if (!lyrics) {
-        this.log('無法解析歌詞內容', 'error');
-        throw new Error('無法解析歌詞內容');
-      }
-
-      // 創建結果物件
-      const result: LyricsSearchResult = {
-        title: songTitle,
-        artist: artist,
-        lyrics: lyrics,
-        source: lyricsUrl
-      };
-
-      // 將結果存入數據庫
-      this.log(`歌詞解析成功，保存到數據庫`);
-      DatabaseService.addSong({
-        title: songTitle,
-        artist: artist,
-        lyrics: lyrics
-      });
-
-      return [result];
-    } catch (error) {
-      this.log(`搜尋歌詞時發生錯誤: ${error}`, 'error');
-      throw error;
+      
+      return results;
+    } catch (err) {
+      console.error('[LyricsSearch] 搜尋歌詞失敗:', err);
+      throw err;
     }
   }
 
@@ -330,63 +364,89 @@ export class LyricsSearchService {
   }
 
   /**
-   * 從URL獲取歌詞內容
-   * @param url 歌詞頁面URL
-   * @returns 解析後的歌詞內容
+   * 從URL獲取頁面內容
+   * @param url 頁面URL
+   * @returns 頁面HTML內容
    */
-  private static async fetchLyricsFromUrl(url: string): Promise<string | null> {
+  private static async fetchPage(url: string): Promise<string> {
     try {
-      this.log(`開始從 ${url} 獲取歌詞...`);
+      const response = await fetch(url, { 
+        headers: { 
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+          'Accept-Language': 'zh-TW,zh;q=0.9,en-US;q=0.8,en;q=0.7'
+        },
+        timeout: 10000 // 10秒超時
+      });
       
-      // 嘗試最多3次獲取內容
-      let html = '';
-      let attempts = 0;
+      if (!response.ok) {
+        throw new Error(`HTTP Error: ${response.status}`);
+      }
       
-      while (attempts < 3) {
-        try {
-          const response = await fetch(url, { 
-            headers: { 
-              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
-              'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-              'Accept-Language': 'zh-TW,zh;q=0.9,en-US;q=0.8,en;q=0.7'
-            },
-            timeout: 10000 // 10秒超時
-          });
-          
-          if (!response.ok) {
-            this.log(`獲取頁面失敗，HTTP狀態碼: ${response.status}`, 'error');
-            throw new Error(`HTTP Error: ${response.status}`);
-          }
+      return await response.text();
+    } catch (error) {
+      console.error(`獲取頁面失敗: ${error}`);
+      throw error;
+    }
+  }
 
-          html = await response.text();
-          this.log(`成功獲取頁面內容，長度: ${html.length} 字符`);
-          break; // 成功獲取，跳出循環
-        } catch (error) {
-          attempts++;
-          this.log(`第 ${attempts} 次嘗試獲取頁面失敗: ${error}`, 'error');
-          
-          if (attempts >= 3) {
-            throw error; // 嘗試次數用完，重新拋出錯誤
-          }
-          
-          // 等待一秒後再嘗試
-          await new Promise(resolve => setTimeout(resolve, 1000));
+  /**
+   * 從Google搜尋結果頁面提取歌詞URL
+   * @param html Google搜尋結果頁面HTML
+   * @returns 歌詞頁面URL或null
+   */
+  private static extractLyricsUrl(html: string): string | null {
+    try {
+      const $ = cheerio.load(html);
+      
+      // 優先網站列表
+      const preferredSites = [
+        'mojim.com', // 魔鏡歌詞網 (中文歌詞)
+        'kkbox.com', // KKBOX (中文歌詞)
+        'musixmatch.com',
+        'genius.com',
+        'azlyrics.com',
+        'lyrics.com'
+      ];
+      
+      // 從搜尋結果中尋找歌詞網站
+      const allLinks = $('a').map((_, el) => $(el).attr('href')).get();
+      const filteredLinks = allLinks.filter(link => link && link.startsWith('http'));
+      
+      // 首先尋找優先網站的連結
+      for (const site of preferredSites) {
+        const match = filteredLinks.find(link => link.includes(site));
+        if (match) {
+          return match;
         }
       }
       
-      // 解析歌詞
-      const lyrics = this.parseAndCleanLyrics(html, url);
+      // 如果沒有找到優先網站，嘗試找包含 "lyrics" 的連結
+      const lyricsLink = filteredLinks.find(link => 
+        link.includes('lyrics') || 
+        link.includes('Lyrics') || 
+        link.includes('%E6%AD%8C%E8%A9%9E') // "歌詞" URL編碼
+      );
       
-      if (!lyrics) {
-        this.log(`無法從 ${url} 解析出歌詞內容`, 'error');
-      } else {
-        this.log(`成功解析出歌詞，長度: ${lyrics.length} 字符`);
-      }
-      
-      return lyrics;
+      return lyricsLink || null;
     } catch (error) {
-      this.log(`獲取歌詞內容時發生錯誤: ${error}`, 'error');
-      throw error;
+      console.error(`提取歌詞URL失敗: ${error}`);
+      return null;
+    }
+  }
+
+  /**
+   * 從歌詞頁面獲取歌詞內容
+   * @param url 歌詞頁面URL
+   * @returns 歌詞內容或null
+   */
+  private static async scrapeLyrics(url: string): Promise<string | null> {
+    try {
+      const html = await this.fetchPage(url);
+      return this.parseAndCleanLyrics(html, url);
+    } catch (error) {
+      console.error(`抓取歌詞失敗: ${error}`);
+      return null;
     }
   }
 
@@ -549,5 +609,64 @@ export class LyricsSearchService {
     cleaned = cleaned.trim();
     
     return cleaned;
+  }
+
+  /**
+   * 更新歌詞緩存
+   * @param title 歌曲名稱
+   * @param artist 歌手名稱
+   * @param lyrics 歌詞內容
+   * @param source 歌詞來源
+   * @returns 是否成功更新
+   */
+  public static async updateLyricsCache(
+    title: string, 
+    artist: string, 
+    lyrics: string, 
+    source: string
+  ): Promise<boolean> {
+    try {
+      this.log(`開始更新歌詞緩存: ${title} - ${artist}`);
+      
+      // 先查詢是否有匹配的歌曲
+      const matchedSongs = DatabaseService.searchSongs(title);
+      let updated = false;
+      
+      if (matchedSongs.length > 0) {
+        // 查找最匹配的歌曲
+        const exactMatch = matchedSongs.find(song => 
+          song.title.toLowerCase() === title.toLowerCase() && 
+          ((!artist && !song.artist) || song.artist.toLowerCase() === artist.toLowerCase())
+        );
+        
+        // 如果找到精確匹配，則更新歌詞
+        if (exactMatch) {
+          this.log(`找到匹配的歌曲記錄 (ID: ${exactMatch.id})，更新歌詞內容`);
+          updated = DatabaseService.updateSong(exactMatch.id, {
+            lyrics: lyrics
+          });
+          
+          if (updated) {
+            this.log(`成功更新歌曲 "${title}" 的歌詞緩存`);
+          } else {
+            this.log(`更新歌曲 "${title}" 的歌詞緩存失敗`, 'error');
+          }
+          return updated;
+        }
+      }
+      
+      // 如果沒有找到匹配的記錄，創建新記錄
+      this.log(`沒有找到匹配的歌曲記錄，添加新記錄: ${title}`);
+      const newSongId = DatabaseService.addSong({
+        title: title,
+        artist: artist,
+        lyrics: lyrics
+      });
+      
+      return newSongId > 0;
+    } catch (error) {
+      this.log(`更新歌詞緩存時發生錯誤: ${error}`, 'error');
+      return false;
+    }
   }
 } 

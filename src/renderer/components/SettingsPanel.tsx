@@ -19,7 +19,7 @@ import {
   Snackbar,
   Alert
 } from '@mui/material';
-import { Visibility, VisibilityOff, FolderOpen, Delete, Refresh } from '@mui/icons-material';
+import { Visibility, VisibilityOff, FolderOpen, Delete, Refresh, RestartAlt } from '@mui/icons-material';
 import { Settings } from '../../common/types';
 
 interface SettingsPanelProps {
@@ -67,6 +67,9 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ settings, onSave, onCance
   const [snackbarOpen, setSnackbarOpen] = useState<boolean>(false);
   const [snackbarMessage, setSnackbarMessage] = useState<string>('');
   const [snackbarSeverity, setSnackbarSeverity] = useState<'success' | 'error' | 'info'>('info');
+  
+  // 默認設定
+  const [defaultSettings, setDefaultSettings] = useState<Settings | null>(null);
   
   // 獲取緩存信息
   const fetchCacheInfo = async () => {
@@ -121,6 +124,24 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ settings, onSave, onCance
     }
   }, [tabIndex]);
   
+  // 獲取默認設定
+  const fetchDefaultSettings = async () => {
+    try {
+      const defaults = await window.electronAPI.getDefaultSettings();
+      setDefaultSettings(defaults);
+    } catch (err) {
+      console.error('獲取默認設定失敗:', err);
+      setSnackbarMessage('獲取默認設定失敗');
+      setSnackbarSeverity('error');
+      setSnackbarOpen(true);
+    }
+  };
+  
+  // 初始化時獲取默認設定
+  useEffect(() => {
+    fetchDefaultSettings();
+  }, []);
+  
   // 處理表單變更
   const handleChange = (field: keyof Settings, value: any) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
@@ -142,6 +163,38 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ settings, onSave, onCance
   // 處理選項卡變更
   const handleTabChange = (_event: React.SyntheticEvent, newValue: number) => {
     setTabIndex(newValue);
+  };
+  
+  // 恢復基本設定默認值
+  const handleResetBasicSettings = () => {
+    if (!defaultSettings) return;
+    
+    setFormData(prevData => ({
+      ...prevData,
+      theme: defaultSettings.theme,
+      language: defaultSettings.language,
+      defaultExportFormat: defaultSettings.defaultExportFormat,
+      defaultOutputDirectory: defaultSettings.defaultOutputDirectory,
+    }));
+    
+    setSnackbarMessage('已恢復基本設定預設值');
+    setSnackbarSeverity('success');
+    setSnackbarOpen(true);
+  };
+  
+  // 恢復提示詞模板默認值
+  const handleResetPromptTemplates = () => {
+    if (!defaultSettings) return;
+    
+    setFormData(prevData => ({
+      ...prevData,
+      imagePromptTemplate: defaultSettings.imagePromptTemplate,
+      slidesPromptTemplate: defaultSettings.slidesPromptTemplate,
+    }));
+    
+    setSnackbarMessage('已恢復提示詞模板預設值');
+    setSnackbarSeverity('success');
+    setSnackbarOpen(true);
   };
   
   return (
@@ -237,6 +290,17 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ settings, onSave, onCance
                 ),
               }}
             />
+          </Box>
+          
+          <Box sx={{ display: 'flex', justifyContent: 'flex-end', mt: 2 }}>
+            <Button
+              variant="outlined"
+              startIcon={<RestartAlt />}
+              onClick={handleResetBasicSettings}
+              disabled={!defaultSettings}
+            >
+              恢復預設值
+            </Button>
           </Box>
         </Box>
       </TabPanel>
@@ -343,6 +407,17 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ settings, onSave, onCance
               rows={4}
               helperText="可使用 {{lyrics}} 和 {{imageUrl}} 變數"
             />
+          </Box>
+          
+          <Box sx={{ display: 'flex', justifyContent: 'flex-end', mt: 2 }}>
+            <Button
+              variant="outlined"
+              startIcon={<RestartAlt />}
+              onClick={handleResetPromptTemplates}
+              disabled={!defaultSettings}
+            >
+              恢復預設值
+            </Button>
           </Box>
         </Box>
       </TabPanel>

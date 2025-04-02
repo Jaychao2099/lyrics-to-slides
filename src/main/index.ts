@@ -116,6 +116,11 @@ function setupIpcHandlers() {
     return SettingsService.getSettings();
   });
   
+  // 獲取默認設定
+  ipcMain.handle('get-default-settings', () => {
+    return SettingsService.getDefaultSettings();
+  });
+  
   // 保存設定
   ipcMain.handle('save-settings', (_event, settings) => {
     SettingsService.saveSettings(settings);
@@ -261,6 +266,52 @@ function setupIpcHandlers() {
     } catch (error) {
       console.error('更新投影片失敗:', error);
       mainWindow?.webContents.send('progress-update', 0, '更新投影片失敗');
+      throw error;
+    }
+  });
+  
+  // 更新歌詞緩存
+  ipcMain.handle('update-lyrics-cache', async (_event, title, artist, lyrics, source) => {
+    try {
+      const startTime = LoggerService.apiStart('IPC', 'update-lyrics-cache', { title });
+      mainWindow?.webContents.send('progress-update', 10, '正在更新歌詞緩存...');
+      
+      const result = await LyricsSearchService.updateLyricsCache(title, artist, lyrics, source);
+      
+      mainWindow?.webContents.send('progress-update', 100, '歌詞緩存更新完成');
+      await LoggerService.apiSuccess('IPC', 'update-lyrics-cache', { title }, { success: result }, startTime);
+      
+      return result;
+    } catch (error) {
+      console.error('更新歌詞緩存失敗:', error);
+      mainWindow?.webContents.send('progress-update', 0, '更新歌詞緩存失敗');
+      await LoggerService.apiError('IPC', 'update-lyrics-cache', { title }, error, Date.now());
+      throw error;
+    }
+  });
+  
+  // 添加新歌曲
+  ipcMain.handle('add-new-song', async (_event, title, artist, lyrics, source) => {
+    try {
+      const startTime = LoggerService.apiStart('IPC', 'add-new-song', { title });
+      mainWindow?.webContents.send('progress-update', 10, '正在添加新歌曲...');
+      
+      // 直接調用數據庫服務添加新歌曲
+      const songId = DatabaseService.addSong({
+        title,
+        artist,
+        lyrics
+      });
+      
+      LoggerService.info(`成功添加新歌曲: ${title}, ID: ${songId}`);
+      mainWindow?.webContents.send('progress-update', 100, '新歌曲添加完成');
+      await LoggerService.apiSuccess('IPC', 'add-new-song', { title }, { success: true, songId }, startTime);
+      
+      return songId;
+    } catch (error) {
+      console.error('添加新歌曲失敗:', error);
+      mainWindow?.webContents.send('progress-update', 0, '添加新歌曲失敗');
+      await LoggerService.apiError('IPC', 'add-new-song', { title }, error, Date.now());
       throw error;
     }
   });

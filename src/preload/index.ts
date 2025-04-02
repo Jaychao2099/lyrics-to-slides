@@ -18,6 +18,7 @@ interface ElectronAPI {
   exportToHTML: (marpContent: string, outputPath: string) => Promise<string>;
   batchExport: (marpContent: string, formats: string[], outputPath: string) => Promise<string[]>;
   getSettings: () => Promise<any>;
+  getDefaultSettings: () => Promise<any>;
   saveSettings: (settings: any) => Promise<boolean>;
   selectDirectory: () => Promise<string>;
   getSongs: () => Promise<any[]>;
@@ -30,6 +31,8 @@ interface ElectronAPI {
   importLocalImage: (songId: number, localImagePath: string) => Promise<{songId: number, imagePath: string}>;
   getCacheSize: () => Promise<any>;
   clearCache: () => Promise<any>;
+  updateLyricsCache: (title: string, artist: string, lyrics: string, source: string) => Promise<boolean>;
+  addNewSong: (title: string, artist: string, lyrics: string, source: string) => Promise<boolean>;
 }
 
 // 暴露給渲染進程的 API
@@ -84,6 +87,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // 取得設定
   getSettings: () => ipcRenderer.invoke('get-settings'),
   
+  // 取得默認設定
+  getDefaultSettings: () => ipcRenderer.invoke('get-default-settings'),
+  
   // 儲存設定
   saveSettings: (settings: any) => ipcRenderer.invoke('save-settings', settings),
   
@@ -92,6 +98,14 @@ contextBridge.exposeInMainWorld('electronAPI', {
   
   // 取得歌曲列表
   getSongs: () => ipcRenderer.invoke('get-songs'),
+  
+  // 更新歌詞緩存
+  updateLyricsCache: (title: string, artist: string, lyrics: string, source: string) => 
+    ipcRenderer.invoke('update-lyrics-cache', title, artist, lyrics, source),
+  
+  // 添加新歌曲
+  addNewSong: (title: string, artist: string, lyrics: string, source: string) => 
+    ipcRenderer.invoke('add-new-song', title, artist, lyrics, source),
   
   // 打開文件
   openFile: (filePath: string) => ipcRenderer.invoke('open-file', filePath),
