@@ -12,6 +12,7 @@ import { SlideGenerationService } from './services/slideGeneration';
 import { SlideExportService } from './services/slideExport';
 import { LoggerService } from './services/logger';
 import fs from 'fs';
+import * as fsPromises from 'fs/promises';
 
 // 開發模式標誌
 const isDev = process.env.NODE_ENV === 'development';
@@ -63,6 +64,9 @@ function createWindow() {
 // 應用程序準備就緒時創建窗口
 app.whenReady().then(async () => {
   try {
+    // 初始化應用目錄結構
+    await initAppDirectories();
+    
     // 初始化日誌服務
     await LoggerService.info('應用程序啟動');
     
@@ -417,6 +421,9 @@ function setupIpcHandlers() {
       await fs.promises.mkdir(tempDir, { recursive: true });
       const tempFile = path.join(tempDir, 'preview.html');
       
+      // 修復投影片內容中的圖片路徑
+      const fixedMarpContent = SlideGenerationService.fixImagePathsInSlides(marpContent);
+      
       // 使用簡單的HTML包裝Marp內容
       const htmlContent = `
         <!DOCTYPE html>
@@ -437,7 +444,7 @@ function setupIpcHandlers() {
         </head>
         <body>
           <div class="preview">
-            ${marpContent.split('---').map((slide: string) => 
+            ${fixedMarpContent.split('---').map((slide: string) => 
               `<div class="slide">${slide.trim()}</div>`
             ).join('')}
           </div>
@@ -576,6 +583,46 @@ function setupIpcHandlers() {
       throw error;
     }
   });
+}
+
+// 初始化應用所需的所有目錄結構
+async function initAppDirectories() {
+  const userDataPath = app.getPath('userData');
+  
+  try {
+    await LoggerService.info('開始初始化應用目錄結構');
+  } catch (error) {
+    console.error('記錄初始化開始訊息失敗:', error);
+  }
+  
+  // 需要創建的目錄列表
+  const directories = [
+    // 緩存目錄
+    path.join(userDataPath, 'cache'),
+    path.join(userDataPath, 'cache', 'images'),
+    path.join(userDataPath, 'cache', 'slides'),
+    path.join(userDataPath, 'cache', 'lyrics'),
+    // 日誌目錄
+    path.join(userDataPath, 'logs'),
+    // 導出文件目錄
+    path.join(userDataPath, 'exports')
+  ];
+  
+  // 創建所有目錄
+  for (const dir of directories) {
+    try {
+      await fsPromises.mkdir(dir, { recursive: true });
+      console.log(`目錄創建成功: ${dir}`);
+    } catch (error) {
+      console.error(`無法創建目錄 ${dir}:`, error);
+    }
+  }
+  
+  try {
+    await LoggerService.info(`初始化應用目錄結構完成，創建了 ${directories.length} 個目錄`);
+  } catch (error) {
+    console.error('記錄初始化完成訊息失敗:', error);
+  }
 }
 
 // 在這裡可以添加 IPC 事件監聽器，用於主進程與渲染進程通信

@@ -136,7 +136,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   },
   
   // 取得日誌
-  getLogs: (logType: string = 'api') => 
+  getLogs: (logType?: string) => 
     ipcRenderer.invoke('get-logs', logType),
     
   // 監聽主進程日誌

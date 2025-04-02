@@ -93,17 +93,42 @@ const ImageGeneration: React.FC<ImageGenerationProps> = ({
   // 匯入本地圖片
   const importLocalImage = async () => {
     try {
-      // 選擇本地圖片
       const localImagePath = await window.electronAPI.selectLocalImage();
-      if (!localImagePath) return;
+      
+      if (!localImagePath) {
+        setError('未選擇圖片');
+        return;
+      }
       
       setIsGenerating(true);
       setError('');
       setIsConfirmed(false);
       
+      // 如果沒有有效的songId，先創建一個臨時歌曲記錄
+      let currentSongId = songId;
+      if (currentSongId < 0 && songTitle) {
+        try {
+          // 創建臨時歌曲記錄
+          const newSongId = await window.electronAPI.addNewSong(
+            songTitle,
+            '', // 暫不提供歌手名
+            lyrics || '', 
+            '手動匯入'
+          );
+          
+          if (newSongId && typeof newSongId === 'number') {
+            currentSongId = newSongId;
+            setSongId(newSongId);
+            console.log('已創建臨時歌曲記錄，ID:', newSongId);
+          }
+        } catch (createErr) {
+          console.error('創建臨時歌曲記錄失敗:', createErr);
+        }
+      }
+      
       // 匯入本地圖片
       const result = await window.electronAPI.importLocalImage(
-        songId >= 0 ? songId : -1,
+        currentSongId >= 0 ? currentSongId : -1,
         localImagePath
       );
       

@@ -64,6 +64,7 @@ export class SlideGenerationService {
     lyrics: string,
     imagePath: string
   ): Promise<string> {
+    const startTime = LoggerService.apiStart('SlideGenerationService', 'generateSlides', { songId, songTitle, artist, lyricsLength: lyrics?.length });
     try {
       // 確保緩存目錄存在
       await this.initCacheDir();
@@ -86,7 +87,7 @@ export class SlideGenerationService {
       // 獲取投影片生成提示詞模板
       const promptTemplate = SettingsService.getSetting('slidesPromptTemplate') || 
         `請將以下歌詞轉換為符合 Marp 投影片格式的 Markdown。請遵循以下要求：
-1. 仔細判斷歌詞的段落屬性(如主歌、副歌...)，注意：用"空格"分開的句子算同一行。根據段落分段後，將每個段落放在一張投影片上，並使用"---"作為投影片分隔符
+1. 仔細判斷歌詞的段落屬性(如主歌、副歌...)，注意：用"空格"分開的句子算同一行。根據段落分段後(每段最多四行)，將每個段落放在一張投影片上，並使用"---"作為投影片分隔符
 2. 在每張投影片頂部加入背景圖片：![bg]({{imageUrl}})
 3. 不要添加任何不在原歌詞中的內容
 4. 每首歌的第一張投影片顯示"# 歌曲標題"
@@ -144,19 +145,60 @@ style: |
         .replace('{{imageUrl}}', imagePath) // 使用絕對路徑
         .replace('{{songTitle}}', songTitle)
         .replace('{{artist}}', artist);
+      
+      // 記錄生成投影片的提示詞
+      await LoggerService.info(`生成投影片的提示詞: ${finalPrompt.substring(0, 100)}...`);
 
       // 生成投影片內容
-      const response = await this.openai.chat.completions.create({
+      if (!this.openai) {
+        throw new Error('OpenAI API未初始化');
+      }
+      
+      // 記錄 OpenAI API 請求
+      const openaiStartTime = LoggerService.apiStart('OpenAI', 'chat.completions.create', { 
         model: "gpt-4o-mini",
-        messages: [
-          {
-            role: "system",
-            content: "你是一個專業的文件轉換助手，專精於將歌詞轉換成符合Marp投影片格式的Markdown文件。"
-          },
-          { role: "user", content: finalPrompt }
-        ],
-        temperature: 0.7,
+        prompt: finalPrompt.substring(0, 100) + '...',
+        promptLength: finalPrompt.length
       });
+      
+      let response;
+      try {
+        response = await this.openai.chat.completions.create({
+          model: "gpt-4o-mini",
+          messages: [
+            {
+              role: "system",
+              content: "你是一個專業的文件轉換助手，專精於將歌詞轉換成符合Marp投影片格式的Markdown文件。"
+            },
+            { role: "user", content: finalPrompt }
+          ],
+          temperature: 0.7,
+        });
+        
+        await LoggerService.apiSuccess('OpenAI', 'chat.completions.create', 
+          { 
+            model: "gpt-4o-mini", 
+            prompt: finalPrompt,
+            promptLength: finalPrompt.length
+          }, 
+          { 
+            content: response?.choices?.[0]?.message?.content ? '有內容' : '無內容',
+            contentLength: response?.choices?.[0]?.message?.content?.length || 0
+          }, 
+          openaiStartTime
+        );
+      } catch (apiError) {
+        await LoggerService.apiError('OpenAI', 'chat.completions.create', 
+          { 
+            model: "gpt-4o-mini", 
+            prompt: finalPrompt,
+            promptLength: finalPrompt.length
+          }, 
+          apiError, 
+          openaiStartTime
+        );
+        throw apiError;
+      }
 
       const slidesContent = response.choices[0].message.content;
       
@@ -164,17 +206,32 @@ style: |
         throw new Error('投影片生成失敗');
       }
 
+      // 修復圖片路徑
+      const fixedSlidesContent = this.fixImagePathsInSlides(slidesContent);
+
       // 儲存投影片內容到緩存
-      await this.saveSlidesToCache(songId, slidesContent);
+      await this.saveSlidesToCache(songId, fixedSlidesContent);
       
       // 更新歌曲記錄
       const db = DatabaseService.init();
       const updateStmt = db.prepare('UPDATE songs SET slide_content = ?, updated_at = ? WHERE id = ?');
-      updateStmt.run(slidesContent, new Date().toISOString(), songId);
+      updateStmt.run(fixedSlidesContent, new Date().toISOString(), songId);
+      
+      // 記錄成功
+      await LoggerService.apiSuccess('SlideGenerationService', 'generateSlides', 
+        { songId, songTitle, artist, lyricsLength: lyrics?.length }, 
+        { slidesContentLength: fixedSlidesContent.length }, 
+        startTime
+      );
 
-      return slidesContent;
+      return fixedSlidesContent;
     } catch (error) {
       console.error('生成投影片失敗:', error);
+      await LoggerService.apiError('SlideGenerationService', 'generateSlides', 
+        { songId, songTitle, artist, lyricsLength: lyrics?.length }, 
+        error, 
+        startTime
+      );
       throw error;
     }
   }
@@ -195,6 +252,27 @@ style: |
   }
 
   /**
+   * 處理投影片內容中的圖片路徑
+   * 將 backslash (\) 轉換為 forward slash (/)，並確保 Cache 目錄名稱大小寫正確
+   * @param slidesContent 投影片內容
+   * @returns 處理後的投影片內容
+   */
+  public static fixImagePathsInSlides(slidesContent: string): string {
+    // 修復路徑分隔符，將 \ 替換為 /
+    let fixedContent = slidesContent.replace(/!\[bg\]\((.*?)\)/g, (match, imagePath) => {
+      // 替換所有反斜線為正斜線
+      let fixedPath = imagePath.replace(/\\/g, '/');
+      
+      // 確保 "cache" 目錄名稱為大寫 "Cache"
+      fixedPath = fixedPath.replace(/\/cache\//i, '/Cache/');
+      
+      return `![bg](${fixedPath})`;
+    });
+    
+    return fixedContent;
+  }
+
+  /**
    * 從緩存獲取投影片內容
    * @param songId 歌曲ID
    * @returns Marp格式的投影片內容 或 null
@@ -208,7 +286,8 @@ style: |
         await fs.access(filePath);
         // 讀取檔案內容
         const content = await fs.readFile(filePath, 'utf-8');
-        return content;
+        // 修復圖片路徑
+        return this.fixImagePathsInSlides(content);
       } catch (e) {
         // 檔案不存在
         return null;
@@ -226,13 +305,16 @@ style: |
    */
   public static async updateSlides(songId: number, slidesContent: string): Promise<void> {
     try {
+      // 修復圖片路徑
+      const fixedSlidesContent = this.fixImagePathsInSlides(slidesContent);
+      
       // 更新緩存中的投影片內容
-      await this.saveSlidesToCache(songId, slidesContent);
+      await this.saveSlidesToCache(songId, fixedSlidesContent);
       
       // 更新歌曲記錄
       const db = DatabaseService.init();
       const updateStmt = db.prepare('UPDATE songs SET slide_content = ?, updated_at = ? WHERE id = ?');
-      updateStmt.run(slidesContent, new Date().toISOString(), songId);
+      updateStmt.run(fixedSlidesContent, new Date().toISOString(), songId);
     } catch (error) {
       console.error('更新投影片失敗:', error);
       throw error;
