@@ -10,6 +10,7 @@ import { app, BrowserWindow } from 'electron';
 import { LoggerService } from './logger';
 import * as path from 'path';
 import * as fs from 'fs/promises';
+import * as iconv from 'iconv-lite';
 
 /**
  * 歌詞搜尋服務
@@ -240,16 +241,11 @@ export class LyricsSearchService {
       
       // 如果沒有找到緩存結果，或者指定了歌手，則嘗試API搜尋
       if (results.length === 0 || artist) {
-        // 構建URL
-        const searchTerm = encodeURIComponent(`${songTitle}${artist ? ' ' + artist : ''} lyrics`);
-        const searchUrl = `https://www.google.com/search?q=${searchTerm}`;
-        
-        console.log(`[LyricsSearch] 沒有緩存結果，嘗試搜尋: ${searchUrl}`);
+        console.log(`[LyricsSearch] 沒有緩存結果，嘗試API搜尋`);
         
         try {
-          // 執行 Google 搜尋查找歌詞網頁
-          const searchPageHtml = await this.fetchPage(searchUrl);
-          const lyricsUrl = this.extractLyricsUrl(searchPageHtml);
+          // 使用 searchLyricsUrl 方法獲取歌詞頁面 URL
+          const lyricsUrl = await this.searchLyricsUrl(songTitle, artist || '');
 
           if (lyricsUrl) {
             console.log(`[LyricsSearch] 找到歌詞URL: ${lyricsUrl}`);
@@ -313,7 +309,7 @@ export class LyricsSearchService {
     if (artist) {
       query += ` ${artist}`;
     }
-    query += ` 歌詞 lyrics 繁體中文`;
+    query += ` 歌詞 christianstudy`;
     
     this.log(`搜尋歌詞URL，查詢: ${query}`);
 
@@ -333,12 +329,13 @@ export class LyricsSearchService {
       if (data.items && data.items.length > 0) {
         // 優先選擇特定歌詞網站的結果
         const preferredSites = [
-          'mojim.com', // 魔鏡歌詞網 (中文歌詞)
+          // 'mojim.com', // 魔鏡歌詞網 (中文歌詞) // 關站了...
           'kkbox.com', // KKBOX (中文歌詞)
           'musixmatch.com',
           'genius.com',
-          'azlyrics.com',
-          'lyrics.com'
+          'christianstudy.com', // 基督教研經網(讚美詩歌)
+          // 'azlyrics.com', // 沒啥用
+          // 'lyrics.com'    // 沒啥用
         ];
         
         // 嘗試找到優先網站的結果
@@ -370,6 +367,9 @@ export class LyricsSearchService {
    */
   private static async fetchPage(url: string): Promise<string> {
     try {
+      // 判斷是否為christianstudy網站，需要處理big5編碼
+      const isChristianStudy = url.includes('christianstudy.com');
+      
       const response = await fetch(url, { 
         headers: { 
           'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
@@ -383,55 +383,18 @@ export class LyricsSearchService {
         throw new Error(`HTTP Error: ${response.status}`);
       }
       
-      return await response.text();
+      // 如果是christianstudy網站，使用big5解碼
+      if (isChristianStudy) {
+        this.log('偵測到christianstudy網站，使用big5解碼');
+        const buffer = await response.buffer();
+        return iconv.decode(buffer, 'big5');
+      } else {
+        // 其他網站使用UTF-8
+        return await response.text();
+      }
     } catch (error) {
       console.error(`獲取頁面失敗: ${error}`);
       throw error;
-    }
-  }
-
-  /**
-   * 從Google搜尋結果頁面提取歌詞URL
-   * @param html Google搜尋結果頁面HTML
-   * @returns 歌詞頁面URL或null
-   */
-  private static extractLyricsUrl(html: string): string | null {
-    try {
-      const $ = cheerio.load(html);
-      
-      // 優先網站列表
-      const preferredSites = [
-        'mojim.com', // 魔鏡歌詞網 (中文歌詞)
-        'kkbox.com', // KKBOX (中文歌詞)
-        'musixmatch.com',
-        'genius.com',
-        'azlyrics.com',
-        'lyrics.com'
-      ];
-      
-      // 從搜尋結果中尋找歌詞網站
-      const allLinks = $('a').map((_, el) => $(el).attr('href')).get();
-      const filteredLinks = allLinks.filter(link => link && link.startsWith('http'));
-      
-      // 首先尋找優先網站的連結
-      for (const site of preferredSites) {
-        const match = filteredLinks.find(link => link.includes(site));
-        if (match) {
-          return match;
-        }
-      }
-      
-      // 如果沒有找到優先網站，嘗試找包含 "lyrics" 的連結
-      const lyricsLink = filteredLinks.find(link => 
-        link.includes('lyrics') || 
-        link.includes('Lyrics') || 
-        link.includes('%E6%AD%8C%E8%A9%9E') // "歌詞" URL編碼
-      );
-      
-      return lyricsLink || null;
-    } catch (error) {
-      console.error(`提取歌詞URL失敗: ${error}`);
-      return null;
     }
   }
 
@@ -486,27 +449,6 @@ export class LyricsSearchService {
         }
         
         this.log(`Genius 歌詞解析結果長度: ${lyrics.length}`);
-      } else if (url.includes('azlyrics.com')) {
-        // AZLyrics 歌詞解析
-        lyrics = $('.ringtone').next().text().trim();
-        if (!lyrics) {
-          // 新版 AZLyrics
-          lyrics = $('.lyricsh').nextUntil('.ringtone').text().trim();
-        }
-        
-        this.log(`AZLyrics 歌詞解析結果長度: ${lyrics.length}`);
-      } else if (url.includes('metrolyrics.com')) {
-        // MetroLyrics 歌詞解析
-        lyrics = $('.verse').map((_: number, elem: cheerio.Element) => $(elem).text().trim()).get().join('\n\n');
-        this.log(`MetroLyrics 歌詞解析結果長度: ${lyrics.length}`);
-      } else if (url.includes('lyrics.com')) {
-        // Lyrics.com 歌詞解析
-        lyrics = $('#lyric-body-text').text().trim();
-        if (!lyrics) {
-          lyrics = $('.lyric-body').text().trim();
-        }
-        
-        this.log(`Lyrics.com 歌詞解析結果長度: ${lyrics.length}`);
       } else if (url.includes('musixmatch.com')) {
         // Musixmatch 歌詞解析
         lyrics = $('.mxm-lyrics__content').map((_: number, elem: cheerio.Element) => $(elem).text().trim()).get().join('\n\n');
@@ -519,13 +461,46 @@ export class LyricsSearchService {
         // KKBOX 歌詞解析 (適合中文歌曲)
         lyrics = $('.lyrics').text().trim();
         this.log(`KKBOX 歌詞解析結果長度: ${lyrics.length}`);
-      } else if (url.includes('mojim.com')) {
-        // 魔鏡歌詞網 (適合中文歌曲)
-        lyrics = $('#fsZx3').text().trim();
-        if (!lyrics) {
-          lyrics = $('.lyric-text').text().trim();
+      } else if (url.includes('christianstudy.com')) {
+        // ChristianStudy 歌詞解析 (適合讚美詩歌)
+        this.log('解析 ChristianStudy 網站歌詞');
+        
+        // 檢查並嘗試多種選擇器來找到歌詞
+        const fontElements = $('font[size="+2"]');
+        if (fontElements.length > 0) {
+          lyrics = fontElements.text().trim();
+          this.log(`找到字體大小為+2的元素，內容長度: ${lyrics.length}`);
+        } 
+        
+        // 如果上面的選擇器沒有找到內容，嘗試其他可能的選擇器
+        if (!lyrics || lyrics.length < 10) {
+          const pElements = $('p').filter(function(this: cheerio.Element) {
+            return $(this).find('font[size="+2"]').length > 0;
+          });
+          
+          if (pElements.length > 0) {
+            lyrics = pElements.text().trim();
+            this.log(`找到p元素中的font元素，內容長度: ${lyrics.length}`);
+          }
         }
-        this.log(`魔鏡歌詞網解析結果長度: ${lyrics.length}`);
+        
+        // 如果仍然沒有找到，嘗試獲取center元素內的所有文本
+        if (!lyrics || lyrics.length < 10) {
+          lyrics = $('center').text().trim();
+          this.log(`使用center元素內容，長度: ${lyrics.length}`);
+        }
+        
+        // 移除[Chorus 1]等標記，因為它們會在投影片中造成干擾
+        lyrics = lyrics.replace(/\[Chorus \d+\]/g, '');
+        lyrics = lyrics.replace(/\[Verse \d+\]/g, '');
+        
+        // 處理版權信息
+        lyrics = lyrics.replace(/版權屬.*所有/g, '');
+        
+        this.log(`ChristianStudy 歌詞解析結果長度: ${lyrics.length}`);
+        
+        // 輸出歌詞的前100個字符進行調試
+        this.log(`歌詞前100字符: ${lyrics.substring(0, 100)}`);
       } else {
         // 通用解析策略：尋找可能包含歌詞的最大文本區塊
         const textBlocks = $('div, p').map((_: number, el: cheerio.Element) => {
@@ -588,6 +563,21 @@ export class LyricsSearchService {
     // 去除廣告文字
     cleaned = cleaned.replace(/(\[.*?\])|(\(.*?\))/g, '');
     
+    // 處理詩歌特有標記
+    cleaned = cleaned.replace(/\[Verse \d+\]/gi, '');
+    cleaned = cleaned.replace(/\[Chorus \d*\]/gi, '');
+    cleaned = cleaned.replace(/\[Bridge\]/gi, '');
+    cleaned = cleaned.replace(/\[Intro\]/gi, '');
+    cleaned = cleaned.replace(/\[Outro\]/gi, '');
+    cleaned = cleaned.replace(/\[副歌\]/gi, '');
+    cleaned = cleaned.replace(/\[主歌\]/gi, '');
+    cleaned = cleaned.replace(/\[橋段\]/gi, '');
+    cleaned = cleaned.replace(/\[間奏\]/gi, '');
+    cleaned = cleaned.replace(/\[開頭\]/gi, '');
+    cleaned = cleaned.replace(/\[結尾\]/gi, '');
+    cleaned = cleaned.replace(/\[，\]/gi, ' ');
+    cleaned = cleaned.replace(/\[。\]/gi, '\n');
+    
     // 去除常見的不需要的內容
     const removePatterns = [
       'Lyrics',
@@ -597,7 +587,10 @@ export class LyricsSearchService {
       'All Rights Reserved',
       'all rights reserved',
       'Paroles',
-      'paroles'
+      'paroles',
+      '版權屬',
+      '所有',
+      '版權所有'
     ];
     
     removePatterns.forEach(pattern => {
@@ -669,4 +662,4 @@ export class LyricsSearchService {
       return false;
     }
   }
-} 
+}
