@@ -12,12 +12,24 @@ import { SlideGenerationService } from './services/slideGeneration';
 import { SlideExportService } from './services/slideExport';
 import { LoggerService } from './services/logger';
 import fs from 'fs';
+import * as fsPromises from 'fs/promises';
 
 // 開發模式標誌
 const isDev = process.env.NODE_ENV === 'development';
 
 // 保持對 window 對象的全局引用，避免被 JavaScript 垃圾回收機制回收
 let mainWindow: BrowserWindow | null = null;
+
+// 發送日誌到渲染進程
+function sendLogToRenderer(type: string, message: string, level: 'info' | 'error' | 'warn' = 'info') {
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send('log-message', { 
+      source: 'main',
+      message,
+      level
+    });
+  }
+}
 
 // 創建主窗口
 function createWindow() {
@@ -49,9 +61,61 @@ function createWindow() {
   });
 }
 
+// 清理現有歌詞數據
+async function cleanAllExistingLyrics() {
+  try {
+    console.log('開始清理所有現有歌詞數據...');
+    
+    // 獲取所有歌曲
+    const songs = DatabaseService.getSongs();
+    
+    // 對每首歌曲的歌詞進行清理
+    let updatedCount = 0;
+    
+    for (const song of songs) {
+      if (song.lyrics) {
+        // 清理歌詞
+        const cleanedLyrics = LyricsSearchService.cleanLyrics(song.lyrics);
+        
+        // 如果清理後的歌詞與原歌詞不同，則更新數據庫
+        if (cleanedLyrics !== song.lyrics) {
+          const updated = DatabaseService.updateSong(song.id, {
+            lyrics: cleanedLyrics
+          });
+          
+          if (updated) {
+            updatedCount++;
+          }
+        }
+      }
+    }
+    
+    console.log(`完成歌詞清理，已更新 ${updatedCount} 首歌曲的歌詞`);
+    await LoggerService.info(`完成歌詞清理，已更新 ${updatedCount} 首歌曲的歌詞`);
+  } catch (error) {
+    console.error('清理歌詞數據時發生錯誤:', error);
+    await LoggerService.error('清理歌詞數據失敗', error);
+  }
+}
+
 // 應用程序準備就緒時創建窗口
 app.whenReady().then(async () => {
   try {
+    // 初始化應用目錄結構
+    await initAppDirectories();
+    
+    // 初始化日誌服務
+    await LoggerService.info('應用程序啟動');
+    
+    // 創建主窗口
+    createWindow();
+    
+    // 設置IPC處理程序
+    setupIpcHandlers();
+    
+    // 清理所有現有歌詞數據
+    await cleanAllExistingLyrics();
+
     // 初始化日誌服務
     await LoggerService.info('應用程序啟動');
     
@@ -103,6 +167,11 @@ function setupIpcHandlers() {
   // 獲取設定
   ipcMain.handle('get-settings', () => {
     return SettingsService.getSettings();
+  });
+  
+  // 獲取默認設定
+  ipcMain.handle('get-default-settings', () => {
+    return SettingsService.getDefaultSettings();
   });
   
   // 保存設定
@@ -254,6 +323,55 @@ function setupIpcHandlers() {
     }
   });
   
+  // 更新歌詞緩存
+  ipcMain.handle('update-lyrics-cache', async (_event, title, artist, lyrics, source) => {
+    try {
+      const startTime = LoggerService.apiStart('IPC', 'update-lyrics-cache', { title });
+      mainWindow?.webContents.send('progress-update', 10, '正在更新歌詞緩存...');
+      
+      const result = await LyricsSearchService.updateLyricsCache(title, artist, lyrics, source);
+      
+      mainWindow?.webContents.send('progress-update', 100, '歌詞緩存更新完成');
+      await LoggerService.apiSuccess('IPC', 'update-lyrics-cache', { title }, { success: result }, startTime);
+      
+      return result;
+    } catch (error) {
+      console.error('更新歌詞緩存失敗:', error);
+      mainWindow?.webContents.send('progress-update', 0, '更新歌詞緩存失敗');
+      await LoggerService.apiError('IPC', 'update-lyrics-cache', { title }, error, Date.now());
+      throw error;
+    }
+  });
+  
+  // 添加新歌曲
+  ipcMain.handle('add-new-song', async (_event, title, artist, lyrics, source) => {
+    try {
+      const startTime = LoggerService.apiStart('IPC', 'add-new-song', { title });
+      mainWindow?.webContents.send('progress-update', 10, '正在添加新歌曲...');
+      
+      // 先對歌詞進行清理處理
+      const cleanedLyrics = LyricsSearchService.cleanLyrics(lyrics);
+      
+      // 直接調用數據庫服務添加新歌曲
+      const songId = DatabaseService.addSong({
+        title,
+        artist,
+        lyrics: cleanedLyrics
+      });
+      
+      LoggerService.info(`成功添加新歌曲: ${title}, ID: ${songId}`);
+      mainWindow?.webContents.send('progress-update', 100, '新歌曲添加完成');
+      await LoggerService.apiSuccess('IPC', 'add-new-song', { title }, { success: true, songId }, startTime);
+      
+      return songId;
+    } catch (error) {
+      console.error('添加新歌曲失敗:', error);
+      mainWindow?.webContents.send('progress-update', 0, '添加新歌曲失敗');
+      await LoggerService.apiError('IPC', 'add-new-song', { title }, error, Date.now());
+      throw error;
+    }
+  });
+  
   // 取得投影片內容
   ipcMain.handle('get-slides', async (_event, songId) => {
     try {
@@ -355,6 +473,9 @@ function setupIpcHandlers() {
       await fs.promises.mkdir(tempDir, { recursive: true });
       const tempFile = path.join(tempDir, 'preview.html');
       
+      // 修復投影片內容中的圖片路徑
+      const fixedMarpContent = SlideGenerationService.fixImagePathsInSlides(marpContent);
+      
       // 使用簡單的HTML包裝Marp內容
       const htmlContent = `
         <!DOCTYPE html>
@@ -375,7 +496,7 @@ function setupIpcHandlers() {
         </head>
         <body>
           <div class="preview">
-            ${marpContent.split('---').map((slide: string) => 
+            ${fixedMarpContent.split('---').map((slide: string) => 
               `<div class="slide">${slide.trim()}</div>`
             ).join('')}
           </div>
@@ -394,7 +515,175 @@ function setupIpcHandlers() {
     }
   });
   
-  // 在此添加更多 IPC 處理器...
+  // 添加日誌監聽處理器
+  ipcMain.handle('log-message', (_event, message, level = 'info') => {
+    if (level === 'error') {
+      console.error(message);
+    } else if (level === 'warn') {
+      console.warn(message);
+    } else {
+      console.log(message);
+    }
+    
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('log-message', { 
+        source: 'renderer',
+        message,
+        level
+      });
+    }
+    return true;
+  });
+  
+  // 匯入本地圖片
+  ipcMain.handle('import-local-image', async (_event, songId, localImagePath) => {
+    const startTime = LoggerService.apiStart('IPC', 'import-local-image', { songId, localImagePath });
+    try {
+      mainWindow?.webContents.send('progress-update', 10, '正在匯入本地圖片...');
+      
+      await LoggerService.info(`匯入本地圖片請求: songId=${songId}, localImagePath=${localImagePath}`);
+      
+      const imagePath = await ImageGenerationService.importLocalImage(songId, localImagePath);
+      
+      mainWindow?.webContents.send('progress-update', 100, '本地圖片匯入完成');
+      
+      // 獲取正確的songId - 因為importLocalImage可能已創建新的歌曲記錄
+      const db = DatabaseService.init();
+      const query = 'SELECT song_id FROM images WHERE image_path = ? ORDER BY created_at DESC LIMIT 1';
+      const imageRecord = db.prepare(query).get(imagePath) as { song_id: number } | undefined;
+      
+      // 如果找到了image記錄，使用其song_id，否則保留原始songId
+      const updatedSongId = imageRecord ? imageRecord.song_id : songId;
+      await LoggerService.info(`本地圖片匯入完成，使用的歌曲ID: ${updatedSongId}`);
+      
+      const response = { songId: updatedSongId, imagePath };
+      await LoggerService.apiSuccess('IPC', 'import-local-image', { songId: updatedSongId }, response, startTime);
+      
+      return response;
+    } catch (error) {
+      console.error('匯入本地圖片失敗:', error);
+      mainWindow?.webContents.send('progress-update', 0, '匯入本地圖片失敗');
+      await LoggerService.apiError('IPC', 'import-local-image', { songId, localImagePath }, error, startTime);
+      throw error;
+    }
+  });
+  
+  // 選擇本地圖片
+  ipcMain.handle('select-local-image', async () => {
+    if (!mainWindow) return '';
+    
+    try {
+      const result = await dialog.showOpenDialog(mainWindow, {
+        properties: ['openFile'],
+        filters: [
+          { name: '圖片檔案', extensions: ['jpg', 'jpeg', 'png', 'gif', 'webp'] }
+        ]
+      });
+      
+      if (result.canceled) {
+        return '';
+      } else {
+        return result.filePaths[0];
+      }
+    } catch (error) {
+      console.error('選擇本地圖片失敗:', error);
+      throw error;
+    }
+  });
+  
+  // 獲取緩存大小
+  ipcMain.handle('get-cache-size', async () => {
+    try {
+      // 獲取各個緩存的大小
+      const imgCacheSize = await ImageGenerationService.getCacheSize();
+      const slidesCacheSize = await SlideGenerationService.getCacheSize();
+      const lyricsCacheSize = await LyricsSearchService.getCacheSize();
+      
+      // 計算總大小
+      const totalSizeBytes = imgCacheSize.totalSizeBytes + slidesCacheSize.totalSizeBytes + lyricsCacheSize.totalSizeBytes;
+      const totalSizeMB = (totalSizeBytes / (1024 * 1024)).toFixed(2);
+      
+      // 組合結果
+      return {
+        totalSize: {
+          totalSizeBytes,
+          totalSizeMB: `${totalSizeMB} MB`,
+        },
+        images: imgCacheSize,
+        slides: slidesCacheSize,
+        lyrics: lyricsCacheSize
+      };
+    } catch (error) {
+      console.error('獲取緩存大小失敗:', error);
+      throw error;
+    }
+  });
+  
+  // 清除緩存
+  ipcMain.handle('clear-cache', async () => {
+    try {
+      mainWindow?.webContents.send('progress-update', 10, '正在清除緩存...');
+      
+      // 清除各個緩存
+      const imgCacheResult = await ImageGenerationService.clearCache();
+      const slidesCacheResult = await SlideGenerationService.clearCache();
+      const lyricsCacheResult = await LyricsSearchService.clearCache();
+      
+      mainWindow?.webContents.send('progress-update', 100, '緩存清除完成');
+      
+      // 組合結果
+      return {
+        success: imgCacheResult.success && slidesCacheResult.success && lyricsCacheResult.success,
+        deletedImages: imgCacheResult.deletedCount,
+        deletedSlides: slidesCacheResult.deletedCount,
+        deletedLyrics: lyricsCacheResult.deletedCount
+      };
+    } catch (error) {
+      console.error('清除緩存失敗:', error);
+      mainWindow?.webContents.send('progress-update', 0, '清除緩存失敗');
+      throw error;
+    }
+  });
+}
+
+// 初始化應用所需的所有目錄結構
+async function initAppDirectories() {
+  const userDataPath = app.getPath('userData');
+  
+  try {
+    await LoggerService.info('開始初始化應用目錄結構');
+  } catch (error) {
+    console.error('記錄初始化開始訊息失敗:', error);
+  }
+  
+  // 需要創建的目錄列表
+  const directories = [
+    // 緩存目錄
+    path.join(userDataPath, 'cache'),
+    path.join(userDataPath, 'cache', 'images'),
+    path.join(userDataPath, 'cache', 'slides'),
+    path.join(userDataPath, 'cache', 'lyrics'),
+    // 日誌目錄
+    path.join(userDataPath, 'logs'),
+    // 導出文件目錄
+    path.join(userDataPath, 'exports')
+  ];
+  
+  // 創建所有目錄
+  for (const dir of directories) {
+    try {
+      await fsPromises.mkdir(dir, { recursive: true });
+      console.log(`目錄創建成功: ${dir}`);
+    } catch (error) {
+      console.error(`無法創建目錄 ${dir}:`, error);
+    }
+  }
+  
+  try {
+    await LoggerService.info(`初始化應用目錄結構完成，創建了 ${directories.length} 個目錄`);
+  } catch (error) {
+    console.error('記錄初始化完成訊息失敗:', error);
+  }
 }
 
 // 在這裡可以添加 IPC 事件監聽器，用於主進程與渲染進程通信

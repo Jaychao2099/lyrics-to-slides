@@ -56,6 +56,7 @@ const SlideExport: React.FC<SlideExportProps> = ({ songTitle, slideContent }) =>
   const [isBatchExport, setIsBatchExport] = useState<boolean>(false);
   const [selectedFormats, setSelectedFormats] = useState<string[]>(['pdf']);
   const [outputPath, setOutputPath] = useState<string>('');
+  const [customFileName, setCustomFileName] = useState<string>('');
   const [isExporting, setIsExporting] = useState<boolean>(false);
   const [error, setError] = useState<string>('');
   const [exportResults, setExportResults] = useState<ExportResult[]>([]);
@@ -63,8 +64,9 @@ const SlideExport: React.FC<SlideExportProps> = ({ songTitle, slideContent }) =>
   const [snackbarMessage, setSnackbarMessage] = useState<string>('');
   const [exportProgress, setExportProgress] = useState<ExportProgress[]>([]);
   const [overallProgress, setOverallProgress] = useState<number>(0);
+  const [logs, setLogs] = useState<string[]>([]);
 
-  // 載入預設輸出路徑
+  // 載入預設輸出路徑並設置日誌監聽器
   useEffect(() => {
     const loadDefaultPath = async () => {
       try {
@@ -78,7 +80,32 @@ const SlideExport: React.FC<SlideExportProps> = ({ songTitle, slideContent }) =>
     };
     
     loadDefaultPath();
-  }, []);
+    
+    // 設置初始自訂檔名為歌曲標題
+    if (songTitle) {
+      setCustomFileName(songTitle.replace(/[<>:"/\\|?*]/g, '_'));
+    }
+    
+    // 監聽主進程發送的日誌
+    const unsubscribe = window.electronAPI.onMainProcessLog((log) => {
+      setLogs(prevLogs => [...prevLogs, `[${log.level}] ${log.message}`]);
+      
+      // 如果是匯出相關的錯誤，直接顯示在界面上
+      if (log.level === 'error' && log.message.includes('匯出')) {
+        setError(log.message);
+      }
+    });
+    
+    // 卸載時清理監聽器
+    return () => {
+      unsubscribe();
+    };
+  }, [songTitle]);
+  
+  // 清除日誌
+  const clearLogs = () => {
+    setLogs([]);
+  };
 
   // 處理匯出格式變更
   const handleFormatChange = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -126,6 +153,9 @@ const SlideExport: React.FC<SlideExportProps> = ({ songTitle, slideContent }) =>
       return;
     }
 
+    // 使用自訂檔名或默認使用歌曲標題
+    const fileName = customFileName.trim() || songTitle.replace(/[<>:"/\\|?*]/g, '_');
+
     try {
       setIsExporting(true);
       setError('');
@@ -148,7 +178,7 @@ const SlideExport: React.FC<SlideExportProps> = ({ songTitle, slideContent }) =>
         
         try {
           // 嘗試使用批量匯出 API
-          const baseFilePath = `${outputPath}/${songTitle.replace(/[<>:"/\\|?*]/g, '_')}`;
+          const baseFilePath = `${outputPath}/${fileName}`;
           const resultPaths = await window.electronAPI.batchExport(slideContent, selectedFormats, baseFilePath);
           
           // 構建結果
@@ -175,7 +205,7 @@ const SlideExport: React.FC<SlideExportProps> = ({ songTitle, slideContent }) =>
           
           for (let i = 0; i < selectedFormats.length; i++) {
             const format = selectedFormats[i];
-            const fullPath = `${outputPath}/${songTitle.replace(/[<>:"/\\|?*]/g, '_')}.${format}`;
+            const fullPath = `${outputPath}/${fileName}.${format}`;
             
             // 更新進度
             setExportProgress(prev => 
@@ -257,7 +287,7 @@ const SlideExport: React.FC<SlideExportProps> = ({ songTitle, slideContent }) =>
         }
       } else {
         // 單一格式匯出
-        const fullPath = `${outputPath}/${songTitle.replace(/[<>:"/\\|?*]/g, '_')}.${exportFormat}`;
+        const fullPath = `${outputPath}/${fileName}.${exportFormat}`;
         setOverallProgress(10);
         
         let result: string;
@@ -416,6 +446,22 @@ const SlideExport: React.FC<SlideExportProps> = ({ songTitle, slideContent }) =>
         
         <Box sx={{ mt: 3 }}>
           <Typography variant="subtitle2" gutterBottom>
+            檔案名稱:
+          </Typography>
+          
+          <TextField
+            fullWidth
+            variant="outlined"
+            size="small"
+            value={customFileName}
+            onChange={(e) => setCustomFileName(e.target.value)}
+            placeholder="輸入檔案名稱（不含副檔名）"
+            disabled={isExporting}
+            helperText={`${customFileName ? '' : '若留空則使用歌曲標題'}`}
+            sx={{ mb: 2 }}
+          />
+          
+          <Typography variant="subtitle2" gutterBottom>
             輸出位置:
           </Typography>
           
@@ -533,6 +579,32 @@ const SlideExport: React.FC<SlideExportProps> = ({ songTitle, slideContent }) =>
               </List>
             </CardContent>
           </Card>
+        )}
+        
+        {/* 添加日誌顯示區域 */}
+        {isExporting && logs.length > 0 && (
+          <Box sx={{ mt: 3 }}>
+            <Typography variant="subtitle2" gutterBottom>
+              匯出日誌:
+            </Typography>
+            <Card variant="outlined" sx={{ mt: 1, maxHeight: 200, overflow: 'auto' }}>
+              <CardContent sx={{ p: 1 }}>
+                <Button size="small" onClick={clearLogs} sx={{ mb: 1 }}>
+                  清除日誌
+                </Button>
+                {logs.map((log, index) => (
+                  <Typography key={index} variant="body2" component="div" sx={{ 
+                    fontFamily: 'monospace', 
+                    fontSize: '0.8rem',
+                    color: log.includes('[error]') ? 'error.main' : 
+                           log.includes('[warn]') ? 'warning.main' : 'text.primary'
+                  }}>
+                    {log}
+                  </Typography>
+                ))}
+              </CardContent>
+            </Card>
+          </Box>
         )}
       </Paper>
       

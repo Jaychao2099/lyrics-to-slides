@@ -23,6 +23,23 @@ console.log('渲染進程已啟動');
 // 確保electronAPI已加載
 if (window.electronAPI) {
   console.log('electronAPI 已加載');
+  
+  // 監聽主進程日誌
+  window.electronAPI.onMainProcessLog((log: {source: string, message: string, level: string}) => {
+    const { source, message, level } = log;
+    const formattedMessage = `[${source}] ${message}`;
+    
+    switch(level) {
+      case 'error':
+        console.error(formattedMessage);
+        break;
+      case 'warn':
+        console.warn(formattedMessage);
+        break;
+      default:
+        console.log(formattedMessage);
+    }
+  });
 } else {
   console.error('electronAPI 未加載');
 }
