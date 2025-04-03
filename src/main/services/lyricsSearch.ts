@@ -282,6 +282,13 @@ export class LyricsSearchService {
         }
       }
       
+      // 確保所有歌詞都經過清理處理後再返回
+      results.forEach(result => {
+        if (result.lyrics) {
+          result.lyrics = this.cleanLyrics(result.lyrics);
+        }
+      });
+      
       return results;
     } catch (err) {
       console.error('[LyricsSearch] 搜尋歌詞失敗:', err);
@@ -309,7 +316,7 @@ export class LyricsSearchService {
     if (artist) {
       query += ` ${artist}`;
     }
-    query += ` 歌詞 christianstudy`;
+    query += ` 歌詞 繁體中文`;
     
     this.log(`搜尋歌詞URL，查詢: ${query}`);
 
@@ -406,7 +413,10 @@ export class LyricsSearchService {
   private static async scrapeLyrics(url: string): Promise<string | null> {
     try {
       const html = await this.fetchPage(url);
-      return this.parseAndCleanLyrics(html, url);
+      const parsedLyrics = this.parseAndCleanLyrics(html, url);
+      
+      // 確保在這裡返回的是已經經過cleanLyrics處理的歌詞
+      return parsedLyrics;
     } catch (error) {
       console.error(`抓取歌詞失敗: ${error}`);
       return null;
@@ -490,16 +500,7 @@ export class LyricsSearchService {
           this.log(`使用center元素內容，長度: ${lyrics.length}`);
         }
         
-        // 移除[Chorus 1]等標記，因為它們會在投影片中造成干擾
-        lyrics = lyrics.replace(/\[Chorus \d+\]/g, '');
-        lyrics = lyrics.replace(/\[Verse \d+\]/g, '');
-        
-        // 處理版權信息
-        lyrics = lyrics.replace(/版權屬.*所有/g, '');
-        
-        this.log(`ChristianStudy 歌詞解析結果長度: ${lyrics.length}`);
-        
-        // 輸出歌詞的前100個字符進行調試
+        this.log(`ChristianStudy 原始歌詞解析結果長度: ${lyrics.length}`);
         this.log(`歌詞前100字符: ${lyrics.substring(0, 100)}`);
       } else {
         // 通用解析策略：尋找可能包含歌詞的最大文本區塊
@@ -556,27 +557,24 @@ export class LyricsSearchService {
    * @param lyrics 原始歌詞
    * @returns 清理後的歌詞
    */
-  private static cleanLyrics(lyrics: string): string {
+  public static cleanLyrics(lyrics: string): string {
+    // 確保入參是字符串且非空
+    if (!lyrics || typeof lyrics !== 'string') {
+      return '';
+    }
+    
     // 去除多餘空行
     let cleaned = lyrics.replace(/\n{3,}/g, '\n\n');
     
-    // 去除廣告文字
-    cleaned = cleaned.replace(/(\[.*?\])|(\(.*?\))/g, '');
+    // 清除所有方括號包圍的內容
+    cleaned = cleaned.replace(/\[.*?\]/g, '');
     
-    // 處理詩歌特有標記
-    cleaned = cleaned.replace(/\[Verse \d+\]/gi, '');
-    cleaned = cleaned.replace(/\[Chorus \d*\]/gi, '');
-    cleaned = cleaned.replace(/\[Bridge\]/gi, '');
-    cleaned = cleaned.replace(/\[Intro\]/gi, '');
-    cleaned = cleaned.replace(/\[Outro\]/gi, '');
-    cleaned = cleaned.replace(/\[副歌\]/gi, '');
-    cleaned = cleaned.replace(/\[主歌\]/gi, '');
-    cleaned = cleaned.replace(/\[橋段\]/gi, '');
-    cleaned = cleaned.replace(/\[間奏\]/gi, '');
-    cleaned = cleaned.replace(/\[開頭\]/gi, '');
-    cleaned = cleaned.replace(/\[結尾\]/gi, '');
-    cleaned = cleaned.replace(/\[，\]/gi, ' ');
-    cleaned = cleaned.replace(/\[。\]/gi, '\n');
+    // 清除常見的Markdown格式標記
+    cleaned = cleaned.replace(/(\*\*|\*|__).*?(\*\*|\*|__)/g, '');
+    
+    // 處理版權信息
+    cleaned = cleaned.replace(/版權屬.*所有/g, '');
+    cleaned = cleaned.replace(/詩集：.*?\n/g, '');
     
     // 去除常見的不需要的內容
     const removePatterns = [
@@ -590,7 +588,12 @@ export class LyricsSearchService {
       'paroles',
       '版權屬',
       '所有',
-      '版權所有'
+      '版權所有',
+      '主歌',
+      '副歌',
+      '橋段',
+      '間奏',
+      '間奏曲'
     ];
     
     removePatterns.forEach(pattern => {
@@ -600,6 +603,20 @@ export class LyricsSearchService {
     // 修復常見格式問題
     cleaned = cleaned.replace(/\s{2,}/g, ' '); // 多個空格替換為一個
     cleaned = cleaned.trim();
+    
+    // 處理中文標點符號
+    cleaned = cleaned.replace(/，\n/g, '\n');
+    cleaned = cleaned.replace(/。/g, '\n');
+    cleaned = cleaned.replace(/，/g, ' ');
+    cleaned = cleaned.replace(/：/g, '');
+    cleaned = cleaned.replace(/；/g, ' ');
+    cleaned = cleaned.replace(/、/g, ' ');
+    
+    // 處理分節：確保段落之間有適當的空行
+    cleaned = cleaned.replace(/\n{3,}/g, '\n\n');  // 再次確保不會有過多連續空行
+    
+    // 輸出處理後的歌詞內容前100字符做調試
+    this.log(`清理後歌詞前100字符: ${cleaned.substring(0, 100)}`);
     
     return cleaned;
   }
@@ -621,6 +638,9 @@ export class LyricsSearchService {
     try {
       this.log(`開始更新歌詞緩存: ${title} - ${artist}`);
       
+      // 確保保存前對歌詞進行清理
+      const cleanedLyrics = this.cleanLyrics(lyrics);
+      
       // 先查詢是否有匹配的歌曲
       const matchedSongs = DatabaseService.searchSongs(title);
       let updated = false;
@@ -636,7 +656,7 @@ export class LyricsSearchService {
         if (exactMatch) {
           this.log(`找到匹配的歌曲記錄 (ID: ${exactMatch.id})，更新歌詞內容`);
           updated = DatabaseService.updateSong(exactMatch.id, {
-            lyrics: lyrics
+            lyrics: cleanedLyrics
           });
           
           if (updated) {
@@ -653,7 +673,7 @@ export class LyricsSearchService {
       const newSongId = DatabaseService.addSong({
         title: title,
         artist: artist,
-        lyrics: lyrics
+        lyrics: cleanedLyrics
       });
       
       return newSongId > 0;

@@ -61,12 +61,61 @@ function createWindow() {
   });
 }
 
+// 清理現有歌詞數據
+async function cleanAllExistingLyrics() {
+  try {
+    console.log('開始清理所有現有歌詞數據...');
+    
+    // 獲取所有歌曲
+    const songs = DatabaseService.getSongs();
+    
+    // 對每首歌曲的歌詞進行清理
+    let updatedCount = 0;
+    
+    for (const song of songs) {
+      if (song.lyrics) {
+        // 清理歌詞
+        const cleanedLyrics = LyricsSearchService.cleanLyrics(song.lyrics);
+        
+        // 如果清理後的歌詞與原歌詞不同，則更新數據庫
+        if (cleanedLyrics !== song.lyrics) {
+          const updated = DatabaseService.updateSong(song.id, {
+            lyrics: cleanedLyrics
+          });
+          
+          if (updated) {
+            updatedCount++;
+          }
+        }
+      }
+    }
+    
+    console.log(`完成歌詞清理，已更新 ${updatedCount} 首歌曲的歌詞`);
+    await LoggerService.info(`完成歌詞清理，已更新 ${updatedCount} 首歌曲的歌詞`);
+  } catch (error) {
+    console.error('清理歌詞數據時發生錯誤:', error);
+    await LoggerService.error('清理歌詞數據失敗', error);
+  }
+}
+
 // 應用程序準備就緒時創建窗口
 app.whenReady().then(async () => {
   try {
     // 初始化應用目錄結構
     await initAppDirectories();
     
+    // 初始化日誌服務
+    await LoggerService.info('應用程序啟動');
+    
+    // 創建主窗口
+    createWindow();
+    
+    // 設置IPC處理程序
+    setupIpcHandlers();
+    
+    // 清理所有現有歌詞數據
+    await cleanAllExistingLyrics();
+
     // 初始化日誌服務
     await LoggerService.info('應用程序啟動');
     
@@ -300,11 +349,14 @@ function setupIpcHandlers() {
       const startTime = LoggerService.apiStart('IPC', 'add-new-song', { title });
       mainWindow?.webContents.send('progress-update', 10, '正在添加新歌曲...');
       
+      // 先對歌詞進行清理處理
+      const cleanedLyrics = LyricsSearchService.cleanLyrics(lyrics);
+      
       // 直接調用數據庫服務添加新歌曲
       const songId = DatabaseService.addSong({
         title,
         artist,
-        lyrics
+        lyrics: cleanedLyrics
       });
       
       LoggerService.info(`成功添加新歌曲: ${title}, ID: ${songId}`);
