@@ -147,7 +147,8 @@ const App: React.FC = () => {
                 ...prev, 
                 title: result.title,
                 artist: result.artist,
-                lyrics: result.lyrics
+                lyrics: result.lyrics,
+                songId: result.songId || -1
               }));
               handleNext();
             }} 
