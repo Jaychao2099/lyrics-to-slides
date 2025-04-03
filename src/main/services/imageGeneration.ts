@@ -287,16 +287,58 @@ export class ImageGenerationService {
       // 記錄歌曲ID
       await LoggerService.info(`開始為歌曲ID ${songId} 匯入本地圖片`);
       
-      // 檢查歌曲是否存在
-      const db = DatabaseService.init();
-      const checkSongQuery = 'SELECT id FROM songs WHERE id = ?';
-      await LoggerService.logDatabaseOperation('查詢', checkSongQuery, [songId]);
-      
-      const songExists = db.prepare(checkSongQuery).get(songId);
-      
-      if (!songExists) {
-        await LoggerService.error(`歌曲ID不存在: ${songId}，無法匯入圖片`);
-        throw new Error(`歌曲ID不存在: ${songId}，無法匯入圖片`);
+      // 檢查歌曲ID是否有效
+      if (!songId || songId <= 0) {
+        // 獲取檔案名稱作為臨時標題
+        const fileName = path.basename(localImagePath, path.extname(localImagePath));
+        const tempTitle = `從本地匯入的圖片 ${new Date().toISOString().split('T')[0]}`;
+        
+        await LoggerService.info(`無效的歌曲ID: ${songId}，將創建臨時歌曲記錄: ${tempTitle}`);
+        
+        // 嘗試創建歌曲記錄
+        const db = DatabaseService.init();
+        const insertQuery = 'INSERT INTO songs (title, lyrics, created_at, updated_at) VALUES (?, ?, ?, ?)';
+        const now = new Date().toISOString();
+        const params = [tempTitle, '', now, now];
+        
+        await LoggerService.logDatabaseOperation('插入', insertQuery, params);
+        
+        try {
+          const result = db.prepare(insertQuery).run(...params);
+          songId = result.lastInsertRowid as number;
+          await LoggerService.info(`創建新歌曲記錄，ID: ${songId}`);
+        } catch (dbError: any) {
+          await LoggerService.error('創建歌曲記錄失敗', dbError);
+          throw new Error(`無法創建歌曲記錄: ${dbError.message}`);
+        }
+      } else {
+        // 檢查歌曲是否存在
+        const db = DatabaseService.init();
+        const checkSongQuery = 'SELECT id FROM songs WHERE id = ?';
+        await LoggerService.logDatabaseOperation('查詢', checkSongQuery, [songId]);
+        
+        const songExists = db.prepare(checkSongQuery).get(songId);
+        
+        if (!songExists) {
+          await LoggerService.error(`歌曲ID不存在: ${songId}，將創建新記錄`);
+          
+          // 創建新歌曲記錄
+          const tempTitle = `從本地匯入的圖片 ${new Date().toISOString().split('T')[0]}`;
+          const insertQuery = 'INSERT INTO songs (title, lyrics, created_at, updated_at) VALUES (?, ?, ?, ?)';
+          const now = new Date().toISOString();
+          const params = [tempTitle, '', now, now];
+          
+          await LoggerService.logDatabaseOperation('插入', insertQuery, params);
+          
+          try {
+            const result = db.prepare(insertQuery).run(...params);
+            songId = result.lastInsertRowid as number;
+            await LoggerService.info(`創建新歌曲記錄，ID: ${songId}`);
+          } catch (dbError: any) {
+            await LoggerService.error('創建歌曲記錄失敗', dbError);
+            throw new Error(`無法創建歌曲記錄: ${dbError.message}`);
+          }
+        }
       }
 
       // 確保緩存目錄存在
@@ -315,6 +357,7 @@ export class ImageGenerationService {
       await LoggerService.info(`圖片檔案已寫入`);
 
       // 將圖片記錄插入到資料庫
+      const db = DatabaseService.init();
       const insertImgQuery = 'INSERT INTO images (song_id, image_path, prompt, created_at) VALUES (?, ?, ?, ?)';
       const insertImgParams = [songId, filePath, '從本地匯入的圖片', new Date().toISOString()];
       
@@ -326,6 +369,20 @@ export class ImageGenerationService {
       } catch (dbError: any) {
         await LoggerService.error('插入圖片記錄失敗', dbError);
         throw new Error(`無法插入圖片記錄: ${dbError.message}`);
+      }
+      
+      // 同時更新歌曲表中的圖片URL
+      const updateSongQuery = 'UPDATE songs SET image_url = ?, updated_at = ? WHERE id = ?';
+      const updateSongParams = [filePath, new Date().toISOString(), songId];
+      
+      await LoggerService.logDatabaseOperation('更新', updateSongQuery, updateSongParams);
+      
+      try {
+        db.prepare(updateSongQuery).run(...updateSongParams);
+        await LoggerService.info(`歌曲記錄已更新圖片URL`);
+      } catch (dbError) {
+        await LoggerService.error('更新歌曲記錄失敗', dbError);
+        // 不中斷流程，繼續執行
       }
       
       await LoggerService.apiSuccess('ImageGenerationService', 'importLocalImage', 
