@@ -132,6 +132,25 @@ export const DatabaseService = {
     return stmt.all(`%${query}%`, `%${query}%`) as Song[];
   },
 
+  // 按確切標題搜索歌曲 - 用於找出所有同名歌曲
+  searchSongsByExactTitle(title: string): Song[] {
+    const stmt = db.prepare(`
+      SELECT 
+        id, 
+        title, 
+        artist, 
+        lyrics, 
+        image_url as imageUrl, 
+        slide_content as slideContent, 
+        created_at as createdAt, 
+        updated_at as updatedAt 
+      FROM songs 
+      WHERE title = ?
+      ORDER BY updated_at DESC
+    `);
+    return stmt.all(title) as Song[];
+  },
+
   // 新增歌曲
   addSong(song: Omit<Song, 'id' | 'createdAt' | 'updatedAt'>): number {
     const now = new Date().toISOString();

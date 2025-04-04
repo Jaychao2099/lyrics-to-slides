@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Box,
   Button,
@@ -14,9 +14,12 @@ import {
   FormControl,
   InputLabel,
   FormHelperText,
-  Divider
+  Divider,
+  LinearProgress,
+  Snackbar,
+  Alert
 } from '@mui/material';
-import { Visibility, VisibilityOff, FolderOpen } from '@mui/icons-material';
+import { Visibility, VisibilityOff, FolderOpen, Delete, Refresh, RestartAlt } from '@mui/icons-material';
 import { Settings } from '../../common/types';
 
 interface SettingsPanelProps {
@@ -58,6 +61,87 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ settings, onSave, onCance
   const [showGoogleApiKey, setShowGoogleApiKey] = useState(false);
   const [showOpenaiApiKey, setShowOpenaiApiKey] = useState(false);
   
+  // 緩存管理狀態
+  const [cacheInfo, setCacheInfo] = useState<any>(null);
+  const [isCacheLoading, setIsCacheLoading] = useState<boolean>(false);
+  const [snackbarOpen, setSnackbarOpen] = useState<boolean>(false);
+  const [snackbarMessage, setSnackbarMessage] = useState<string>('');
+  const [snackbarSeverity, setSnackbarSeverity] = useState<'success' | 'error' | 'info'>('info');
+  
+  // 默認設定
+  const [defaultSettings, setDefaultSettings] = useState<Settings | null>(null);
+  
+  // 獲取緩存信息
+  const fetchCacheInfo = async () => {
+    try {
+      setIsCacheLoading(true);
+      const cacheData = await window.electronAPI.getCacheSize();
+      setCacheInfo(cacheData);
+    } catch (err) {
+      console.error('獲取緩存信息失敗:', err);
+      setSnackbarMessage('獲取緩存信息失敗');
+      setSnackbarSeverity('error');
+      setSnackbarOpen(true);
+    } finally {
+      setIsCacheLoading(false);
+    }
+  };
+
+  // 清除緩存
+  const handleClearCache = async () => {
+    try {
+      setIsCacheLoading(true);
+      const result = await window.electronAPI.clearCache();
+      if (result && result.success) {
+        setSnackbarMessage(`緩存清除成功，共刪除 ${result.deletedImages + result.deletedSlides + result.deletedLyrics} 個文件`);
+        setSnackbarSeverity('success');
+        setSnackbarOpen(true);
+        fetchCacheInfo();
+      } else {
+        setSnackbarMessage('緩存清除失敗');
+        setSnackbarSeverity('error');
+        setSnackbarOpen(true);
+      }
+    } catch (err) {
+      console.error('清除緩存失敗:', err);
+      setSnackbarMessage('清除緩存失敗');
+      setSnackbarSeverity('error');
+      setSnackbarOpen(true);
+    } finally {
+      setIsCacheLoading(false);
+    }
+  };
+  
+  // 關閉提示消息
+  const handleSnackbarClose = () => {
+    setSnackbarOpen(false);
+  };
+  
+  // 當切換到緩存管理選項卡時加載緩存信息
+  useEffect(() => {
+    if (tabIndex === 3) {
+      fetchCacheInfo();
+    }
+  }, [tabIndex]);
+  
+  // 獲取默認設定
+  const fetchDefaultSettings = async () => {
+    try {
+      const defaults = await window.electronAPI.getDefaultSettings();
+      setDefaultSettings(defaults);
+    } catch (err) {
+      console.error('獲取默認設定失敗:', err);
+      setSnackbarMessage('獲取默認設定失敗');
+      setSnackbarSeverity('error');
+      setSnackbarOpen(true);
+    }
+  };
+  
+  // 初始化時獲取默認設定
+  useEffect(() => {
+    fetchDefaultSettings();
+  }, []);
+  
   // 處理表單變更
   const handleChange = (field: keyof Settings, value: any) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
@@ -81,17 +165,60 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ settings, onSave, onCance
     setTabIndex(newValue);
   };
   
+  // 恢復基本設定默認值
+  const handleResetBasicSettings = () => {
+    if (!defaultSettings) return;
+    
+    setFormData(prevData => ({
+      ...prevData,
+      theme: defaultSettings.theme,
+      language: defaultSettings.language,
+      defaultExportFormat: defaultSettings.defaultExportFormat,
+      defaultOutputDirectory: defaultSettings.defaultOutputDirectory,
+    }));
+    
+    setSnackbarMessage('已恢復基本設定預設值');
+    setSnackbarSeverity('success');
+    setSnackbarOpen(true);
+  };
+  
+  // 恢復提示詞模板默認值
+  const handleResetPromptTemplates = () => {
+    if (!defaultSettings) return;
+    
+    setFormData(prevData => ({
+      ...prevData,
+      imagePromptTemplate: defaultSettings.imagePromptTemplate,
+      slidesPromptTemplate: defaultSettings.slidesPromptTemplate,
+    }));
+    
+    setSnackbarMessage('已恢復提示詞模板預設值');
+    setSnackbarSeverity('success');
+    setSnackbarOpen(true);
+  };
+  
   return (
     <Paper elevation={3} sx={{ p: 2 }}>
       <Typography variant="h5" gutterBottom>
         應用程式設定
       </Typography>
       
+      <Snackbar
+        open={snackbarOpen}
+        autoHideDuration={6000}
+        onClose={handleSnackbarClose}
+      >
+        <Alert onClose={handleSnackbarClose} severity={snackbarSeverity} sx={{ width: '100%' }}>
+          {snackbarMessage}
+        </Alert>
+      </Snackbar>
+      
       <Box sx={{ borderBottom: 1, borderColor: 'divider' }}>
         <Tabs value={tabIndex} onChange={handleTabChange} aria-label="settings tabs">
           <Tab label="基本設定" />
           <Tab label="API 密鑰" />
           <Tab label="提示詞模板" />
+          <Tab label="緩存管理" />
         </Tabs>
       </Box>
       
@@ -163,6 +290,17 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ settings, onSave, onCance
                 ),
               }}
             />
+          </Box>
+          
+          <Box sx={{ display: 'flex', justifyContent: 'flex-end', mt: 2 }}>
+            <Button
+              variant="outlined"
+              startIcon={<RestartAlt />}
+              onClick={handleResetBasicSettings}
+              disabled={!defaultSettings}
+            >
+              恢復預設值
+            </Button>
           </Box>
         </Box>
       </TabPanel>
@@ -270,14 +408,99 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ settings, onSave, onCance
               helperText="可使用 {{lyrics}} 和 {{imageUrl}} 變數"
             />
           </Box>
+          
+          <Box sx={{ display: 'flex', justifyContent: 'flex-end', mt: 2 }}>
+            <Button
+              variant="outlined"
+              startIcon={<RestartAlt />}
+              onClick={handleResetPromptTemplates}
+              disabled={!defaultSettings}
+            >
+              恢復預設值
+            </Button>
+          </Box>
         </Box>
       </TabPanel>
       
-      <Box sx={{ display: 'flex', justifyContent: 'flex-end', mt: 3, gap: 2 }}>
-        <Button variant="outlined" onClick={onCancel}>
+      {/* 緩存管理選項卡 */}
+      <TabPanel value={tabIndex} index={3}>
+        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+          <Typography variant="h6" gutterBottom>
+            緩存管理
+          </Typography>
+          
+          {isCacheLoading && <LinearProgress sx={{ mb: 2 }} />}
+          
+          {cacheInfo ? (
+            <Box>
+              <Typography variant="body1" gutterBottom>
+                總緩存大小: <strong>{cacheInfo.totalSize.totalSizeMB}</strong>
+              </Typography>
+              
+              <Box sx={{ display: 'flex', flexDirection: { xs: 'column', md: 'row' }, gap: 2, mb: 2 }}>
+                <Paper elevation={1} sx={{ p: 2, flex: 1 }}>
+                  <Typography variant="subtitle1">圖片緩存</Typography>
+                  <Typography variant="body2">
+                    {cacheInfo.images.fileCount} 個檔案 ({cacheInfo.images.totalSizeMB})
+                  </Typography>
+                </Paper>
+                
+                <Paper elevation={1} sx={{ p: 2, flex: 1 }}>
+                  <Typography variant="subtitle1">投影片緩存</Typography>
+                  <Typography variant="body2">
+                    {cacheInfo.slides.fileCount} 個檔案 ({cacheInfo.slides.totalSizeMB})
+                  </Typography>
+                </Paper>
+                
+                <Paper elevation={1} sx={{ p: 2, flex: 1 }}>
+                  <Typography variant="subtitle1">歌詞緩存</Typography>
+                  <Typography variant="body2">
+                    {cacheInfo.lyrics?.songCount || 0} 首歌詞 ({cacheInfo.lyrics?.totalSizeMB || '0 MB'})
+                  </Typography>
+                </Paper>
+              </Box>
+              
+              <Box sx={{ display: 'flex', justifyContent: 'flex-start', mt: 2 }}>
+                <Button
+                  variant="contained"
+                  color="error"
+                  onClick={handleClearCache}
+                  disabled={isCacheLoading}
+                  startIcon={<Delete />}
+                  sx={{ mr: 1 }}
+                >
+                  清除所有緩存
+                </Button>
+                
+                <Button
+                  variant="outlined"
+                  onClick={fetchCacheInfo}
+                  disabled={isCacheLoading}
+                  startIcon={<Refresh />}
+                >
+                  刷新緩存信息
+                </Button>
+              </Box>
+              
+              <Box sx={{ mt: 2 }}>
+                <Typography variant="body2" color="text.secondary">
+                  緩存包含生成的背景圖片、投影片內容和搜尋的歌詞。清除緩存將刪除這些檔案，並完全刪除所有歌詞資料，這意味著您必須重新搜索歌詞。
+                </Typography>
+              </Box>
+            </Box>
+          ) : (
+            <Typography variant="body1">
+              {isCacheLoading ? '正在獲取緩存信息...' : '無法獲取緩存信息'}
+            </Typography>
+          )}
+        </Box>
+      </TabPanel>
+      
+      <Box sx={{ display: 'flex', justifyContent: 'flex-end', mt: 3 }}>
+        <Button variant="outlined" onClick={onCancel} sx={{ mr: 1 }}>
           取消
         </Button>
-        <Button variant="contained" color="primary" onClick={handleSave}>
+        <Button variant="contained" onClick={handleSave}>
           保存設定
         </Button>
       </Box>

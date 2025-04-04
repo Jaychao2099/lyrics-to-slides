@@ -24,39 +24,42 @@ import TitleIcon from '@mui/icons-material/Title';
 interface SlideEditorProps {
   lyrics: string;
   imageUrl: string;
+  songId?: number;
   onSlidesCreated: (slideContent: string) => void;
 }
 
-const SlideEditor: React.FC<SlideEditorProps> = ({ lyrics, imageUrl, onSlidesCreated }) => {
+const SlideEditor: React.FC<SlideEditorProps> = ({ lyrics, imageUrl, songId: propsSongId, onSlidesCreated }) => {
   const [isGenerating, setIsGenerating] = useState<boolean>(false);
   const [error, setError] = useState<string>('');
   const [slideContent, setSlideContent] = useState<string>('');
-  const [songId, setSongId] = useState<number>(-1);
+  const [songId, setSongId] = useState<number>(propsSongId || -1);
   const [tabValue, setTabValue] = useState<number>(0);
   const [previewHtml, setPreviewHtml] = useState<string>('');
   const [editingContent, setEditingContent] = useState<string>('');
   const [snackbarOpen, setSnackbarOpen] = useState<boolean>(false);
   const [snackbarMessage, setSnackbarMessage] = useState<string>('');
 
-  // 當組件載入後自動生成投影片
+  useEffect(() => {
+    if (propsSongId && propsSongId !== songId) {
+      setSongId(propsSongId);
+    }
+  }, [propsSongId]);
+
   useEffect(() => {
     if (lyrics && imageUrl && !slideContent && !isGenerating) {
       generateSlides();
     }
   }, [lyrics, imageUrl]);
 
-  // 生成投影片
   const generateSlides = async () => {
     try {
       setIsGenerating(true);
       setError('');
       
-      // 通過API生成投影片
-      // 按照 generateSlides: (songId: number, songTitle: string, artist: string, lyrics: string, imagePath: string)
       const result = await window.electronAPI.generateSlides(
-        -1, // 臨時songId
-        'Untitled', // 臨時標題
-        '', // 臨時藝術家
+        songId,
+        'Untitled',
+        '',
         lyrics, 
         imageUrl
       );
@@ -76,7 +79,6 @@ const SlideEditor: React.FC<SlideEditorProps> = ({ lyrics, imageUrl, onSlidesCre
     }
   };
 
-  // 更新預覽
   const updatePreview = async (content: string) => {
     try {
       const html = await window.electronAPI.previewSlides(content);
@@ -87,7 +89,6 @@ const SlideEditor: React.FC<SlideEditorProps> = ({ lyrics, imageUrl, onSlidesCre
     }
   };
 
-  // 處理標籤切換
   const handleTabChange = (event: React.SyntheticEvent, newValue: number) => {
     setTabValue(newValue);
     if (newValue === 1) {
@@ -95,12 +96,10 @@ const SlideEditor: React.FC<SlideEditorProps> = ({ lyrics, imageUrl, onSlidesCre
     }
   };
 
-  // 處理內容變更
   const handleContentChange = (event: React.ChangeEvent<HTMLTextAreaElement>) => {
     setEditingContent(event.target.value);
   };
 
-  // 保存編輯的內容
   const saveChanges = async () => {
     try {
       setSnackbarMessage('保存中...');
@@ -109,7 +108,18 @@ const SlideEditor: React.FC<SlideEditorProps> = ({ lyrics, imageUrl, onSlidesCre
       setSlideContent(editingContent);
       updatePreview(editingContent);
       
-      setSnackbarMessage('已保存變更');
+      if (songId > 0) {
+        const saved = await window.electronAPI.updateSlides(songId, editingContent);
+        if (saved) {
+          setSnackbarMessage('已保存變更到數據庫');
+        } else {
+          throw new Error('保存到數據庫失敗');
+        }
+      } else {
+        setSnackbarMessage('已保存變更（本地）');
+        console.warn('songId不正確，無法保存到數據庫，仅保存到本地。songId:', songId);
+      }
+      
       setSnackbarOpen(true);
     } catch (err: any) {
       setError(err.message || '保存投影片內容時發生錯誤');
@@ -117,12 +127,10 @@ const SlideEditor: React.FC<SlideEditorProps> = ({ lyrics, imageUrl, onSlidesCre
     }
   };
 
-  // 重新生成投影片
   const regenerateSlides = async () => {
     await generateSlides();
   };
 
-  // 插入格式化標記
   const insertFormatting = (format: string) => {
     const textarea = document.getElementById('slide-editor') as HTMLTextAreaElement;
     if (!textarea) return;
@@ -155,14 +163,12 @@ const SlideEditor: React.FC<SlideEditorProps> = ({ lyrics, imageUrl, onSlidesCre
     const newContent = editingContent.substring(0, start) + formattedText + editingContent.substring(end);
     setEditingContent(newContent);
     
-    // 設置焦點並更新選擇範圍
     setTimeout(() => {
       textarea.focus();
       textarea.setSelectionRange(start + formattedText.length, start + formattedText.length);
     }, 10);
   };
 
-  // 關閉提示訊息
   const handleSnackbarClose = () => {
     setSnackbarOpen(false);
   };

@@ -116,7 +116,7 @@ export class ImageGenerationService {
 
       // 獲取圖片生成提示詞模板
       const promptTemplate = SettingsService.getSetting('imagePromptTemplate') || 
-        '為以下歌詞創建背景圖片：「{{lyrics}}」，風格：簡約現代，適合教會或歌唱聚會使用的投影片背景，不要包含任何文字或人物，只需要創作和諧、簡約的抽象背景。';
+        'Positive Prompt: A minimalist and abstract background inspired by the atmosphere of the song {{songTitle}}, designed for church worship slides. The image should fully capture the essence of the lyrics: {{lyrics}}, with a soft, monochromatic color palette, gentle gradients, and a serene, worshipful ambiance. Use light pastel tones, ensuring smooth transitions between colors, high resolution, and premium quality. The design should be extremely simple, avoiding any distractions while maintaining a reverent and uplifting aesthetic. Absolutely no text, no human figures, no silhouettes, and no symbols should be included. The details should be kept to an absolute minimum, ensuring a clean and uncluttered visual.\nNegative Prompt: People, faces, human figures, silhouettes, body parts, hands, eyes, text, letters, symbols, icons, high contrast, complex patterns, intricate details, cluttered compositions, surreal elements, excessive textures, multiple colors, harsh gradients, dark tones.';
 
       // 替換提示詞中的變數
       // 取歌詞的前300個字符，避免提示詞過長
@@ -138,6 +138,7 @@ export class ImageGenerationService {
       let imageResponse;
       try {
         imageResponse = await this.openai.images.generate({
+          model: "dall-e-3", // 或 "dall-e-2"
           prompt: finalPrompt,
           n: 1,
           size: "1024x1024",
@@ -270,6 +271,240 @@ export class ImageGenerationService {
         startTime
       );
       throw error;
+    }
+  }
+
+  /**
+   * 匯入本地圖片到緩存
+   * @param songId 歌曲ID
+   * @param localImagePath 本地圖片路徑
+   * @returns 緩存中的圖片路徑
+   */
+  public static async importLocalImage(songId: number, localImagePath: string): Promise<string> {
+    const startTime = LoggerService.apiStart('ImageGenerationService', 'importLocalImage', { songId, localImagePath });
+    
+    try {
+      // 記錄歌曲ID
+      await LoggerService.info(`開始為歌曲ID ${songId} 匯入本地圖片`);
+      
+      // 檢查歌曲ID是否有效
+      if (!songId || songId <= 0) {
+        // 獲取檔案名稱作為臨時標題
+        const fileName = path.basename(localImagePath, path.extname(localImagePath));
+        const tempTitle = `從本地匯入的圖片 ${new Date().toISOString().split('T')[0]}`;
+        
+        await LoggerService.info(`無效的歌曲ID: ${songId}，將創建臨時歌曲記錄: ${tempTitle}`);
+        
+        // 嘗試創建歌曲記錄
+        const db = DatabaseService.init();
+        const insertQuery = 'INSERT INTO songs (title, lyrics, created_at, updated_at) VALUES (?, ?, ?, ?)';
+        const now = new Date().toISOString();
+        const params = [tempTitle, '', now, now];
+        
+        await LoggerService.logDatabaseOperation('插入', insertQuery, params);
+        
+        try {
+          const result = db.prepare(insertQuery).run(...params);
+          songId = result.lastInsertRowid as number;
+          await LoggerService.info(`創建新歌曲記錄，ID: ${songId}`);
+        } catch (dbError: any) {
+          await LoggerService.error('創建歌曲記錄失敗', dbError);
+          throw new Error(`無法創建歌曲記錄: ${dbError.message}`);
+        }
+      } else {
+        // 檢查歌曲是否存在
+        const db = DatabaseService.init();
+        const checkSongQuery = 'SELECT id FROM songs WHERE id = ?';
+        await LoggerService.logDatabaseOperation('查詢', checkSongQuery, [songId]);
+        
+        const songExists = db.prepare(checkSongQuery).get(songId);
+        
+        if (!songExists) {
+          await LoggerService.error(`歌曲ID不存在: ${songId}，將創建新記錄`);
+          
+          // 創建新歌曲記錄
+          const tempTitle = `從本地匯入的圖片 ${new Date().toISOString().split('T')[0]}`;
+          const insertQuery = 'INSERT INTO songs (title, lyrics, created_at, updated_at) VALUES (?, ?, ?, ?)';
+          const now = new Date().toISOString();
+          const params = [tempTitle, '', now, now];
+          
+          await LoggerService.logDatabaseOperation('插入', insertQuery, params);
+          
+          try {
+            const result = db.prepare(insertQuery).run(...params);
+            songId = result.lastInsertRowid as number;
+            await LoggerService.info(`創建新歌曲記錄，ID: ${songId}`);
+          } catch (dbError: any) {
+            await LoggerService.error('創建歌曲記錄失敗', dbError);
+            throw new Error(`無法創建歌曲記錄: ${dbError.message}`);
+          }
+        }
+      }
+
+      // 確保緩存目錄存在
+      await this.initCacheDir();
+
+      // 讀取本地圖片
+      const buffer = await fs.readFile(localImagePath);
+      
+      // 建立檔案名稱和路徑
+      const fileName = `${songId}_${Date.now()}.png`;
+      const filePath = path.join(this.imageCacheDir, fileName);
+      await LoggerService.info(`圖片將保存到: ${filePath}`);
+
+      // 寫入檔案
+      await fs.writeFile(filePath, buffer);
+      await LoggerService.info(`圖片檔案已寫入`);
+
+      // 將圖片記錄插入到資料庫
+      const db = DatabaseService.init();
+      const insertImgQuery = 'INSERT INTO images (song_id, image_path, prompt, created_at) VALUES (?, ?, ?, ?)';
+      const insertImgParams = [songId, filePath, '從本地匯入的圖片', new Date().toISOString()];
+      
+      await LoggerService.logDatabaseOperation('插入', insertImgQuery, insertImgParams);
+      
+      try {
+        db.prepare(insertImgQuery).run(...insertImgParams);
+        await LoggerService.info(`圖片記錄已插入資料庫`);
+      } catch (dbError: any) {
+        await LoggerService.error('插入圖片記錄失敗', dbError);
+        throw new Error(`無法插入圖片記錄: ${dbError.message}`);
+      }
+      
+      // 同時更新歌曲表中的圖片URL
+      const updateSongQuery = 'UPDATE songs SET image_url = ?, updated_at = ? WHERE id = ?';
+      const updateSongParams = [filePath, new Date().toISOString(), songId];
+      
+      await LoggerService.logDatabaseOperation('更新', updateSongQuery, updateSongParams);
+      
+      try {
+        db.prepare(updateSongQuery).run(...updateSongParams);
+        await LoggerService.info(`歌曲記錄已更新圖片URL`);
+      } catch (dbError) {
+        await LoggerService.error('更新歌曲記錄失敗', dbError);
+        // 不中斷流程，繼續執行
+      }
+      
+      await LoggerService.apiSuccess('ImageGenerationService', 'importLocalImage', 
+        { songId, localImagePath }, 
+        { imagePath: filePath }, 
+        startTime
+      );
+      
+      return filePath;
+    } catch (error) {
+      console.error('匯入本地圖片失敗:', error);
+      await LoggerService.apiError('ImageGenerationService', 'importLocalImage', 
+        { songId, localImagePath }, 
+        error, 
+        startTime
+      );
+      throw error;
+    }
+  }
+
+  /**
+   * 獲取緩存大小
+   * @returns 緩存大小信息（總大小和檔案數量）
+   */
+  public static async getCacheSize(): Promise<{ totalSizeBytes: number; totalSizeMB: string; fileCount: number }> {
+    const startTime = LoggerService.apiStart('ImageGenerationService', 'getCacheSize', {});
+    
+    try {
+      // 確保緩存目錄存在
+      await this.initCacheDir();
+      
+      // 讀取目錄中的所有檔案
+      const files = await fs.readdir(this.imageCacheDir);
+      let totalSize = 0;
+      let fileCount = 0;
+      
+      // 計算總大小
+      for (const file of files) {
+        try {
+          const filePath = path.join(this.imageCacheDir, file);
+          const stats = await fs.stat(filePath);
+          
+          if (stats.isFile()) {
+            totalSize += stats.size;
+            fileCount++;
+          }
+        } catch (e) {
+          await LoggerService.error(`無法讀取緩存檔案 ${file} 的信息`, e);
+        }
+      }
+      
+      const totalSizeMB = (totalSize / (1024 * 1024)).toFixed(2);
+      
+      const result = {
+        totalSizeBytes: totalSize,
+        totalSizeMB: `${totalSizeMB} MB`,
+        fileCount
+      };
+      
+      await LoggerService.apiSuccess('ImageGenerationService', 'getCacheSize', {}, result, startTime);
+      
+      return result;
+    } catch (error) {
+      console.error('獲取緩存大小失敗:', error);
+      await LoggerService.apiError('ImageGenerationService', 'getCacheSize', {}, error, startTime);
+      throw error;
+    }
+  }
+
+  /**
+   * 清除圖片緩存
+   * @returns 清除結果
+   */
+  public static async clearCache(): Promise<{ success: boolean; deletedCount: number }> {
+    const startTime = LoggerService.apiStart('ImageGenerationService', 'clearCache', {});
+    
+    try {
+      // 確保緩存目錄存在
+      await this.initCacheDir();
+      
+      // 讀取目錄中的所有檔案
+      const files = await fs.readdir(this.imageCacheDir);
+      let deletedCount = 0;
+      
+      // 刪除所有檔案
+      for (const file of files) {
+        try {
+          const filePath = path.join(this.imageCacheDir, file);
+          const stats = await fs.stat(filePath);
+          
+          if (stats.isFile()) {
+            await fs.unlink(filePath);
+            deletedCount++;
+          }
+        } catch (e) {
+          await LoggerService.error(`無法刪除緩存檔案 ${file}`, e);
+        }
+      }
+      
+      // 清除資料庫中的圖片記錄
+      const db = DatabaseService.init();
+      const deleteQuery = 'DELETE FROM images';
+      await LoggerService.logDatabaseOperation('刪除', deleteQuery, []);
+      
+      db.prepare(deleteQuery).run();
+      
+      const result = {
+        success: true,
+        deletedCount
+      };
+      
+      await LoggerService.apiSuccess('ImageGenerationService', 'clearCache', {}, result, startTime);
+      
+      return result;
+    } catch (error) {
+      console.error('清除緩存失敗:', error);
+      await LoggerService.apiError('ImageGenerationService', 'clearCache', {}, error, startTime);
+      
+      return {
+        success: false,
+        deletedCount: 0
+      };
     }
   }
 
