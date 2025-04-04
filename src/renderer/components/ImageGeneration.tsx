@@ -104,31 +104,9 @@ const ImageGeneration: React.FC<ImageGenerationProps> = ({
       setError('');
       setIsConfirmed(false);
       
-      // 如果沒有有效的songId，先創建一個臨時歌曲記錄
-      let currentSongId = songId;
-      if (currentSongId < 0 && songTitle) {
-        try {
-          // 創建臨時歌曲記錄
-          const newSongId = await window.electronAPI.addNewSong(
-            songTitle,
-            '', // 暫不提供歌手名
-            lyrics || '', 
-            '手動匯入'
-          );
-          
-          if (newSongId && typeof newSongId === 'number') {
-            currentSongId = newSongId;
-            setSongId(newSongId);
-            console.log('已創建臨時歌曲記錄，ID:', newSongId);
-          }
-        } catch (createErr) {
-          console.error('創建臨時歌曲記錄失敗:', createErr);
-        }
-      }
-      
       // 匯入本地圖片
       const result = await window.electronAPI.importLocalImage(
-        currentSongId >= 0 ? currentSongId : -1,
+        songId >= 0 ? songId : -1,
         localImagePath
       );
       

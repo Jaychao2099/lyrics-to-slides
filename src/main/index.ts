@@ -595,8 +595,17 @@ function setupIpcHandlers() {
       
       mainWindow?.webContents.send('progress-update', 100, '本地圖片匯入完成');
       
-      const response = { songId, imagePath };
-      await LoggerService.apiSuccess('IPC', 'import-local-image', { songId }, response, startTime);
+      // 獲取正確的songId - 因為importLocalImage可能已創建新的歌曲記錄
+      const db = DatabaseService.init();
+      const query = 'SELECT song_id FROM images WHERE image_path = ? ORDER BY created_at DESC LIMIT 1';
+      const imageRecord = db.prepare(query).get(imagePath) as { song_id: number } | undefined;
+      
+      // 如果找到了image記錄，使用其song_id，否則保留原始songId
+      const updatedSongId = imageRecord ? imageRecord.song_id : songId;
+      await LoggerService.info(`本地圖片匯入完成，使用的歌曲ID: ${updatedSongId}`);
+      
+      const response = { songId: updatedSongId, imagePath };
+      await LoggerService.apiSuccess('IPC', 'import-local-image', { songId: updatedSongId }, response, startTime);
       
       return response;
     } catch (error) {
