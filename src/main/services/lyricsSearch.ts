@@ -655,10 +655,18 @@ export class LyricsSearchService {
       
       if (matchedSongs.length > 0) {
         // 查找最匹配的歌曲
-        const exactMatch = matchedSongs.find(song => 
-          song.title.toLowerCase() === title.toLowerCase() && 
-          ((!artist && !song.artist) || song.artist.toLowerCase() === artist.toLowerCase())
-        );
+        // 改進邏輯：針對歌手名稱的比較進行優化
+        // 1. 如果標題完全匹配
+        // 2. 並且符合以下條件之一:
+        //    a. 歌手名稱都存在且匹配
+        //    b. 歌手名稱都不存在
+        //    c. 其中一方的歌手名稱為空字串或未定義
+        const exactMatch = matchedSongs.find(song => {
+          const titleMatch = song.title.toLowerCase() === title.toLowerCase();
+          const artistMatch = (!artist || !artist.trim()) && (!song.artist || !song.artist.trim()) || 
+                              (artist && song.artist && song.artist.toLowerCase() === artist.toLowerCase());
+          return titleMatch && artistMatch;
+        });
         
         // 如果找到精確匹配，則更新歌詞
         if (exactMatch) {
