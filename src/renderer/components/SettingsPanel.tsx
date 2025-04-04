@@ -87,7 +87,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ settings, onSave, onCance
     }
   };
 
-  // 清除快取
+  // 清除所有快取
   const handleClearCache = async () => {
     try {
       setIsCacheLoading(true);
@@ -105,6 +105,81 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ settings, onSave, onCance
     } catch (err) {
       console.error('清除快取失敗:', err);
       setSnackbarMessage('清除快取失敗');
+      setSnackbarSeverity('error');
+      setSnackbarOpen(true);
+    } finally {
+      setIsCacheLoading(false);
+    }
+  };
+  
+  // 清除圖片快取
+  const handleClearImagesCache = async () => {
+    try {
+      setIsCacheLoading(true);
+      const result = await window.electronAPI.clearImagesCache();
+      if (result && result.success) {
+        setSnackbarMessage(`圖片快取清除成功，共刪除 ${result.deletedCount} 個檔案`);
+        setSnackbarSeverity('success');
+        setSnackbarOpen(true);
+        fetchCacheInfo();
+      } else {
+        setSnackbarMessage('圖片快取清除失敗');
+        setSnackbarSeverity('error');
+        setSnackbarOpen(true);
+      }
+    } catch (err) {
+      console.error('清除圖片快取失敗:', err);
+      setSnackbarMessage('清除圖片快取失敗');
+      setSnackbarSeverity('error');
+      setSnackbarOpen(true);
+    } finally {
+      setIsCacheLoading(false);
+    }
+  };
+  
+  // 清除投影片快取
+  const handleClearSlidesCache = async () => {
+    try {
+      setIsCacheLoading(true);
+      const result = await window.electronAPI.clearSlidesCache();
+      if (result && result.success) {
+        setSnackbarMessage(`投影片快取清除成功，共刪除 ${result.deletedCount} 個檔案`);
+        setSnackbarSeverity('success');
+        setSnackbarOpen(true);
+        fetchCacheInfo();
+      } else {
+        setSnackbarMessage('投影片快取清除失敗');
+        setSnackbarSeverity('error');
+        setSnackbarOpen(true);
+      }
+    } catch (err) {
+      console.error('清除投影片快取失敗:', err);
+      setSnackbarMessage('清除投影片快取失敗');
+      setSnackbarSeverity('error');
+      setSnackbarOpen(true);
+    } finally {
+      setIsCacheLoading(false);
+    }
+  };
+  
+  // 清除歌詞快取
+  const handleClearLyricsCache = async () => {
+    try {
+      setIsCacheLoading(true);
+      const result = await window.electronAPI.clearLyricsCache();
+      if (result && result.success) {
+        setSnackbarMessage(`歌詞快取清除成功，共刪除 ${result.deletedCount} 首歌詞`);
+        setSnackbarSeverity('success');
+        setSnackbarOpen(true);
+        fetchCacheInfo();
+      } else {
+        setSnackbarMessage('歌詞快取清除失敗');
+        setSnackbarSeverity('error');
+        setSnackbarOpen(true);
+      }
+    } catch (err) {
+      console.error('清除歌詞快取失敗:', err);
+      setSnackbarMessage('清除歌詞快取失敗');
       setSnackbarSeverity('error');
       setSnackbarOpen(true);
     } finally {
@@ -439,24 +514,60 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ settings, onSave, onCance
               
               <Box sx={{ display: 'flex', flexDirection: { xs: 'column', md: 'row' }, gap: 2, mb: 2 }}>
                 <Paper elevation={1} sx={{ p: 2, flex: 1 }}>
-                  <Typography variant="subtitle1">圖片快取</Typography>
-                  <Typography variant="body2">
-                    {cacheInfo.images.fileCount} 個檔案 ({cacheInfo.images.totalSizeMB})
-                  </Typography>
+                  <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                    <Typography variant="subtitle1">圖片快取</Typography>
+                    <Typography variant="body2">
+                      {cacheInfo.images.fileCount} 個檔案 ({cacheInfo.images.totalSizeMB})
+                    </Typography>
+                    <Button
+                      variant="outlined"
+                      color="error"
+                      onClick={handleClearImagesCache}
+                      disabled={isCacheLoading || cacheInfo.images.fileCount === 0}
+                      size="small"
+                      startIcon={<Delete />}
+                    >
+                      清除圖片快取
+                    </Button>
+                  </Box>
                 </Paper>
                 
                 <Paper elevation={1} sx={{ p: 2, flex: 1 }}>
-                  <Typography variant="subtitle1">投影片快取</Typography>
-                  <Typography variant="body2">
-                    {cacheInfo.slides.fileCount} 個檔案 ({cacheInfo.slides.totalSizeMB})
-                  </Typography>
+                  <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                    <Typography variant="subtitle1">投影片快取</Typography>
+                    <Typography variant="body2">
+                      {cacheInfo.slides.fileCount} 個檔案 ({cacheInfo.slides.totalSizeMB})
+                    </Typography>
+                    <Button
+                      variant="outlined"
+                      color="error"
+                      onClick={handleClearSlidesCache}
+                      disabled={isCacheLoading || cacheInfo.slides.fileCount === 0}
+                      size="small"
+                      startIcon={<Delete />}
+                    >
+                      清除投影片快取
+                    </Button>
+                  </Box>
                 </Paper>
                 
                 <Paper elevation={1} sx={{ p: 2, flex: 1 }}>
-                  <Typography variant="subtitle1">歌詞快取</Typography>
-                  <Typography variant="body2">
-                    {cacheInfo.lyrics?.songCount || 0} 首歌詞 ({cacheInfo.lyrics?.totalSizeMB || '0 MB'})
-                  </Typography>
+                  <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                    <Typography variant="subtitle1">歌詞快取</Typography>
+                    <Typography variant="body2">
+                      {cacheInfo.lyrics?.songCount || 0} 首歌詞 ({cacheInfo.lyrics?.totalSizeMB || '0 MB'})
+                    </Typography>
+                    <Button
+                      variant="outlined"
+                      color="error"
+                      onClick={handleClearLyricsCache}
+                      disabled={isCacheLoading || !(cacheInfo.lyrics?.songCount > 0)}
+                      size="small"
+                      startIcon={<Delete />}
+                    >
+                      清除歌詞快取
+                    </Button>
+                  </Box>
                 </Paper>
               </Box>
               

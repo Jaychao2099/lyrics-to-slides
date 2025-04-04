@@ -31,6 +31,9 @@ interface ElectronAPI {
   importLocalImage: (songId: number, localImagePath: string) => Promise<{songId: number, imagePath: string}>;
   getCacheSize: () => Promise<any>;
   clearCache: () => Promise<any>;
+  clearImagesCache: () => Promise<any>;
+  clearSlidesCache: () => Promise<any>;
+  clearLyricsCache: () => Promise<any>;
   updateLyricsCache: (title: string, artist: string, lyrics: string, source: string) => Promise<boolean>;
   addNewSong: (title: string, artist: string, lyrics: string, source: string) => Promise<boolean>;
 }
@@ -123,8 +126,17 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // 獲取快取大小
   getCacheSize: () => ipcRenderer.invoke('get-cache-size'),
   
-  // 清除快取
+  // 清除所有快取
   clearCache: () => ipcRenderer.invoke('clear-cache'),
+  
+  // 清除圖片快取
+  clearImagesCache: () => ipcRenderer.invoke('clear-images-cache'),
+  
+  // 清除投影片快取
+  clearSlidesCache: () => ipcRenderer.invoke('clear-slides-cache'),
+  
+  // 清除歌詞快取
+  clearLyricsCache: () => ipcRenderer.invoke('clear-lyrics-cache'),
   
   // 監聽進度更新
   onProgressUpdate: (callback: (progress: number, status: string) => void) => {

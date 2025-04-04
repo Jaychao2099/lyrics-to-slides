@@ -668,6 +668,7 @@ function setupIpcHandlers() {
   });
   
   // 清除快取
+  // 清除所有快取
   ipcMain.handle('clear-cache', async () => {
     try {
       mainWindow?.webContents.send('progress-update', 10, '正在清除快取...');
@@ -689,6 +690,72 @@ function setupIpcHandlers() {
     } catch (error) {
       console.error('清除快取失敗:', error);
       mainWindow?.webContents.send('progress-update', 0, '清除快取失敗');
+      throw error;
+    }
+  });
+  
+  // 只清除圖片快取
+  ipcMain.handle('clear-images-cache', async () => {
+    try {
+      mainWindow?.webContents.send('progress-update', 10, '正在清除圖片快取...');
+      
+      // 清除圖片快取
+      const imgCacheResult = await ImageGenerationService.clearCache();
+      
+      mainWindow?.webContents.send('progress-update', 100, '圖片快取清除完成');
+      
+      // 返回結果
+      return {
+        success: imgCacheResult.success,
+        deletedCount: imgCacheResult.deletedCount
+      };
+    } catch (error) {
+      console.error('清除圖片快取失敗:', error);
+      mainWindow?.webContents.send('progress-update', 0, '清除圖片快取失敗');
+      throw error;
+    }
+  });
+  
+  // 只清除投影片快取
+  ipcMain.handle('clear-slides-cache', async () => {
+    try {
+      mainWindow?.webContents.send('progress-update', 10, '正在清除投影片快取...');
+      
+      // 清除投影片快取
+      const slidesCacheResult = await SlideGenerationService.clearCache();
+      
+      mainWindow?.webContents.send('progress-update', 100, '投影片快取清除完成');
+      
+      // 返回結果
+      return {
+        success: slidesCacheResult.success,
+        deletedCount: slidesCacheResult.deletedCount
+      };
+    } catch (error) {
+      console.error('清除投影片快取失敗:', error);
+      mainWindow?.webContents.send('progress-update', 0, '清除投影片快取失敗');
+      throw error;
+    }
+  });
+  
+  // 只清除歌詞快取
+  ipcMain.handle('clear-lyrics-cache', async () => {
+    try {
+      mainWindow?.webContents.send('progress-update', 10, '正在清除歌詞快取...');
+      
+      // 清除歌詞快取
+      const lyricsCacheResult = await LyricsSearchService.clearCache();
+      
+      mainWindow?.webContents.send('progress-update', 100, '歌詞快取清除完成');
+      
+      // 返回結果
+      return {
+        success: lyricsCacheResult.success,
+        deletedCount: lyricsCacheResult.deletedCount
+      };
+    } catch (error) {
+      console.error('清除歌詞快取失敗:', error);
+      mainWindow?.webContents.send('progress-update', 0, '清除歌詞快取失敗');
       throw error;
     }
   });

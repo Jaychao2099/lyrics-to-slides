@@ -91,6 +91,18 @@ export interface ElectronAPI {
     deletedSlides: number;
     deletedLyrics: number;
   }>;
+  clearImagesCache: () => Promise<{
+    success: boolean;
+    deletedCount: number;
+  }>;
+  clearSlidesCache: () => Promise<{
+    success: boolean;
+    deletedCount: number;
+  }>;
+  clearLyricsCache: () => Promise<{
+    success: boolean;
+    deletedCount: number;
+  }>;
 }
 
 // 擴展 Window 接口
