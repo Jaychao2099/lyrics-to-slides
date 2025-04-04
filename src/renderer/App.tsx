@@ -159,6 +159,7 @@ const App: React.FC = () => {
           <ImageGeneration 
             songTitle={songData.title}
             lyrics={songData.lyrics}
+            songId={songData.songId}
             onImageGenerated={(imageUrl, generatedSongId) => {
               setSongData(prev => ({ 
                 ...prev, 

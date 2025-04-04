@@ -12,7 +12,7 @@ import { SlideGenerationService } from './services/slideGeneration';
 import { SlideExportService } from './services/slideExport';
 import { LoggerService } from './services/logger';
 import fs from 'fs';
-import * as fsPromises from 'fs/promises';
+import { promises as fsPromises } from 'fs';
 
 // 開發模式標誌
 const isDev = process.env.NODE_ENV === 'development';
@@ -380,7 +380,7 @@ function setupIpcHandlers() {
       const result = await LyricsSearchService.updateLyricsCache(title, artist, lyrics, source);
       
       mainWindow?.webContents.send('progress-update', 100, '歌詞快取更新完成');
-      await LoggerService.apiSuccess('IPC', 'update-lyrics-cache', { title }, { success: result }, startTime);
+      await LoggerService.apiSuccess('IPC', 'update-lyrics-cache', { title }, { success: result.success, songId: result.songId }, startTime);
       
       return result;
     } catch (error) {
@@ -667,7 +667,6 @@ function setupIpcHandlers() {
     }
   });
   
-  // 清除快取
   // 清除所有快取
   ipcMain.handle('clear-cache', async () => {
     try {
@@ -677,6 +676,10 @@ function setupIpcHandlers() {
       const imgCacheResult = await ImageGenerationService.clearCache();
       const slidesCacheResult = await SlideGenerationService.clearCache();
       const lyricsCacheResult = await LyricsSearchService.clearCache();
+      
+      // 確保所有資源關聯都被清除
+      mainWindow?.webContents.send('progress-update', 90, '確保所有關聯記錄被清除...');
+      DatabaseService.clearAllSongResources();
       
       mainWindow?.webContents.send('progress-update', 100, '快取清除完成');
       
@@ -757,6 +760,142 @@ function setupIpcHandlers() {
       console.error('清除歌詞快取失敗:', error);
       mainWindow?.webContents.send('progress-update', 0, '清除歌詞快取失敗');
       throw error;
+    }
+  });
+
+  // 檢查歌曲是否有關聯圖片
+  ipcMain.handle('check-related-image', async (_event, songId: number) => {
+    try {
+      if (!songId || songId < 0) {
+        return { hasRelatedImage: false };
+      }
+      
+      console.log(`檢查歌曲ID ${songId} 是否有關聯圖片`);
+      
+      // 從關聯表中獲取圖片路徑
+      const imagePath = DatabaseService.getSongResource(songId, 'image');
+      
+      if (!imagePath) {
+        console.log(`歌曲ID ${songId} 沒有關聯圖片`);
+        return { hasRelatedImage: false };
+      }
+      
+      // 檢查文件是否存在
+      try {
+        await fsPromises.access(imagePath);
+        console.log(`歌曲ID ${songId} 有關聯圖片: ${imagePath}`);
+        return { 
+          hasRelatedImage: true,
+          imagePath: imagePath 
+        };
+      } catch (e) {
+        console.log(`歌曲ID ${songId} 的關聯圖片文件不存在: ${imagePath}`);
+        return { hasRelatedImage: false };
+      }
+    } catch (error) {
+      console.error('檢查關聯圖片失敗:', error);
+      return { hasRelatedImage: false };
+    }
+  });
+
+  // 檢查歌曲是否有關聯投影片
+  ipcMain.handle('check-related-slide', async (_event, songId: number) => {
+    try {
+      if (!songId || songId < 0) {
+        return { hasRelatedSlide: false };
+      }
+      
+      console.log(`檢查歌曲ID ${songId} 是否有關聯投影片`);
+      
+      // 從關聯表中獲取投影片路徑
+      const slidePath = DatabaseService.getSongResource(songId, 'slide');
+      
+      if (!slidePath) {
+        console.log(`歌曲ID ${songId} 沒有關聯投影片`);
+        return { hasRelatedSlide: false };
+      }
+      
+      // 檢查文件是否存在
+      try {
+        await fsPromises.access(slidePath);
+        // 讀取檔案內容
+        const slideContent = await fsPromises.readFile(slidePath, 'utf-8');
+        console.log(`歌曲ID ${songId} 有關聯投影片: ${slidePath}`);
+        return { 
+          hasRelatedSlide: true,
+          slideContent: slideContent 
+        };
+      } catch (e) {
+        console.log(`歌曲ID ${songId} 的關聯投影片文件不存在: ${slidePath}`);
+        return { hasRelatedSlide: false };
+      }
+    } catch (error) {
+      console.error('檢查關聯投影片失敗:', error);
+      return { hasRelatedSlide: false };
+    }
+  });
+
+  // 保存圖片關聯
+  ipcMain.handle('save-song-image-association', async (_event, songId: number, imagePath: string) => {
+    try {
+      if (!songId || songId < 0 || !imagePath) {
+        return { success: false, message: '無效的參數' };
+      }
+      
+      console.log(`保存歌曲ID ${songId} 與圖片的關聯: ${imagePath}`);
+      
+      // 保存關聯
+      const result = DatabaseService.saveSongResource(songId, 'image', imagePath);
+      
+      if (result) {
+        console.log(`歌曲ID ${songId} 的圖片關聯保存成功`);
+        return { success: true, message: '圖片關聯保存成功' };
+      } else {
+        console.log(`歌曲ID ${songId} 的圖片關聯保存失敗`);
+        return { success: false, message: '圖片關聯保存失敗' };
+      }
+    } catch (error) {
+      console.error('保存圖片關聯失敗:', error);
+      return { success: false, message: '保存圖片關聯時發生錯誤' };
+    }
+  });
+  
+  // 保存投影片關聯
+  ipcMain.handle('save-song-slide-association', async (_event, songId: number, slideContent: string) => {
+    try {
+      if (!songId || songId < 0 || !slideContent) {
+        return { success: false, message: '無效的參數' };
+      }
+      
+      console.log(`保存歌曲ID ${songId} 與投影片的關聯`);
+      
+      // 將投影片內容保存到檔案
+      const slidesDir = path.join(app.getPath('userData'), 'app_cache', 'slides');
+      
+      // 確保目錄存在
+      try {
+        await fsPromises.access(slidesDir);
+      } catch (e) {
+        await fsPromises.mkdir(slidesDir, { recursive: true });
+      }
+      
+      // 保存檔案
+      const slideFilePath = path.join(slidesDir, `${songId}.md`);
+      await fsPromises.writeFile(slideFilePath, slideContent, 'utf-8');
+      
+      // 保存關聯
+      const result = DatabaseService.saveSongResource(songId, 'slide', slideFilePath);
+      
+      if (result) {
+        console.log(`歌曲ID ${songId} 的投影片關聯保存成功`);
+        return { success: true, message: '投影片關聯保存成功' };
+      } else {
+        console.log(`歌曲ID ${songId} 的投影片關聯保存失敗`);
+        return { success: false, message: '投影片關聯保存失敗' };
+      }
+    } catch (error) {
+      console.error('保存投影片關聯失敗:', error);
+      return { success: false, message: '保存投影片關聯時發生錯誤' };
     }
   });
 }

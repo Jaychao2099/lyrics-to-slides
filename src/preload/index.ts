@@ -34,8 +34,23 @@ interface ElectronAPI {
   clearImagesCache: () => Promise<any>;
   clearSlidesCache: () => Promise<any>;
   clearLyricsCache: () => Promise<any>;
-  updateLyricsCache: (title: string, artist: string, lyrics: string, source: string) => Promise<boolean>;
+  updateLyricsCache: (title: string, artist: string, lyrics: string, source: string) => Promise<{success: boolean, songId: number}>;
   addNewSong: (title: string, artist: string, lyrics: string, source: string) => Promise<boolean>;
+  checkRelatedImage: (songId: number) => Promise<RelatedImageResult>;
+  checkRelatedSlide: (songId: number) => Promise<RelatedSlideResult>;
+  saveSongImageAssociation: (songId: number, imagePath: string) => Promise<{success: boolean, message: string}>;
+  saveSongSlideAssociation: (songId: number, slideContent: string) => Promise<{success: boolean, message: string}>;
+}
+
+// 定義返回類型
+interface RelatedImageResult {
+  hasRelatedImage: boolean;
+  imagePath?: string;
+}
+
+interface RelatedSlideResult {
+  hasRelatedSlide: boolean;
+  slideContent?: string;
 }
 
 // 暴露給渲染進程的 API
@@ -158,5 +173,19 @@ contextBridge.exposeInMainWorld('electronAPI', {
     return () => {
       ipcRenderer.removeListener('main-process-log', listener);
     };
-  }
+  },
+  
+  // 檢查歌曲是否有關聯圖片
+  checkRelatedImage: (songId: number) => ipcRenderer.invoke('check-related-image', songId),
+  
+  // 檢查歌曲是否有關聯投影片  
+  checkRelatedSlide: (songId: number) => ipcRenderer.invoke('check-related-slide', songId),
+  
+  // 保存歌曲與圖片的關聯
+  saveSongImageAssociation: (songId: number, imagePath: string) => 
+    ipcRenderer.invoke('save-song-image-association', songId, imagePath),
+    
+  // 保存歌曲與投影片的關聯
+  saveSongSlideAssociation: (songId: number, slideContent: string) => 
+    ipcRenderer.invoke('save-song-slide-association', songId, slideContent)
 } as ElectronAPI); 

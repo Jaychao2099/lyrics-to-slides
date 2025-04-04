@@ -195,89 +195,50 @@ export class ImageGenerationService {
   }
 
   /**
-   * 保存圖片到本地快取
+   * 保存圖片到快取目錄
    * @param songId 歌曲ID
    * @param imageUrl 圖片URL
-   * @param prompt 使用的提示詞
-   * @returns 本地圖片路徑
+   * @param prompt 生成提示詞
+   * @returns 保存後的本地圖片路徑
    */
-  private static async saveImageToCache(songId: number, imageUrl: string, prompt: string): Promise<string> {
-    const startTime = LoggerService.apiStart('ImageGenerationService', 'saveImageToCache', { songId, hasImageUrl: !!imageUrl });
-    
+  private static async saveImageToCache(songId: number, imageUrl: string, prompt?: string): Promise<string> {
     try {
-      // 記錄歌曲ID
-      await LoggerService.info(`開始為歌曲ID ${songId} 保存圖片`);
+      // 確保快取目錄存在
+      await this.initCacheDir();
       
-      // 檢查歌曲是否存在
-      const db = DatabaseService.init();
-      const checkSongQuery = 'SELECT id FROM songs WHERE id = ?';
-      await LoggerService.logDatabaseOperation('查詢', checkSongQuery, [songId]);
+      // 使用 songId 作為文件名
+      const timestamp = Date.now();
+      const fileName = `${songId}_${timestamp}.png`;
+      const localImagePath = path.join(this.imageCacheDir, fileName);
       
-      const songExists = db.prepare(checkSongQuery).get(songId);
-      
-      if (!songExists) {
-        await LoggerService.error(`歌曲ID不存在: ${songId}，無法保存圖片`);
-        throw new Error(`歌曲ID不存在: ${songId}，無法保存圖片`);
-      }
-
       // 下載圖片
-      await LoggerService.info(`開始下載圖片: ${imageUrl.substring(0, 50)}...`);
-      const response = await fetch(imageUrl);
-      const buffer = await response.arrayBuffer();
-      await LoggerService.info(`圖片下載完成，大小: ${buffer.byteLength} 字節`);
-
-      // 建立檔案名稱和路徑
-      const fileName = `${songId}_${Date.now()}.png`;
-      const filePath = path.join(this.imageCacheDir, fileName);
-      await LoggerService.info(`圖片將保存到: ${filePath}`);
-
-      // 寫入檔案
-      await fs.writeFile(filePath, Buffer.from(buffer));
-      await LoggerService.info(`圖片檔案已寫入`);
-
-      // 將圖片記錄插入到資料庫
-      const insertImgQuery = 'INSERT INTO images (song_id, image_path, prompt, created_at) VALUES (?, ?, ?, ?)';
-      const insertImgParams = [songId, filePath, prompt, new Date().toISOString()];
+      const imageResponse = await fetch(imageUrl);
+      const arrayBuffer = await imageResponse.arrayBuffer();
+      const buffer = Buffer.from(arrayBuffer);
       
-      await LoggerService.logDatabaseOperation('插入', insertImgQuery, insertImgParams);
+      // 保存到本地
+      await fs.writeFile(localImagePath, buffer);
+      
+      // 保存圖片記錄到資料庫
+      const db = DatabaseService.init();
+      const now = new Date().toISOString();
       
       try {
-        db.prepare(insertImgQuery).run(...insertImgParams);
-        await LoggerService.info(`圖片記錄已插入到資料庫`);
+        const stmt = db.prepare(`
+          INSERT INTO images (song_id, image_path, prompt, created_at)
+          VALUES (?, ?, ?, ?)
+        `);
+        stmt.run(songId, localImagePath, prompt || '', now);
       } catch (dbError) {
-        await LoggerService.error('插入圖片記錄失敗', dbError);
-        throw dbError;
+        console.error('儲存圖片記錄到資料庫失敗:', dbError);
       }
-
-      // 同時更新歌曲表中的圖片URL
-      const updateSongQuery = 'UPDATE songs SET image_url = ?, updated_at = ? WHERE id = ?';
-      const updateSongParams = [filePath, new Date().toISOString(), songId];
       
-      await LoggerService.logDatabaseOperation('更新', updateSongQuery, updateSongParams);
+      // 保存圖片與歌曲的關聯
+      DatabaseService.saveSongResource(songId, 'image', localImagePath);
       
-      try {
-        const updateResult = db.prepare(updateSongQuery).run(...updateSongParams);
-        await LoggerService.info(`歌曲記錄更新結果: 影響 ${updateResult.changes} 行`);
-      } catch (dbError) {
-        await LoggerService.error('更新歌曲記錄失敗', dbError);
-        // 不拋出錯誤，因為圖片已經保存成功
-      }
-
-      // 記錄成功
-      await LoggerService.apiSuccess('ImageGenerationService', 'saveImageToCache', 
-        { songId }, 
-        { filePath }, 
-        startTime
-      );
-      
-      return filePath;
+      return localImagePath;
     } catch (error) {
       console.error('保存圖片到快取失敗:', error);
-      await LoggerService.apiError('ImageGenerationService', 'saveImageToCache', 
-        { songId }, 
-        error, 
-        startTime
-      );
       throw error;
     }
   }
@@ -497,6 +458,10 @@ export class ImageGenerationService {
       
       db.prepare(deleteQuery).run();
       
+      // 清除圖片資源關聯記錄
+      await LoggerService.info('清除圖片關聯記錄');
+      DatabaseService.clearSongResourcesByType('image');
+      
       const result = {
         success: true,
         deletedCount
@@ -519,59 +484,57 @@ export class ImageGenerationService {
   /**
    * 從快取獲取圖片
    * @param songId 歌曲ID
-   * @returns 本地圖片路徑 或 null
+   * @returns 快取中的圖片路徑 或 null
    */
   public static async getImageFromCache(songId: number): Promise<string | null> {
-    const startTime = LoggerService.apiStart('ImageGenerationService', 'getImageFromCache', { songId });
-    
     try {
-      const db = DatabaseService.init();
-      const query = 'SELECT image_path FROM images WHERE song_id = ? ORDER BY created_at DESC LIMIT 1';
-      
-      await LoggerService.logDatabaseOperation('查詢', query, [songId]);
-      
-      const image = db.prepare(query).get(songId) as { image_path: string } | undefined;
-
-      if (image && image.image_path) {
-        // 確認檔案存在
+      // 首先檢查關聯表中是否有存儲的圖片
+      const associatedImage = DatabaseService.getSongResource(songId, 'image');
+      if (associatedImage) {
+        // 檢查檔案是否存在
         try {
-          await fs.access(image.image_path);
-          await LoggerService.apiSuccess('ImageGenerationService', 'getImageFromCache', 
-            { songId }, 
-            { imagePath: image.image_path }, 
-            startTime
-          );
-          return image.image_path;
+          await fs.access(associatedImage);
+          // 文件存在，返回路徑
+          return associatedImage;
         } catch (e) {
-          // 檔案不存在，從資料庫中刪除記錄
-          const deleteQuery = 'DELETE FROM images WHERE song_id = ? AND image_path = ?';
-          await LoggerService.logDatabaseOperation('刪除', deleteQuery, [songId, image.image_path]);
-          
-          db.prepare(deleteQuery).run(songId, image.image_path);
-          await LoggerService.info(`圖片檔案不存在，已從資料庫中刪除記錄: ${image.image_path}`);
-          
-          await LoggerService.apiSuccess('ImageGenerationService', 'getImageFromCache', 
-            { songId }, 
-            { result: null, reason: '檔案不存在' }, 
-            startTime
-          );
-          return null;
+          // 文件不存在，嘗試尋找其他快取圖片
+          console.log(`關聯的圖片檔案不存在: ${associatedImage}，嘗試尋找其他快取圖片`);
         }
       }
       
-      await LoggerService.apiSuccess('ImageGenerationService', 'getImageFromCache', 
-        { songId }, 
-        { result: null, reason: '資料庫中無記錄' }, 
-        startTime
-      );
+      // 查詢資料庫中的圖片記錄
+      const db = DatabaseService.init();
+      try {
+        const stmt = db.prepare(`
+          SELECT image_path FROM images 
+          WHERE song_id = ? 
+          ORDER BY created_at DESC 
+          LIMIT 1
+        `);
+        const result = stmt.get(songId) as { image_path: string } | undefined;
+        
+        if (result && result.image_path) {
+          const imagePath = result.image_path;
+          
+          // 檢查檔案是否存在
+          try {
+            await fs.access(imagePath);
+            // 文件存在，返回路徑
+            // 同時更新關聯表
+            DatabaseService.saveSongResource(songId, 'image', imagePath);
+            return imagePath;
+          } catch (e) {
+            // 文件不存在
+            return null;
+          }
+        }
+      } catch (dbError) {
+        console.error('查詢圖片記錄失敗:', dbError);
+      }
+      
       return null;
     } catch (error) {
       console.error('從快取獲取圖片失敗:', error);
-      await LoggerService.apiError('ImageGenerationService', 'getImageFromCache', 
-        { songId }, 
-        error, 
-        startTime
-      );
       return null;
     }
   }

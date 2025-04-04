@@ -132,6 +132,11 @@ export class LyricsSearchService {
         const tableExists = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='songs'").get();
         
         if (tableExists) {
+          // 刪除歌曲記錄前，先清除所有資源關聯記錄
+          await LoggerService.info('清除所有資源關聯記錄');
+          DatabaseService.clearAllSongResources();
+          
+          // 刪除歌曲記錄
           const deleteQuery = "DELETE FROM songs";
           await LoggerService.logDatabaseOperation('刪除', deleteQuery, []);
           db.prepare(deleteQuery).run();
@@ -649,7 +654,7 @@ export class LyricsSearchService {
     artist: string, 
     lyrics: string, 
     source: string
-  ): Promise<boolean> {
+  ): Promise<{success: boolean, songId: number}> {
     try {
       this.log(`開始更新歌詞快取: ${title} - ${artist}`);
       
@@ -659,6 +664,7 @@ export class LyricsSearchService {
       // 先查詢是否有匹配的歌曲
       const matchedSongs = DatabaseService.searchSongs(title);
       let updated = false;
+      let songId = -1;
       
       if (matchedSongs.length > 0) {
         // 查找最匹配的歌曲
@@ -682,27 +688,31 @@ export class LyricsSearchService {
             lyrics: cleanedLyrics
           });
           
+          songId = exactMatch.id;
+          
           if (updated) {
-            this.log(`成功更新歌曲 "${title}" 的歌詞快取`);
+            this.log(`成功更新歌曲 "${title}" 的歌詞快取，ID: ${songId}`);
           } else {
             this.log(`更新歌曲 "${title}" 的歌詞快取失敗`, 'error');
           }
-          return updated;
+          return {success: updated, songId};
         }
       }
       
       // 如果沒有找到匹配的記錄，創建新記錄
       this.log(`沒有找到匹配的歌曲記錄，添加新記錄: ${title}`);
-      const newSongId = DatabaseService.addSong({
+      songId = DatabaseService.addSong({
         title: title,
         artist: artist,
         lyrics: cleanedLyrics
       });
       
-      return newSongId > 0;
+      this.log(`添加新歌曲完成，ID: ${songId}`);
+      
+      return {success: songId > 0, songId};
     } catch (error) {
       this.log(`更新歌詞快取時發生錯誤: ${error}`, 'error');
-      return false;
+      return {success: false, songId: -1};
     }
   }
 }

@@ -7,6 +7,16 @@ import { app } from 'electron';
 import Database from 'better-sqlite3';
 import { Song } from '../../common/types';
 
+// 定義資源關聯記錄類型
+interface SongResource {
+  id: number;
+  song_id: number;
+  resource_type: 'image' | 'slide';
+  resource_path: string;
+  created_at: string;
+  updated_at: string;
+}
+
 // 數據庫位置
 const DB_PATH = path.join(app.getPath('userData'), 'lyrics.db');
 
@@ -50,11 +60,26 @@ function initDatabase() {
     )
   `);
 
+  // 創建 song_resources 表存儲歌曲與資源關聯
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS song_resources (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      song_id INTEGER NOT NULL,
+      resource_type TEXT NOT NULL,
+      resource_path TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      FOREIGN KEY (song_id) REFERENCES songs(id) ON DELETE CASCADE
+    )
+  `);
+
   // 創建索引以優化查詢效能
   db.exec(`
     CREATE INDEX IF NOT EXISTS idx_images_song_id ON images(song_id);
     CREATE INDEX IF NOT EXISTS idx_songs_title ON songs(title);
     CREATE INDEX IF NOT EXISTS idx_songs_artist ON songs(artist);
+    CREATE INDEX IF NOT EXISTS idx_song_resources_song_id ON song_resources(song_id);
+    CREATE INDEX IF NOT EXISTS idx_song_resources_type ON song_resources(resource_type);
   `);
 
   return db;
@@ -294,6 +319,131 @@ export const DatabaseService = {
       return result.changes > 0;
     } catch (error) {
       console.error('刪除歌曲失敗:', error);
+      return false;
+    }
+  },
+
+  // 保存歌曲與資源的關聯
+  saveSongResource(songId: number, resourceType: 'image' | 'slide', resourcePath: string): boolean {
+    // 確保數據庫已初始化
+    if (!db) {
+      this.init();
+    }
+    
+    try {
+      const now = new Date().toISOString();
+      
+      // 檢查是否已經存在相同類型的資源關聯
+      const existingStmt = db.prepare(`
+        SELECT id FROM song_resources 
+        WHERE song_id = ? AND resource_type = ?
+      `);
+      const existingResource = existingStmt.get(songId, resourceType) as { id: number } | undefined;
+      
+      if (existingResource && existingResource.id) {
+        // 更新現有資源關聯
+        const updateStmt = db.prepare(`
+          UPDATE song_resources SET
+            resource_path = ?,
+            updated_at = ?
+          WHERE id = ?
+        `);
+        updateStmt.run(resourcePath, now, existingResource.id);
+      } else {
+        // 新增資源關聯
+        const insertStmt = db.prepare(`
+          INSERT INTO song_resources (
+            song_id,
+            resource_type,
+            resource_path,
+            created_at,
+            updated_at
+          ) VALUES (?, ?, ?, ?, ?)
+        `);
+        insertStmt.run(songId, resourceType, resourcePath, now, now);
+      }
+      
+      return true;
+    } catch (error) {
+      console.error('保存歌曲資源關聯失敗:', error);
+      return false;
+    }
+  },
+  
+  // 獲取歌曲關聯的資源
+  getSongResource(songId: number, resourceType: 'image' | 'slide'): string | null {
+    // 確保數據庫已初始化
+    if (!db) {
+      this.init();
+    }
+    
+    try {
+      const stmt = db.prepare(`
+        SELECT resource_path FROM song_resources 
+        WHERE song_id = ? AND resource_type = ?
+        ORDER BY updated_at DESC
+        LIMIT 1
+      `);
+      const result = stmt.get(songId, resourceType) as { resource_path: string } | undefined;
+      return result && result.resource_path ? result.resource_path : null;
+    } catch (error) {
+      console.error('獲取歌曲資源關聯失敗:', error);
+      return null;
+    }
+  },
+  
+  // 刪除歌曲資源關聯
+  deleteSongResource(songId: number, resourceType: 'image' | 'slide'): boolean {
+    // 確保數據庫已初始化
+    if (!db) {
+      this.init();
+    }
+    
+    try {
+      const stmt = db.prepare(`
+        DELETE FROM song_resources 
+        WHERE song_id = ? AND resource_type = ?
+      `);
+      const result = stmt.run(songId, resourceType);
+      return result.changes > 0;
+    } catch (error) {
+      console.error('刪除歌曲資源關聯失敗:', error);
+      return false;
+    }
+  },
+  
+  // 清除所有資源關聯記錄
+  clearAllSongResources(): boolean {
+    // 確保數據庫已初始化
+    if (!db) {
+      this.init();
+    }
+    
+    try {
+      const stmt = db.prepare(`DELETE FROM song_resources`);
+      stmt.run();
+      console.log('所有資源關聯記錄已清除');
+      return true;
+    } catch (error) {
+      console.error('清除所有資源關聯記錄失敗:', error);
+      return false;
+    }
+  },
+  
+  // 清除特定類型的資源關聯記錄
+  clearSongResourcesByType(resourceType: 'image' | 'slide'): boolean {
+    // 確保數據庫已初始化
+    if (!db) {
+      this.init();
+    }
+    
+    try {
+      const stmt = db.prepare(`DELETE FROM song_resources WHERE resource_type = ?`);
+      stmt.run(resourceType);
+      console.log(`類型為 ${resourceType} 的資源關聯記錄已清除`);
+      return true;
+    } catch (error) {
+      console.error(`清除類型為 ${resourceType} 的資源關聯記錄失敗:`, error);
       return false;
     }
   }

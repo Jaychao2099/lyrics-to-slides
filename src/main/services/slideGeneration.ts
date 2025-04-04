@@ -254,6 +254,9 @@ style: |
     try {
       const filePath = path.join(this.slidesCacheDir, `${songId}.md`);
       await fs.writeFile(filePath, slidesContent, 'utf-8');
+      
+      // 保存投影片與歌曲的關聯
+      DatabaseService.saveSongResource(songId, 'slide', filePath);
     } catch (error) {
       console.error('保存投影片到快取失敗:', error);
       throw error;
@@ -288,6 +291,23 @@ style: |
    */
   public static async getSlidesFromCache(songId: number): Promise<string | null> {
     try {
+      // 首先檢查關聯表中是否有存儲的投影片
+      const associatedSlide = DatabaseService.getSongResource(songId, 'slide');
+      if (associatedSlide) {
+        // 檢查檔案是否存在
+        try {
+          await fs.access(associatedSlide);
+          // 文件存在，讀取檔案內容
+          const content = await fs.readFile(associatedSlide, 'utf-8');
+          // 修復圖片路徑
+          return this.fixImagePathsInSlides(content);
+        } catch (e) {
+          // 文件不存在，嘗試尋找其他快取投影片
+          console.log(`關聯的投影片檔案不存在: ${associatedSlide}，嘗試尋找其他快取投影片`);
+        }
+      }
+      
+      // 嘗試使用常規快取路徑
       const filePath = path.join(this.slidesCacheDir, `${songId}.md`);
       
       try {
@@ -295,6 +315,8 @@ style: |
         await fs.access(filePath);
         // 讀取檔案內容
         const content = await fs.readFile(filePath, 'utf-8');
+        // 同時更新關聯表
+        DatabaseService.saveSongResource(songId, 'slide', filePath);
         // 修復圖片路徑
         return this.fixImagePathsInSlides(content);
       } catch (e) {
@@ -433,6 +455,10 @@ style: |
         } else {
           await LoggerService.info('slides 表不存在，跳過資料庫清理');
         }
+        
+        // 清除投影片資源關聯記錄
+        await LoggerService.info('清除投影片關聯記錄');
+        DatabaseService.clearSongResourcesByType('slide');
       } catch (dbError) {
         await LoggerService.error('清除資料庫中的投影片記錄失敗', dbError);
       }

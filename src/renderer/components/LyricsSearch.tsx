@@ -108,12 +108,18 @@ const LyricsSearch: React.FC<LyricsSearchProps> = ({ onSearchComplete }) => {
         console.log(`歌詞保存前內容預覽: ${editedLyrics.substring(0, 100)}...`);
         console.log(`歌詞中連續換行符數量: ${(editedLyrics.match(/\n\n/g) || []).length}`);
         
-        await window.electronAPI.updateLyricsCache(
+        const result = await window.electronAPI.updateLyricsCache(
           updatedResult.title,
           updatedResult.artist,
           editedLyrics, // 直接傳遞未做任何處理的歌詞內容
           updatedResult.source
         );
+        
+        // 更新歌曲ID
+        if (result && typeof result === 'object') {
+          updatedResult.songId = result.songId;
+          console.log(`歌詞已更新，songId: ${result.songId}`);
+        }
         
         // 更新界面狀態
         setSelectedResult(updatedResult);
@@ -135,7 +141,8 @@ const LyricsSearch: React.FC<LyricsSearchProps> = ({ onSearchComplete }) => {
           artist: updatedResult.artist,
           lyrics: updatedResult.lyrics.substring(0, 100) + '...', // 只記錄前100個字符以避免日誌過長
           lyricsLineCount: updatedResult.lyrics.split('\n').length,
-          hasDoubleNewlines: updatedResult.lyrics.includes('\n\n')
+          hasDoubleNewlines: updatedResult.lyrics.includes('\n\n'),
+          songId: updatedResult.songId
         });
       } catch (error) {
         console.error('更新歌詞快取失敗:', error);
@@ -182,8 +189,10 @@ const LyricsSearch: React.FC<LyricsSearchProps> = ({ onSearchComplete }) => {
         isEdited: true,
         isNew: true,
         fromCache: true,
-        songId: newSongId
+        songId: typeof newSongId === 'number' ? newSongId : -1
       };
+
+      console.log('添加新歌曲完成，songId:', newResult.songId);
 
       // 更新搜尋結果，將新歌曲添加到搜尋結果中
       if (searchResults.length > 0) {
@@ -215,10 +224,17 @@ const LyricsSearch: React.FC<LyricsSearchProps> = ({ onSearchComplete }) => {
         title: selectedResult.title,
         artist: selectedResult.artist,
         lyrics: selectedResult.lyrics.substring(0, 100) + '...',
-        isEdited: selectedResult.isEdited || false
+        isEdited: selectedResult.isEdited || false,
+        songId: selectedResult.songId || -1 // 添加songId到日誌
       });
       
-      onSearchComplete(selectedResult);
+      // 確保songId有值，即使是-1
+      const resultWithId = {
+        ...selectedResult,
+        songId: selectedResult.songId || -1
+      };
+      
+      onSearchComplete(resultWithId);
     }
   };
 

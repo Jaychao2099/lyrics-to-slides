@@ -49,6 +49,18 @@ export interface GenerationStatus {
   status: string;
 }
 
+// 檢查關聯圖片結果
+export interface RelatedImageResult {
+  hasRelatedImage: boolean;
+  imagePath?: string;
+}
+
+// 檢查關聯投影片結果
+export interface RelatedSlideResult {
+  hasRelatedSlide: boolean;
+  slideContent?: string;
+}
+
 // 預加載 API 類型定義
 export interface ElectronAPI {
   getAppVersion: () => Promise<string>;
@@ -68,7 +80,7 @@ export interface ElectronAPI {
   saveSettings: (settings: Settings) => Promise<void>;
   selectDirectory: () => Promise<string>;
   getSongs: () => Promise<Song[]>;
-  updateLyricsCache: (title: string, artist: string, lyrics: string, source: string) => Promise<boolean>;
+  updateLyricsCache: (title: string, artist: string, lyrics: string, source: string) => Promise<{success: boolean, songId: number}>;
   addNewSong: (title: string, artist: string, lyrics: string, source: string) => Promise<number>;
   openFile: (filePath: string) => Promise<boolean>;
   openDirectory: (filePath: string) => Promise<boolean>;
@@ -103,6 +115,12 @@ export interface ElectronAPI {
     success: boolean;
     deletedCount: number;
   }>;
+  // 檢查關聯資源
+  checkRelatedImage: (songId: number) => Promise<RelatedImageResult>;
+  checkRelatedSlide: (songId: number) => Promise<RelatedSlideResult>;
+  // 保存關聯資源
+  saveSongImageAssociation: (songId: number, imagePath: string) => Promise<{success: boolean, message: string}>;
+  saveSongSlideAssociation: (songId: number, slideContent: string) => Promise<{success: boolean, message: string}>;
 }
 
 // 擴展 Window 接口

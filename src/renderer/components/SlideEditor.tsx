@@ -41,15 +41,57 @@ const SlideEditor: React.FC<SlideEditorProps> = ({ lyrics, imageUrl, songId: pro
 
   useEffect(() => {
     if (propsSongId && propsSongId !== songId) {
+      console.log('更新 SlideEditor 組件中的 songId:', propsSongId, '舊值:', songId);
       setSongId(propsSongId);
     }
-  }, [propsSongId]);
+  }, [propsSongId, songId]);
 
   useEffect(() => {
-    if (lyrics && imageUrl && !slideContent && !isGenerating) {
-      generateSlides();
-    }
-  }, [lyrics, imageUrl]);
+    console.log('SlideEditor 檢查關聯投影片 useEffect 觸發', {
+      songId,
+      hasLyrics: !!lyrics,
+      hasImageUrl: !!imageUrl,
+      hasSlideContent: !!slideContent
+    });
+    
+    const checkRelatedSlide = async () => {
+      if (songId > 0) {
+        try {
+          console.log('開始檢查歌曲ID', songId, '的關聯投影片');
+          // 檢查是否有關聯投影片
+          const result = await window.electronAPI.checkRelatedSlide(songId);
+          console.log('關聯投影片檢查結果:', result);
+          
+          if (result && result.hasRelatedSlide && result.slideContent) {
+            console.log('找到關聯投影片，長度:', result.slideContent.length);
+            // 找到關聯投影片，直接加載
+            setSlideContent(result.slideContent);
+            setEditingContent(result.slideContent);
+            updatePreview(result.slideContent);
+            
+            // 可以添加提示
+            setSnackbarMessage('已加載關聯投影片');
+            setSnackbarOpen(true);
+            return;
+          } else {
+            console.log('未找到關聯投影片或內容無效');
+          }
+        } catch (err) {
+          console.error('檢查關聯投影片失敗:', err);
+        }
+      } else {
+        console.log('songId無效，跳過關聯投影片檢查:', songId);
+      }
+      
+      // 如果沒有關聯投影片並且有歌詞和圖片，則生成新的投影片
+      if (lyrics && imageUrl && !slideContent && !isGenerating) {
+        console.log('未找到關聯投影片，開始生成新投影片');
+        generateSlides();
+      }
+    };
+    
+    checkRelatedSlide();
+  }, [lyrics, imageUrl, songId]);
 
   const generateSlides = async () => {
     try {
@@ -173,6 +215,25 @@ const SlideEditor: React.FC<SlideEditorProps> = ({ lyrics, imageUrl, songId: pro
     setSnackbarOpen(false);
   };
 
+  const handleNext = async () => {
+    if (slideContent) {
+      try {
+        console.log('確認使用投影片，歌曲ID:', songId);
+        
+        // 確保保存資源關聯
+        const saveResult = await window.electronAPI.saveSongSlideAssociation(songId, slideContent);
+        console.log('保存投影片關聯結果:', saveResult);
+        
+        // 繼續流程
+        onSlidesCreated(slideContent);
+      } catch (err) {
+        console.error('保存投影片關聯失敗:', err);
+        // 即使關聯保存失敗，也繼續流程
+        onSlidesCreated(slideContent);
+      }
+    }
+  };
+
   return (
     <Box>
       <Typography variant="h5" gutterBottom>
@@ -271,7 +332,7 @@ const SlideEditor: React.FC<SlideEditorProps> = ({ lyrics, imageUrl, songId: pro
         <Button 
           variant="contained" 
           color="primary"
-          onClick={() => onSlidesCreated(slideContent)}
+          onClick={handleNext}
           disabled={!slideContent || isGenerating}
         >
           下一步
