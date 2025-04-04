@@ -200,6 +200,11 @@ export const DatabaseService = {
     
     try {
       const now = new Date().toISOString();
+      
+      // 歌詞內容可能包含換行符，確保正確處理
+      const lyrics = song.lyrics || '';
+      
+      // 使用參數化查詢避免 SQL 注入
       const stmt = db.prepare(`
         INSERT INTO songs (
           title, 
@@ -211,15 +216,18 @@ export const DatabaseService = {
           updated_at
         ) VALUES (?, ?, ?, ?, ?, ?, ?)
       `);
+      
+      // 直接傳遞參數，讓 better-sqlite3 處理特殊字符和換行符
       const result = stmt.run(
         song.title,
         song.artist || '',
-        song.lyrics || '',
+        lyrics,
         song.imageUrl || '',
         song.slideContent || '',
         now,
         now
       );
+      
       return result.lastInsertRowid as number;
     } catch (error) {
       console.error('新增歌曲失敗:', error);
@@ -239,6 +247,11 @@ export const DatabaseService = {
       if (!existingSong) return false;
   
       const now = new Date().toISOString();
+      
+      // 歌詞內容可能包含換行符，確保正確處理
+      const lyrics = song.lyrics !== undefined ? song.lyrics : existingSong.lyrics;
+      
+      // 使用參數化查詢避免 SQL 注入
       const stmt = db.prepare(`
         UPDATE songs SET
           title = ?,
@@ -250,10 +263,11 @@ export const DatabaseService = {
         WHERE id = ?
       `);
       
+      // 直接傳遞參數，讓 better-sqlite3 處理特殊字符和換行符
       const result = stmt.run(
         song.title || existingSong.title,
         song.artist || existingSong.artist,
-        song.lyrics || existingSong.lyrics,
+        lyrics,
         song.imageUrl || existingSong.imageUrl || '',
         song.slideContent || existingSong.slideContent || '',
         now,

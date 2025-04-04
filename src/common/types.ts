@@ -38,7 +38,7 @@ export interface LyricsSearchResult {
   source: string;
   isEdited?: boolean;
   isNew?: boolean;     // 標記是否為新建的歌曲
-  fromCache?: boolean; // 標記是否來自緩存
+  fromCache?: boolean; // 標記是否來自快取
   fromApi?: boolean;   // 標記是否來自API搜尋
   songId?: number;     // 歌曲ID
 }
@@ -78,7 +78,7 @@ export interface ElectronAPI {
   // 新增的功能 - 本地圖片匯入
   selectLocalImage: () => Promise<string>;
   importLocalImage: (songId: number, localImagePath: string) => Promise<{songId: number, imagePath: string}>;
-  // 新增的功能 - 緩存管理
+  // 新增的功能 - 快取管理
   getCacheSize: () => Promise<{
     totalSize: { totalSizeBytes: number; totalSizeMB: string };
     images: { totalSizeBytes: number; totalSizeMB: string; fileCount: number };

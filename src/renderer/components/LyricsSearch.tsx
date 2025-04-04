@@ -104,11 +104,14 @@ const LyricsSearch: React.FC<LyricsSearchProps> = ({ onSearchComplete }) => {
       };
       
       try {
-        // 更新緩存中的歌詞
+        // 更新快取中的歌詞，確保原始換行符被保留
+        console.log(`歌詞保存前內容預覽: ${editedLyrics.substring(0, 100)}...`);
+        console.log(`歌詞中連續換行符數量: ${(editedLyrics.match(/\n\n/g) || []).length}`);
+        
         await window.electronAPI.updateLyricsCache(
           updatedResult.title,
           updatedResult.artist,
-          updatedResult.lyrics,
+          editedLyrics, // 直接傳遞未做任何處理的歌詞內容
           updatedResult.source
         );
         
@@ -127,16 +130,18 @@ const LyricsSearch: React.FC<LyricsSearchProps> = ({ onSearchComplete }) => {
         setEditSuccessOpen(true);
         
         // 在控制台打印日誌，幫助確認編輯內容已更新
-        console.log('歌詞已編輯並更新到緩存：', {
+        console.log('歌詞已編輯並更新到快取：', {
           title: updatedResult.title,
           artist: updatedResult.artist,
-          lyrics: updatedResult.lyrics.substring(0, 100) + '...' // 只記錄前100個字符以避免日誌過長
+          lyrics: updatedResult.lyrics.substring(0, 100) + '...', // 只記錄前100個字符以避免日誌過長
+          lyricsLineCount: updatedResult.lyrics.split('\n').length,
+          hasDoubleNewlines: updatedResult.lyrics.includes('\n\n')
         });
       } catch (error) {
-        console.error('更新歌詞緩存失敗:', error);
-        setError('更新歌詞緩存失敗，但界面已更新。');
+        console.error('更新歌詞快取失敗:', error);
+        setError('更新歌詞快取失敗，但界面已更新。');
         
-        // 即使緩存更新失敗，也更新界面
+        // 即使快取更新失敗，也更新界面
         setSelectedResult(updatedResult);
         setSearchResults(prevResults => {
           return prevResults.map(result => 
@@ -410,7 +415,7 @@ const LyricsSearch: React.FC<LyricsSearchProps> = ({ onSearchComplete }) => {
                     )}
                     {result.fromCache && (
                       <Chip 
-                        label="緩存" 
+                        label="快取" 
                         size="small" 
                         color="info"
                       />

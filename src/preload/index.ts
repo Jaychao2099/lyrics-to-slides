@@ -99,7 +99,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // 取得歌曲列表
   getSongs: () => ipcRenderer.invoke('get-songs'),
   
-  // 更新歌詞緩存
+  // 更新歌詞快取
   updateLyricsCache: (title: string, artist: string, lyrics: string, source: string) => 
     ipcRenderer.invoke('update-lyrics-cache', title, artist, lyrics, source),
   
@@ -120,10 +120,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
   importLocalImage: (songId: number, localImagePath: string) => 
     ipcRenderer.invoke('import-local-image', songId, localImagePath),
   
-  // 獲取緩存大小
+  // 獲取快取大小
   getCacheSize: () => ipcRenderer.invoke('get-cache-size'),
   
-  // 清除緩存
+  // 清除快取
   clearCache: () => ipcRenderer.invoke('clear-cache'),
   
   // 監聽進度更新

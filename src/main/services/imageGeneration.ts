@@ -15,13 +15,13 @@ import { LoggerService } from './logger';
  * 實現規格書中第3.2節的功能
  */
 export class ImageGenerationService {
-  // 緩存目錄
+  // 快取目錄
   private static imageCacheDir = path.join(app.getPath('userData'), 'app_cache', 'images');
   // OpenAI 實例
   private static openai: OpenAI | null = null;
 
   /**
-   * 初始化緩存目錄
+   * 初始化快取目錄
    */
   private static async initCacheDir(): Promise<void> {
     try {
@@ -32,11 +32,11 @@ export class ImageGenerationService {
       } catch (e) {
         // 目錄不存在，創建它
         await fs.mkdir(this.imageCacheDir, { recursive: true });
-        console.log(`圖片緩存目錄創建成功: ${this.imageCacheDir}`);
+        console.log(`圖片快取目錄創建成功: ${this.imageCacheDir}`);
       }
     } catch (error) {
-      console.error('建立圖片緩存目錄失敗:', error);
-      await LoggerService.error('建立圖片緩存目錄失敗', error);
+      console.error('建立圖片快取目錄失敗:', error);
+      await LoggerService.error('建立圖片快取目錄失敗', error);
     }
   }
 
@@ -106,13 +106,13 @@ export class ImageGenerationService {
         }
       }
 
-      // 確保緩存目錄存在
+      // 確保快取目錄存在
       await this.initCacheDir();
 
-      // 檢查緩存中是否已有此歌曲的圖片
+      // 檢查快取中是否已有此歌曲的圖片
       const cachedImage = await this.getImageFromCache(songId);
       if (cachedImage) {
-        await LoggerService.info(`使用緩存的圖片: ${cachedImage}`);
+        await LoggerService.info(`使用快取的圖片: ${cachedImage}`);
         await LoggerService.apiSuccess('ImageGenerationService', 'generateImage', { songId, songTitle }, { imagePath: cachedImage }, startTime);
         return cachedImage;
       }
@@ -172,7 +172,7 @@ export class ImageGenerationService {
         throw new Error('圖片生成失敗');
       }
 
-      // 保存圖片到本地緩存
+      // 保存圖片到本地快取
       const localImagePath = await this.saveImageToCache(songId, imageUrl, finalPrompt);
       
       // 記錄成功
@@ -195,7 +195,7 @@ export class ImageGenerationService {
   }
 
   /**
-   * 保存圖片到本地緩存
+   * 保存圖片到本地快取
    * @param songId 歌曲ID
    * @param imageUrl 圖片URL
    * @param prompt 使用的提示詞
@@ -272,7 +272,7 @@ export class ImageGenerationService {
       
       return filePath;
     } catch (error) {
-      console.error('保存圖片到緩存失敗:', error);
+      console.error('保存圖片到快取失敗:', error);
       await LoggerService.apiError('ImageGenerationService', 'saveImageToCache', 
         { songId }, 
         error, 
@@ -283,10 +283,10 @@ export class ImageGenerationService {
   }
 
   /**
-   * 匯入本地圖片到緩存
+   * 匯入本地圖片到快取
    * @param songId 歌曲ID
    * @param localImagePath 本地圖片路徑
-   * @returns 緩存中的圖片路徑
+   * @returns 快取中的圖片路徑
    */
   public static async importLocalImage(songId: number, localImagePath: string): Promise<string> {
     const startTime = LoggerService.apiStart('ImageGenerationService', 'importLocalImage', { songId, localImagePath });
@@ -349,7 +349,7 @@ export class ImageGenerationService {
         }
       }
 
-      // 確保緩存目錄存在
+      // 確保快取目錄存在
       await this.initCacheDir();
 
       // 讀取本地圖片
@@ -412,14 +412,14 @@ export class ImageGenerationService {
   }
 
   /**
-   * 獲取緩存大小
-   * @returns 緩存大小信息（總大小和檔案數量）
+   * 獲取快取大小
+   * @returns 快取大小信息（總大小和檔案數量）
    */
   public static async getCacheSize(): Promise<{ totalSizeBytes: number; totalSizeMB: string; fileCount: number }> {
     const startTime = LoggerService.apiStart('ImageGenerationService', 'getCacheSize', {});
     
     try {
-      // 確保緩存目錄存在
+      // 確保快取目錄存在
       await this.initCacheDir();
       
       // 讀取目錄中的所有檔案
@@ -438,7 +438,7 @@ export class ImageGenerationService {
             fileCount++;
           }
         } catch (e) {
-          await LoggerService.error(`無法讀取緩存檔案 ${file} 的信息`, e);
+          await LoggerService.error(`無法讀取快取檔案 ${file} 的信息`, e);
         }
       }
       
@@ -454,21 +454,21 @@ export class ImageGenerationService {
       
       return result;
     } catch (error) {
-      console.error('獲取緩存大小失敗:', error);
+      console.error('獲取快取大小失敗:', error);
       await LoggerService.apiError('ImageGenerationService', 'getCacheSize', {}, error, startTime);
       throw error;
     }
   }
 
   /**
-   * 清除圖片緩存
+   * 清除圖片快取
    * @returns 清除結果
    */
   public static async clearCache(): Promise<{ success: boolean; deletedCount: number }> {
     const startTime = LoggerService.apiStart('ImageGenerationService', 'clearCache', {});
     
     try {
-      // 確保緩存目錄存在
+      // 確保快取目錄存在
       await this.initCacheDir();
       
       // 讀取目錄中的所有檔案
@@ -486,7 +486,7 @@ export class ImageGenerationService {
             deletedCount++;
           }
         } catch (e) {
-          await LoggerService.error(`無法刪除緩存檔案 ${file}`, e);
+          await LoggerService.error(`無法刪除快取檔案 ${file}`, e);
         }
       }
       
@@ -506,7 +506,7 @@ export class ImageGenerationService {
       
       return result;
     } catch (error) {
-      console.error('清除緩存失敗:', error);
+      console.error('清除快取失敗:', error);
       await LoggerService.apiError('ImageGenerationService', 'clearCache', {}, error, startTime);
       
       return {
@@ -517,7 +517,7 @@ export class ImageGenerationService {
   }
 
   /**
-   * 從緩存獲取圖片
+   * 從快取獲取圖片
    * @param songId 歌曲ID
    * @returns 本地圖片路徑 或 null
    */
@@ -566,7 +566,7 @@ export class ImageGenerationService {
       );
       return null;
     } catch (error) {
-      console.error('從緩存獲取圖片失敗:', error);
+      console.error('從快取獲取圖片失敗:', error);
       await LoggerService.apiError('ImageGenerationService', 'getImageFromCache', 
         { songId }, 
         error, 

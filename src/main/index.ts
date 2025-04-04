@@ -153,17 +153,17 @@ app.whenReady().then(async () => {
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
     (async () => {
-      // 檢查緩存目錄是否存在並記錄
+      // 檢查快取目錄是否存在並記錄
       const userDataPath = app.getPath('userData');
       const cachePath = path.join(userDataPath, 'app_cache');
       try {
         await fsPromises.access(cachePath);
-        console.log(`退出前緩存目錄存在：${cachePath}`);
-        // 列出緩存目錄中的內容
+        console.log(`退出前快取目錄存在：${cachePath}`);
+        // 列出快取目錄中的內容
         const entries = await fsPromises.readdir(cachePath, { withFileTypes: true });
-        console.log(`緩存目錄內容：${entries.map(entry => `${entry.name}${entry.isDirectory() ? '/' : ''}`).join(', ')}`);
+        console.log(`快取目錄內容：${entries.map(entry => `${entry.name}${entry.isDirectory() ? '/' : ''}`).join(', ')}`);
       } catch (e: any) {
-        console.log(`退出前緩存目錄不存在：${cachePath}`);
+        console.log(`退出前快取目錄不存在：${cachePath}`);
       }
       
       await LoggerService.info('所有窗口已關閉，應用退出');
@@ -175,14 +175,14 @@ app.on('window-all-closed', () => {
 // 應用退出時關閉數據庫連接
 app.on('quit', () => {
   (async () => {
-    // 檢查緩存目錄是否存在並記錄
+    // 檢查快取目錄是否存在並記錄
     const userDataPath = app.getPath('userData');
     const cachePath = path.join(userDataPath, 'cache');
     try {
       await fsPromises.access(cachePath);
-      console.log(`quit事件中緩存目錄存在：${cachePath}`);
+      console.log(`quit事件中快取目錄存在：${cachePath}`);
     } catch (e: any) {
-      console.log(`quit事件中緩存目錄不存在：${cachePath}`);
+      console.log(`quit事件中快取目錄不存在：${cachePath}`);
     }
     
     await LoggerService.info('應用退出，關閉數據庫連接');
@@ -193,14 +193,14 @@ app.on('quit', () => {
 // 添加將被銷毀前的檢查
 app.on('will-quit', () => {
   (async () => {
-    // 檢查緩存目錄是否存在並記錄
+    // 檢查快取目錄是否存在並記錄
     const userDataPath = app.getPath('userData');
     const cachePath = path.join(userDataPath, 'cache');
     try {
       await fsPromises.access(cachePath);
-      console.log(`will-quit事件中緩存目錄存在：${cachePath}`);
+      console.log(`will-quit事件中快取目錄存在：${cachePath}`);
     } catch (e: any) {
-      console.log(`will-quit事件中緩存目錄不存在：${cachePath}`);
+      console.log(`will-quit事件中快取目錄不存在：${cachePath}`);
     }
   })();
 });
@@ -371,21 +371,21 @@ function setupIpcHandlers() {
     }
   });
   
-  // 更新歌詞緩存
+  // 更新歌詞快取
   ipcMain.handle('update-lyrics-cache', async (_event, title, artist, lyrics, source) => {
     try {
       const startTime = LoggerService.apiStart('IPC', 'update-lyrics-cache', { title });
-      mainWindow?.webContents.send('progress-update', 10, '正在更新歌詞緩存...');
+      mainWindow?.webContents.send('progress-update', 10, '正在更新歌詞快取...');
       
       const result = await LyricsSearchService.updateLyricsCache(title, artist, lyrics, source);
       
-      mainWindow?.webContents.send('progress-update', 100, '歌詞緩存更新完成');
+      mainWindow?.webContents.send('progress-update', 100, '歌詞快取更新完成');
       await LoggerService.apiSuccess('IPC', 'update-lyrics-cache', { title }, { success: result }, startTime);
       
       return result;
     } catch (error) {
-      console.error('更新歌詞緩存失敗:', error);
-      mainWindow?.webContents.send('progress-update', 0, '更新歌詞緩存失敗');
+      console.error('更新歌詞快取失敗:', error);
+      mainWindow?.webContents.send('progress-update', 0, '更新歌詞快取失敗');
       await LoggerService.apiError('IPC', 'update-lyrics-cache', { title }, error, Date.now());
       throw error;
     }
@@ -639,10 +639,10 @@ function setupIpcHandlers() {
     }
   });
   
-  // 獲取緩存大小
+  // 獲取快取大小
   ipcMain.handle('get-cache-size', async () => {
     try {
-      // 獲取各個緩存的大小
+      // 獲取各個快取的大小
       const imgCacheSize = await ImageGenerationService.getCacheSize();
       const slidesCacheSize = await SlideGenerationService.getCacheSize();
       const lyricsCacheSize = await LyricsSearchService.getCacheSize();
@@ -662,22 +662,22 @@ function setupIpcHandlers() {
         lyrics: lyricsCacheSize
       };
     } catch (error) {
-      console.error('獲取緩存大小失敗:', error);
+      console.error('獲取快取大小失敗:', error);
       throw error;
     }
   });
   
-  // 清除緩存
+  // 清除快取
   ipcMain.handle('clear-cache', async () => {
     try {
-      mainWindow?.webContents.send('progress-update', 10, '正在清除緩存...');
+      mainWindow?.webContents.send('progress-update', 10, '正在清除快取...');
       
-      // 清除各個緩存
+      // 清除各個快取
       const imgCacheResult = await ImageGenerationService.clearCache();
       const slidesCacheResult = await SlideGenerationService.clearCache();
       const lyricsCacheResult = await LyricsSearchService.clearCache();
       
-      mainWindow?.webContents.send('progress-update', 100, '緩存清除完成');
+      mainWindow?.webContents.send('progress-update', 100, '快取清除完成');
       
       // 組合結果
       return {
@@ -687,8 +687,8 @@ function setupIpcHandlers() {
         deletedLyrics: lyricsCacheResult.deletedCount
       };
     } catch (error) {
-      console.error('清除緩存失敗:', error);
-      mainWindow?.webContents.send('progress-update', 0, '清除緩存失敗');
+      console.error('清除快取失敗:', error);
+      mainWindow?.webContents.send('progress-update', 0, '清除快取失敗');
       throw error;
     }
   });
@@ -706,7 +706,7 @@ async function initAppDirectories() {
   
   // 需要確保存在的目錄列表
   const directories = [
-    // 緩存目錄 - 使用 app_cache 而非 cache 以避免與 Electron 內部緩存機制衝突
+    // 快取目錄 - 使用 app_cache 而非 cache 以避免與 Electron 內部快取機制衝突
     path.join(userDataPath, 'app_cache'),
     path.join(userDataPath, 'app_cache', 'images'),
     path.join(userDataPath, 'app_cache', 'slides'),

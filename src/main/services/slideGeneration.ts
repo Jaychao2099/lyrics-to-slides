@@ -16,11 +16,11 @@ import { LoggerService } from './logger';
 export class SlideGenerationService {
   // OpenAI 實例
   private static openai: OpenAI | null = null;
-  // 投影片緩存目錄
+  // 投影片快取目錄
   private static slidesCacheDir = path.join(app.getPath('userData'), 'app_cache', 'slides');
 
   /**
-   * 初始化緩存目錄
+   * 初始化快取目錄
    */
   private static async initCacheDir(): Promise<void> {
     try {
@@ -31,11 +31,11 @@ export class SlideGenerationService {
       } catch (e) {
         // 目錄不存在，創建它
         await fs.mkdir(this.slidesCacheDir, { recursive: true });
-        console.log(`投影片緩存目錄創建成功: ${this.slidesCacheDir}`);
+        console.log(`投影片快取目錄創建成功: ${this.slidesCacheDir}`);
       }
     } catch (error) {
-      console.error('建立投影片緩存目錄失敗:', error);
-      await LoggerService.error('建立投影片緩存目錄失敗', error);
+      console.error('建立投影片快取目錄失敗:', error);
+      await LoggerService.error('建立投影片快取目錄失敗', error);
     }
   }
 
@@ -75,10 +75,10 @@ export class SlideGenerationService {
   ): Promise<string> {
     const startTime = LoggerService.apiStart('SlideGenerationService', 'generateSlides', { songId, songTitle, artist, lyricsLength: lyrics?.length });
     try {
-      // 確保緩存目錄存在
+      // 確保快取目錄存在
       await this.initCacheDir();
 
-      // 檢查緩存中是否已有此歌曲的投影片內容
+      // 檢查快取中是否已有此歌曲的投影片內容
       const cachedSlides = await this.getSlidesFromCache(songId);
       if (cachedSlides) {
         return cachedSlides;
@@ -218,7 +218,7 @@ style: |
       // 修復圖片路徑
       const fixedSlidesContent = this.fixImagePathsInSlides(slidesContent);
 
-      // 儲存投影片內容到緩存
+      // 儲存投影片內容到快取
       await this.saveSlidesToCache(songId, fixedSlidesContent);
       
       // 更新歌曲記錄
@@ -246,7 +246,7 @@ style: |
   }
 
   /**
-   * 將投影片內容保存到緩存
+   * 將投影片內容保存到快取
    * @param songId 歌曲ID
    * @param slidesContent Marp格式的投影片內容
    */
@@ -255,7 +255,7 @@ style: |
       const filePath = path.join(this.slidesCacheDir, `${songId}.md`);
       await fs.writeFile(filePath, slidesContent, 'utf-8');
     } catch (error) {
-      console.error('保存投影片到緩存失敗:', error);
+      console.error('保存投影片到快取失敗:', error);
       throw error;
     }
   }
@@ -282,7 +282,7 @@ style: |
   }
 
   /**
-   * 從緩存獲取投影片內容
+   * 從快取獲取投影片內容
    * @param songId 歌曲ID
    * @returns Marp格式的投影片內容 或 null
    */
@@ -302,7 +302,7 @@ style: |
         return null;
       }
     } catch (error) {
-      console.error('從緩存獲取投影片失敗:', error);
+      console.error('從快取獲取投影片失敗:', error);
       return null;
     }
   }
@@ -317,7 +317,7 @@ style: |
       // 修復圖片路徑
       const fixedSlidesContent = this.fixImagePathsInSlides(slidesContent);
       
-      // 更新緩存中的投影片內容
+      // 更新快取中的投影片內容
       await this.saveSlidesToCache(songId, fixedSlidesContent);
       
       // 更新歌曲記錄
@@ -340,14 +340,14 @@ style: |
   }
 
   /**
-   * 獲取緩存大小
-   * @returns 緩存大小信息（總大小和檔案數量）
+   * 獲取快取大小
+   * @returns 快取大小信息（總大小和檔案數量）
    */
   public static async getCacheSize(): Promise<{ totalSizeBytes: number; totalSizeMB: string; fileCount: number }> {
     const startTime = LoggerService.apiStart('SlideGenerationService', 'getCacheSize', {});
     
     try {
-      // 確保緩存目錄存在
+      // 確保快取目錄存在
       await this.initCacheDir();
       
       // 讀取目錄中的所有檔案
@@ -366,7 +366,7 @@ style: |
             fileCount++;
           }
         } catch (e) {
-          await LoggerService.error(`無法讀取緩存檔案 ${file} 的信息`, e);
+          await LoggerService.error(`無法讀取快取檔案 ${file} 的信息`, e);
         }
       }
       
@@ -382,21 +382,21 @@ style: |
       
       return result;
     } catch (error) {
-      console.error('獲取緩存大小失敗:', error);
+      console.error('獲取快取大小失敗:', error);
       await LoggerService.apiError('SlideGenerationService', 'getCacheSize', {}, error, startTime);
       throw error;
     }
   }
 
   /**
-   * 清除投影片緩存
+   * 清除投影片快取
    * @returns 清除結果
    */
   public static async clearCache(): Promise<{ success: boolean; deletedCount: number }> {
     const startTime = LoggerService.apiStart('SlideGenerationService', 'clearCache', {});
     
     try {
-      // 確保緩存目錄存在
+      // 確保快取目錄存在
       await this.initCacheDir();
       
       // 讀取目錄中的所有檔案
@@ -414,7 +414,7 @@ style: |
             deletedCount++;
           }
         } catch (e) {
-          await LoggerService.error(`無法刪除緩存檔案 ${file}`, e);
+          await LoggerService.error(`無法刪除快取檔案 ${file}`, e);
         }
       }
       
@@ -446,7 +446,7 @@ style: |
       
       return result;
     } catch (error) {
-      console.error('清除緩存失敗:', error);
+      console.error('清除快取失敗:', error);
       await LoggerService.apiError('SlideGenerationService', 'clearCache', {}, error, startTime);
       
       return {
