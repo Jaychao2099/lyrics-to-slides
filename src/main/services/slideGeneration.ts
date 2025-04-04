@@ -17,16 +17,25 @@ export class SlideGenerationService {
   // OpenAI 實例
   private static openai: OpenAI | null = null;
   // 投影片緩存目錄
-  private static slidesCacheDir = path.join(app.getPath('userData'), 'cache', 'slides');
+  private static slidesCacheDir = path.join(app.getPath('userData'), 'app_cache', 'slides');
 
   /**
    * 初始化緩存目錄
    */
   private static async initCacheDir(): Promise<void> {
     try {
-      await fs.mkdir(this.slidesCacheDir, { recursive: true });
+      try {
+        // 先檢查目錄是否存在
+        await fs.access(this.slidesCacheDir);
+        // 目錄已存在，無需創建
+      } catch (e) {
+        // 目錄不存在，創建它
+        await fs.mkdir(this.slidesCacheDir, { recursive: true });
+        console.log(`投影片緩存目錄創建成功: ${this.slidesCacheDir}`);
+      }
     } catch (error) {
       console.error('建立投影片緩存目錄失敗:', error);
+      await LoggerService.error('建立投影片緩存目錄失敗', error);
     }
   }
 

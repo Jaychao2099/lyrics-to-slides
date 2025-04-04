@@ -16,7 +16,7 @@ import { LoggerService } from './logger';
  */
 export class ImageGenerationService {
   // 緩存目錄
-  private static imageCacheDir = path.join(app.getPath('userData'), 'cache', 'images');
+  private static imageCacheDir = path.join(app.getPath('userData'), 'app_cache', 'images');
   // OpenAI 實例
   private static openai: OpenAI | null = null;
 
@@ -25,7 +25,15 @@ export class ImageGenerationService {
    */
   private static async initCacheDir(): Promise<void> {
     try {
-      await fs.mkdir(this.imageCacheDir, { recursive: true });
+      try {
+        // 先檢查目錄是否存在
+        await fs.access(this.imageCacheDir);
+        // 目錄已存在，無需創建
+      } catch (e) {
+        // 目錄不存在，創建它
+        await fs.mkdir(this.imageCacheDir, { recursive: true });
+        console.log(`圖片緩存目錄創建成功: ${this.imageCacheDir}`);
+      }
     } catch (error) {
       console.error('建立圖片緩存目錄失敗:', error);
       await LoggerService.error('建立圖片緩存目錄失敗', error);

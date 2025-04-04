@@ -101,21 +101,20 @@ async function cleanAllExistingLyrics() {
 // 應用程序準備就緒時創建窗口
 app.whenReady().then(async () => {
   try {
+    const userDataPath = app.getPath('userData');
+    console.log(`應用數據目錄位置：${userDataPath}`);
+    
+    // 列出應用數據目錄內容（如果存在）
+    try {
+      const entries = await fsPromises.readdir(userDataPath, { withFileTypes: true });
+      console.log(`應用數據目錄內容：${entries.map(entry => `${entry.name}${entry.isDirectory() ? '/' : ''}`).join(', ')}`);
+    } catch (e: any) {
+      console.log(`無法讀取應用數據目錄：${e.message}`);
+    }
+    
     // 初始化應用目錄結構
     await initAppDirectories();
     
-    // 初始化日誌服務
-    await LoggerService.info('應用程序啟動');
-    
-    // 創建主窗口
-    createWindow();
-    
-    // 設置IPC處理程序
-    setupIpcHandlers();
-    
-    // 清理所有現有歌詞數據
-    await cleanAllExistingLyrics();
-
     // 初始化日誌服務
     await LoggerService.info('應用程序啟動');
     
@@ -127,8 +126,17 @@ app.whenReady().then(async () => {
     setupIpcHandlers();
     await LoggerService.info('IPC 處理器設置完成');
     
+    // 創建主窗口
     createWindow();
     await LoggerService.info('主窗口創建完成');
+    
+    // 清理所有現有歌詞數據
+    try {
+      await cleanAllExistingLyrics();
+    } catch (error: any) {
+      console.error('清理歌詞數據失敗:', error);
+      await LoggerService.error('清理歌詞數據失敗', error);
+    }
 
     // 在 macOS 中，當點擊 dock 圖標且沒有其他窗口打開時，通常會重新創建一個窗口
     app.on('activate', () => {
@@ -144,17 +152,57 @@ app.whenReady().then(async () => {
 // 當所有窗口關閉時退出應用，除了在 macOS 中
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
-    LoggerService.info('所有窗口已關閉，應用退出').then(() => {
+    (async () => {
+      // 檢查緩存目錄是否存在並記錄
+      const userDataPath = app.getPath('userData');
+      const cachePath = path.join(userDataPath, 'app_cache');
+      try {
+        await fsPromises.access(cachePath);
+        console.log(`退出前緩存目錄存在：${cachePath}`);
+        // 列出緩存目錄中的內容
+        const entries = await fsPromises.readdir(cachePath, { withFileTypes: true });
+        console.log(`緩存目錄內容：${entries.map(entry => `${entry.name}${entry.isDirectory() ? '/' : ''}`).join(', ')}`);
+      } catch (e: any) {
+        console.log(`退出前緩存目錄不存在：${cachePath}`);
+      }
+      
+      await LoggerService.info('所有窗口已關閉，應用退出');
       app.quit();
-    });
+    })();
   }
 });
 
 // 應用退出時關閉數據庫連接
 app.on('quit', () => {
-  LoggerService.info('應用退出，關閉數據庫連接').then(() => {
+  (async () => {
+    // 檢查緩存目錄是否存在並記錄
+    const userDataPath = app.getPath('userData');
+    const cachePath = path.join(userDataPath, 'cache');
+    try {
+      await fsPromises.access(cachePath);
+      console.log(`quit事件中緩存目錄存在：${cachePath}`);
+    } catch (e: any) {
+      console.log(`quit事件中緩存目錄不存在：${cachePath}`);
+    }
+    
+    await LoggerService.info('應用退出，關閉數據庫連接');
     DatabaseService.close();
-  });
+  })();
+});
+
+// 添加將被銷毀前的檢查
+app.on('will-quit', () => {
+  (async () => {
+    // 檢查緩存目錄是否存在並記錄
+    const userDataPath = app.getPath('userData');
+    const cachePath = path.join(userDataPath, 'cache');
+    try {
+      await fsPromises.access(cachePath);
+      console.log(`will-quit事件中緩存目錄存在：${cachePath}`);
+    } catch (e: any) {
+      console.log(`will-quit事件中緩存目錄不存在：${cachePath}`);
+    }
+  })();
 });
 
 // 設置 IPC 處理器
@@ -647,31 +695,38 @@ async function initAppDirectories() {
     console.error('記錄初始化開始訊息失敗:', error);
   }
   
-  // 需要創建的目錄列表
+  // 需要確保存在的目錄列表
   const directories = [
-    // 緩存目錄
-    path.join(userDataPath, 'cache'),
-    path.join(userDataPath, 'cache', 'images'),
-    path.join(userDataPath, 'cache', 'slides'),
-    path.join(userDataPath, 'cache', 'lyrics'),
+    // 緩存目錄 - 使用 app_cache 而非 cache 以避免與 Electron 內部緩存機制衝突
+    path.join(userDataPath, 'app_cache'),
+    path.join(userDataPath, 'app_cache', 'images'),
+    path.join(userDataPath, 'app_cache', 'slides'),
+    path.join(userDataPath, 'app_cache', 'lyrics'),
     // 日誌目錄
     path.join(userDataPath, 'logs'),
     // 導出文件目錄
     path.join(userDataPath, 'exports')
   ];
   
-  // 創建所有目錄
+  // 檢查並創建所有目錄
   for (const dir of directories) {
     try {
-      await fsPromises.mkdir(dir, { recursive: true });
-      console.log(`目錄創建成功: ${dir}`);
+      // 先檢查目錄是否存在
+      try {
+        await fsPromises.access(dir);
+        console.log(`目錄已存在: ${dir}`);
+      } catch (e) {
+        // 目錄不存在，創建它
+        await fsPromises.mkdir(dir, { recursive: true });
+        console.log(`目錄創建成功: ${dir}`);
+      }
     } catch (error) {
-      console.error(`無法創建目錄 ${dir}:`, error);
+      console.error(`無法創建或訪問目錄 ${dir}:`, error);
     }
   }
   
   try {
-    await LoggerService.info(`初始化應用目錄結構完成，創建了 ${directories.length} 個目錄`);
+    await LoggerService.info(`初始化應用目錄結構完成，確保了 ${directories.length} 個目錄存在`);
   } catch (error) {
     console.error('記錄初始化完成訊息失敗:', error);
   }

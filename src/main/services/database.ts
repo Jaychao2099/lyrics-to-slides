@@ -79,138 +79,208 @@ export const DatabaseService = {
 
   // 獲取所有歌曲
   getSongs(): Song[] {
-    const stmt = db.prepare(`
-      SELECT 
-        id, 
-        title, 
-        artist, 
-        lyrics, 
-        image_url as imageUrl, 
-        slide_content as slideContent, 
-        created_at as createdAt, 
-        updated_at as updatedAt 
-      FROM songs 
-      ORDER BY updated_at DESC
-    `);
-    return stmt.all() as Song[];
+    // 確保數據庫已初始化
+    if (!db) {
+      this.init();
+    }
+    
+    try {
+      const stmt = db.prepare(`
+        SELECT 
+          id, 
+          title, 
+          artist, 
+          lyrics, 
+          image_url as imageUrl, 
+          slide_content as slideContent, 
+          created_at as createdAt, 
+          updated_at as updatedAt 
+        FROM songs 
+        ORDER BY updated_at DESC
+      `);
+      return stmt.all() as Song[];
+    } catch (error) {
+      console.error('獲取所有歌曲失敗:', error);
+      return [];
+    }
   },
 
   // 獲取單首歌曲
   getSongById(id: number): Song | null {
-    const stmt = db.prepare(`
-      SELECT 
-        id, 
-        title, 
-        artist, 
-        lyrics, 
-        image_url as imageUrl, 
-        slide_content as slideContent, 
-        created_at as createdAt, 
-        updated_at as updatedAt 
-      FROM songs 
-      WHERE id = ?
-    `);
-    return stmt.get(id) as Song | null;
+    // 確保數據庫已初始化
+    if (!db) {
+      this.init();
+    }
+    
+    try {
+      const stmt = db.prepare(`
+        SELECT 
+          id, 
+          title, 
+          artist, 
+          lyrics, 
+          image_url as imageUrl, 
+          slide_content as slideContent, 
+          created_at as createdAt, 
+          updated_at as updatedAt 
+        FROM songs 
+        WHERE id = ?
+      `);
+      return stmt.get(id) as Song | null;
+    } catch (error) {
+      console.error('獲取單首歌曲失敗:', error);
+      return null;
+    }
   },
 
   // 搜索歌曲
   searchSongs(query: string): Song[] {
-    const stmt = db.prepare(`
-      SELECT 
-        id, 
-        title, 
-        artist, 
-        lyrics, 
-        image_url as imageUrl, 
-        slide_content as slideContent, 
-        created_at as createdAt, 
-        updated_at as updatedAt 
-      FROM songs 
-      WHERE title LIKE ? OR artist LIKE ?
-      ORDER BY updated_at DESC
-    `);
-    return stmt.all(`%${query}%`, `%${query}%`) as Song[];
+    // 確保數據庫已初始化
+    if (!db) {
+      this.init();
+    }
+    
+    try {
+      const stmt = db.prepare(`
+        SELECT 
+          id, 
+          title, 
+          artist, 
+          lyrics, 
+          image_url as imageUrl, 
+          slide_content as slideContent, 
+          created_at as createdAt, 
+          updated_at as updatedAt 
+        FROM songs 
+        WHERE title LIKE ? OR artist LIKE ?
+        ORDER BY updated_at DESC
+      `);
+      return stmt.all(`%${query}%`, `%${query}%`) as Song[];
+    } catch (error) {
+      console.error('搜索歌曲失敗:', error);
+      return [];
+    }
   },
 
   // 按確切標題搜索歌曲 - 用於找出所有同名歌曲
   searchSongsByExactTitle(title: string): Song[] {
-    const stmt = db.prepare(`
-      SELECT 
-        id, 
-        title, 
-        artist, 
-        lyrics, 
-        image_url as imageUrl, 
-        slide_content as slideContent, 
-        created_at as createdAt, 
-        updated_at as updatedAt 
-      FROM songs 
-      WHERE title = ?
-      ORDER BY updated_at DESC
-    `);
-    return stmt.all(title) as Song[];
+    // 確保數據庫已初始化
+    if (!db) {
+      this.init();
+    }
+    
+    try {
+      const stmt = db.prepare(`
+        SELECT 
+          id, 
+          title, 
+          artist, 
+          lyrics, 
+          image_url as imageUrl, 
+          slide_content as slideContent, 
+          created_at as createdAt, 
+          updated_at as updatedAt 
+        FROM songs 
+        WHERE title = ?
+        ORDER BY updated_at DESC
+      `);
+      return stmt.all(title) as Song[];
+    } catch (error) {
+      console.error('按確切標題搜索歌曲失敗:', error);
+      return [];
+    }
   },
 
   // 新增歌曲
   addSong(song: Omit<Song, 'id' | 'createdAt' | 'updatedAt'>): number {
-    const now = new Date().toISOString();
-    const stmt = db.prepare(`
-      INSERT INTO songs (
-        title, 
-        artist, 
-        lyrics, 
-        image_url, 
-        slide_content, 
-        created_at, 
-        updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?)
-    `);
-    const result = stmt.run(
-      song.title,
-      song.artist || '',
-      song.lyrics || '',
-      song.imageUrl || '',
-      song.slideContent || '',
-      now,
-      now
-    );
-    return result.lastInsertRowid as number;
+    // 確保數據庫已初始化
+    if (!db) {
+      this.init();
+    }
+    
+    try {
+      const now = new Date().toISOString();
+      const stmt = db.prepare(`
+        INSERT INTO songs (
+          title, 
+          artist, 
+          lyrics, 
+          image_url, 
+          slide_content, 
+          created_at, 
+          updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?)
+      `);
+      const result = stmt.run(
+        song.title,
+        song.artist || '',
+        song.lyrics || '',
+        song.imageUrl || '',
+        song.slideContent || '',
+        now,
+        now
+      );
+      return result.lastInsertRowid as number;
+    } catch (error) {
+      console.error('新增歌曲失敗:', error);
+      return -1;
+    }
   },
 
   // 更新歌曲
   updateSong(id: number, song: Partial<Song>): boolean {
-    const existingSong = this.getSongById(id);
-    if (!existingSong) return false;
-
-    const now = new Date().toISOString();
-    const stmt = db.prepare(`
-      UPDATE songs SET
-        title = ?,
-        artist = ?,
-        lyrics = ?,
-        image_url = ?,
-        slide_content = ?,
-        updated_at = ?
-      WHERE id = ?
-    `);
+    // 確保數據庫已初始化
+    if (!db) {
+      this.init();
+    }
     
-    const result = stmt.run(
-      song.title || existingSong.title,
-      song.artist || existingSong.artist,
-      song.lyrics || existingSong.lyrics,
-      song.imageUrl || existingSong.imageUrl || '',
-      song.slideContent || existingSong.slideContent || '',
-      now,
-      id
-    );
-    
-    return result.changes > 0;
+    try {
+      const existingSong = this.getSongById(id);
+      if (!existingSong) return false;
+  
+      const now = new Date().toISOString();
+      const stmt = db.prepare(`
+        UPDATE songs SET
+          title = ?,
+          artist = ?,
+          lyrics = ?,
+          image_url = ?,
+          slide_content = ?,
+          updated_at = ?
+        WHERE id = ?
+      `);
+      
+      const result = stmt.run(
+        song.title || existingSong.title,
+        song.artist || existingSong.artist,
+        song.lyrics || existingSong.lyrics,
+        song.imageUrl || existingSong.imageUrl || '',
+        song.slideContent || existingSong.slideContent || '',
+        now,
+        id
+      );
+      
+      return result.changes > 0;
+    } catch (error) {
+      console.error('更新歌曲失敗:', error);
+      return false;
+    }
   },
 
   // 刪除歌曲
   deleteSong(id: number): boolean {
-    const stmt = db.prepare('DELETE FROM songs WHERE id = ?');
-    const result = stmt.run(id);
-    return result.changes > 0;
+    // 確保數據庫已初始化
+    if (!db) {
+      this.init();
+    }
+    
+    try {
+      const stmt = db.prepare('DELETE FROM songs WHERE id = ?');
+      const result = stmt.run(id);
+      return result.changes > 0;
+    } catch (error) {
+      console.error('刪除歌曲失敗:', error);
+      return false;
+    }
   }
 }; 
