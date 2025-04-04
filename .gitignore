@@ -30,6 +30,7 @@ Desktop.ini
 # 編輯器配置
 .idea/
 .vscode/
+.cursor/
 *.swp
 *.swo
 .vs/
