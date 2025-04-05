@@ -50,6 +50,7 @@ Desktop.ini
 .stylelintcache
 
 # 測試相關
+test-slide/
 /coverage/
 /.nyc_output/
 /test-results/
