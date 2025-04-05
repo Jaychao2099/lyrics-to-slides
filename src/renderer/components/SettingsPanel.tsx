@@ -264,7 +264,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ settings, onSave, onCance
     setFormData(prevData => ({
       ...prevData,
       imagePromptTemplate: defaultSettings.imagePromptTemplate,
-      slidesPromptTemplate: defaultSettings.slidesPromptTemplate,
+      customMarpHeader: defaultSettings.customMarpHeader,
     }));
     
     setSnackbarMessage('已恢復提示詞模板預設值');
@@ -470,17 +470,17 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ settings, onSave, onCance
           
           <Box>
             <Typography variant="h6" gutterBottom>
-              投影片生成提示詞
+              Marp標頭文本
             </Typography>
             <TextField
               fullWidth
-              label="投影片生成提示詞"
-              value={formData.slidesPromptTemplate}
-              onChange={(e) => handleChange('slidesPromptTemplate', e.target.value)}
+              label="Marp標頭文本"
+              value={formData.customMarpHeader}
+              onChange={(e) => handleChange('customMarpHeader', e.target.value)}
               margin="normal"
               multiline
-              rows={4}
-              helperText="可使用 {{lyrics}} 和 {{imageUrl}} 變數"
+              rows={8}
+              helperText="自定義Marp投影片格式的標頭文本，影響全局投影片樣式"
             />
           </Box>
           
