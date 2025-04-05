@@ -34,8 +34,7 @@ style: |
     font-weight:900;
     -webkit-text-stroke: 2px white;
   }
-
----`;
+`;
 
     return customHeader || defaultHeader;
   }

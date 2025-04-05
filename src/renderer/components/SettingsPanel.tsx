@@ -443,7 +443,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ settings, onSave, onCance
               }}
             />
             <FormHelperText>
-              請從 OpenAI 官網獲取 API 密鑰以啟用圖片生成和投影片生成功能
+              請從 OpenAI 官網獲取 API 密鑰以啟用圖片生成功能
             </FormHelperText>
           </Box>
         </Box>
