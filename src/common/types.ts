@@ -11,7 +11,6 @@ export interface Settings {
 
   // 提示詞模板
   imagePromptTemplate: string;
-  slidesPromptTemplate: string;
   customMarpHeader: string; // 新增: 自定義 Marp 標頭
 
   // 界面設定
@@ -99,6 +98,7 @@ export interface ElectronAPI {
   saveSettings: (settings: Settings) => Promise<void>;
   selectDirectory: () => Promise<string>;
   getSongs: () => Promise<Song[]>;
+  getSongById: (songId: number) => Promise<Song | null>;
   updateLyricsCache: (title: string, artist: string, lyrics: string, source: string) => Promise<{success: boolean, songId: number}>;
   addNewSong: (title: string, artist: string, lyrics: string, source: string) => Promise<number>;
   openFile: (filePath: string) => Promise<boolean>;
@@ -109,6 +109,10 @@ export interface ElectronAPI {
   // 新增的功能 - 本地圖片匯入
   selectLocalImage: () => Promise<string>;
   importLocalImage: (songId: number, localImagePath: string) => Promise<{songId: number, imagePath: string}>;
+  // 新增：保存歌曲詳情
+  saveSongDetails: (songId: number, songDetails: { title: string, artist?: string, lyrics?: string, imageUrl?: string }) => Promise<{success: boolean}>;
+  // 新增：獲取臨時目錄路徑
+  getTempPath: () => Promise<string>;
   // 新增的功能 - 快取管理
   getCacheSize: () => Promise<{
     totalSize: { totalSizeBytes: number; totalSizeMB: string };
@@ -149,6 +153,7 @@ export interface ElectronAPI {
   removeSongFromSlideSet: (slideSetId: number, songId: number) => Promise<boolean>;
   updateSongOrderInSlideSet: (slideSetId: number, songId: number, newOrder: number) => Promise<boolean>;
   deleteSlideSet: (slideSetId: number) => Promise<boolean>;
+  updateSlideSetName: (slideSetId: number, newName: string) => Promise<boolean>;
   
   // 批次處理
   generateBatchSlides: (slideSetId: number) => Promise<string>;

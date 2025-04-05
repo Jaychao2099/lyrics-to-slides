@@ -16,7 +16,13 @@ import {
   Grid,
   Snackbar,
   Tabs,
-  Tab
+  Tab,
+  TextField,
+  DialogActions,
+  DialogContent,
+  DialogContentText,
+  DialogTitle,
+  Dialog
 } from '@mui/material';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import ArrowForwardIcon from '@mui/icons-material/ArrowForward';
@@ -25,6 +31,7 @@ import CloudDownloadIcon from '@mui/icons-material/CloudDownload';
 import FullscreenIcon from '@mui/icons-material/Fullscreen';
 import CodeIcon from '@mui/icons-material/Code';
 import RefreshIcon from '@mui/icons-material/Refresh';
+import SaveIcon from '@mui/icons-material/Save';
 import { Song } from '../../common/types';
 
 interface SlideData {
@@ -42,6 +49,7 @@ const SlidePreview: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [slideContent, setSlideContent] = useState<string>('');
+  const [editedSlideContent, setEditedSlideContent] = useState<string>('');
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [currentSlide, setCurrentSlide] = useState<number>(1);
   const [totalSlides, setTotalSlides] = useState<number>(0);
@@ -49,6 +57,8 @@ const SlidePreview: React.FC = () => {
   const [showMarkdown, setShowMarkdown] = useState<boolean>(false);
   const [snackbarOpen, setSnackbarOpen] = useState(false);
   const [snackbarMessage, setSnackbarMessage] = useState('');
+  const [isEditing, setIsEditing] = useState<boolean>(false);
+  const [confirmDialogOpen, setConfirmDialogOpen] = useState<boolean>(false);
 
   // 載入歌曲和投影片數據
   useEffect(() => {
@@ -116,13 +126,16 @@ const SlidePreview: React.FC = () => {
       
       if (slideContent) {
         setSlideContent(slideContent);
+        setEditedSlideContent(slideContent);
         
         // 預覽投影片
         await window.electronAPI.previewSlides(slideContent);
         
         // 設置預覽 URL (由 previewSlides API 生成的臨時文件)
-        // 注意：這裡依賴於 previewSlides 函數在內部設置好臨時預覽文件
-        // 如果有單獨的 API 來獲取預覽 URL，應該使用那個
+        const tempDir = 'lyrics-slides-preview';
+        // 設置臨時 HTML 文件的路徑（需要與 main/index.ts 中的設定保持一致）
+        const previewPath = `file:///${window.electronAPI.getTempPath()}/${tempDir}/preview.html`;
+        setPreviewUrl(previewPath);
       } else {
         setError('無法獲取投影片內容');
       }
@@ -144,32 +157,43 @@ const SlidePreview: React.FC = () => {
       setLoading(true);
       setError(null);
       
-      // 強制重新生成投影片
-      // 正確的 API: generateSlides(songId, songTitle, artist, lyrics, imagePath)
-      // 先檢查是否有關聯圖片
-      const imageResult = await window.electronAPI.checkRelatedImage(songId);
-      const imagePath = imageResult.imagePath || '';
+      // --- 修改：先從後端獲取最新的歌曲資料 ---
+      const latestSongData = await window.electronAPI.getSongById(songId);
+      
+      if (!latestSongData) {
+        setError(`無法獲取歌曲 ID ${songId} 的最新資料`);
+        setLoading(false);
+        return;
+      }
+      
+      // 使用獲取到的最新資料來生成投影片
+      const { title, artist, lyrics, imageUrl } = latestSongData;
+      const imagePath = imageUrl || ''; // 確保 imagePath 是字串
       
       await window.electronAPI.generateSlides(
         songId, 
-        song?.title || '', 
-        song?.artist || '', // 這是 artist 參數
-        song?.lyrics || '', 
+        title, 
+        artist || '', 
+        lyrics || '', 
         imagePath
       );
+      
+      // --- 結束修改 ---
       
       // 重新獲取投影片內容和預覽 URL
       const slideContent = await window.electronAPI.getSlides(songId);
       
       if (slideContent) {
         setSlideContent(slideContent);
+        setEditedSlideContent(slideContent);
         
         // 預覽投影片
         await window.electronAPI.previewSlides(slideContent);
         
         // 設置預覽 URL (由 previewSlides API 生成的臨時文件)
-        // 注意：這裡依賴於 previewSlides 函數在內部設置好臨時預覽文件
-        // 如果有單獨的 API 來獲取預覽 URL，應該使用那個
+        const tempDir = 'lyrics-slides-preview';
+        const previewPath = `file:///${await window.electronAPI.getTempPath()}/${tempDir}/preview.html`;
+        setPreviewUrl(previewPath);
       } else {
         setError('無法獲取投影片內容');
         return;
@@ -229,11 +253,6 @@ const SlidePreview: React.FC = () => {
     navigate(`/export/${songId}`);
   };
 
-  // 返回首頁
-  const handleBack = () => {
-    navigate('/');
-  };
-
   // 切換標簽頁
   const handleTabChange = (event: React.SyntheticEvent, newValue: number) => {
     setTabValue(newValue);
@@ -247,6 +266,77 @@ const SlidePreview: React.FC = () => {
   // 關閉提示訊息
   const handleSnackbarClose = () => {
     setSnackbarOpen(false);
+  };
+
+  // 新增：切換編輯模式
+  const handleToggleEdit = () => {
+    if (isEditing) {
+      // 如果當前是編輯模式，則詢問是否保存
+      if (editedSlideContent !== slideContent) {
+        setConfirmDialogOpen(true);
+      } else {
+        setIsEditing(false);
+      }
+    } else {
+      // 進入編輯模式
+      setEditedSlideContent(slideContent);
+      setIsEditing(true);
+      setShowMarkdown(true); // 確保源碼可見
+    }
+  };
+
+  // 新增：處理源碼編輯變更
+  const handleSlideContentChange = (event: React.ChangeEvent<HTMLTextAreaElement>) => {
+    setEditedSlideContent(event.target.value);
+  };
+
+  // 新增：儲存編輯後的源碼
+  const handleSaveSlideContent = async () => {
+    try {
+      setLoading(true);
+      
+      // 更新源碼，使用 saveSongSlideAssociation 而不是 saveSlideContent
+      await window.electronAPI.saveSongSlideAssociation(songId, editedSlideContent);
+      
+      // 更新當前顯示的源碼
+      setSlideContent(editedSlideContent);
+      
+      // 重新預覽
+      await window.electronAPI.previewSlides(editedSlideContent);
+      
+      // 設置預覽 URL (由 previewSlides API 生成的臨時文件)
+      const tempDir = 'lyrics-slides-preview';
+      const previewPath = `file:///${await window.electronAPI.getTempPath()}/${tempDir}/preview.html`;
+      setPreviewUrl(previewPath);
+      
+      // 重新計算總頁數
+      const slideCount = (editedSlideContent?.match(/^---$/gm) || []).length + 1;
+      setTotalSlides(slideCount);
+      
+      // 顯示成功訊息
+      setSnackbarMessage('投影片源碼已成功更新');
+      setSnackbarOpen(true);
+      
+      // 退出編輯模式
+      setIsEditing(false);
+      setLoading(false);
+    } catch (err: any) {
+      setError(`保存投影片源碼時發生錯誤: ${err.message}`);
+      setLoading(false);
+    }
+  };
+
+  // 新增：取消編輯
+  const handleCancelEdit = () => {
+    setEditedSlideContent(slideContent);
+    setIsEditing(false);
+    setConfirmDialogOpen(false);
+  };
+
+  // 新增：處理確認對話框的確認按鈕
+  const handleConfirmSave = async () => {
+    setConfirmDialogOpen(false);
+    await handleSaveSlideContent();
   };
 
   // 處理鍵盤控制
@@ -271,7 +361,7 @@ const SlidePreview: React.FC = () => {
     <Container maxWidth="lg" sx={{ mt: 4, mb: 4 }}>
       <Paper sx={{ p: 3 }}>
         <Box sx={{ display: 'flex', alignItems: 'center', mb: 3 }}>
-          <IconButton onClick={handleBack} sx={{ mr: 2 }}>
+          <IconButton onClick={handleEditLyrics} sx={{ mr: 2 }}>
             <ArrowBackIcon />
           </IconButton>
           <Typography variant="h5" sx={{ flexGrow: 1 }}>
@@ -387,14 +477,49 @@ const SlidePreview: React.FC = () => {
                       <Typography variant="h6">
                         投影片源代碼 (Marp Markdown)
                       </Typography>
-                      <Button
-                        variant="outlined"
-                        startIcon={<CodeIcon />}
-                        onClick={handleToggleMarkdown}
-                        size="small"
-                      >
-                        {showMarkdown ? '隱藏源代碼' : '顯示源代碼'}
-                      </Button>
+                      <Box>
+                        {isEditing ? (
+                          <>
+                            <Button
+                              variant="contained"
+                              color="primary"
+                              startIcon={<SaveIcon />}
+                              onClick={handleSaveSlideContent}
+                              size="small"
+                              sx={{ mr: 1 }}
+                            >
+                              保存
+                            </Button>
+                            <Button
+                              variant="outlined"
+                              onClick={handleCancelEdit}
+                              size="small"
+                            >
+                              取消
+                            </Button>
+                          </>
+                        ) : (
+                          <Button
+                            variant="outlined"
+                            startIcon={<EditIcon />}
+                            onClick={handleToggleEdit}
+                            size="small"
+                            sx={{ mr: 1 }}
+                          >
+                            編輯源碼
+                          </Button>
+                        )}
+                        {!isEditing && (
+                          <Button
+                            variant="outlined"
+                            startIcon={<CodeIcon />}
+                            onClick={handleToggleMarkdown}
+                            size="small"
+                          >
+                            {showMarkdown ? '隱藏源代碼' : '顯示源代碼'}
+                          </Button>
+                        )}
+                      </Box>
                     </Box>
                     
                     {showMarkdown && (
@@ -403,14 +528,36 @@ const SlidePreview: React.FC = () => {
                           p: 2,
                           bgcolor: '#f5f5f5',
                           borderRadius: 1,
-                          fontFamily: 'monospace',
-                          fontSize: '0.9rem',
-                          overflow: 'auto',
-                          maxHeight: '400px',
-                          whiteSpace: 'pre-wrap'
+                          mb: 2,
+                          maxHeight: isEditing ? 'none' : '400px',
+                          overflow: isEditing ? 'visible' : 'auto'
                         }}
                       >
-                        {slideContent || '無源代碼可顯示'}
+                        {isEditing ? (
+                          <TextField
+                            fullWidth
+                            multiline
+                            rows={15}
+                            variant="outlined"
+                            value={editedSlideContent}
+                            onChange={handleSlideContentChange}
+                            sx={{
+                              fontFamily: 'monospace',
+                              fontSize: '0.9rem',
+                              '& .MuiInputBase-root': { fontFamily: 'monospace' }
+                            }}
+                          />
+                        ) : (
+                          <Box 
+                            sx={{
+                              fontFamily: 'monospace',
+                              fontSize: '0.9rem',
+                              whiteSpace: 'pre-wrap'
+                            }}
+                          >
+                            {slideContent || '無源代碼可顯示'}
+                          </Box>
+                        )}
                       </Box>
                     )}
                     
@@ -440,13 +587,38 @@ const SlidePreview: React.FC = () => {
                 </Card>
                 
                 <Alert severity="info" sx={{ mb: 2 }}>
-                  提示：投影片是使用 Marp 格式生成的，您可以通過「匯出」功能導出為 PDF、PPTX 或其他格式。
+                  提示：投影片是使用 Marp 格式生成的，您可以通過「匯出」功能導出為 PDF、PPTX 或其他格式。您也可以直接編輯源碼來自定義投影片。
                 </Alert>
               </Box>
             )}
-            </Box>
+          </Box>
         )}
       </Paper>
+      
+      {/* 新增：確認對話框 */}
+      <Dialog
+        open={confirmDialogOpen}
+        onClose={() => setConfirmDialogOpen(false)}
+        aria-labelledby="alert-dialog-title"
+        aria-describedby="alert-dialog-description"
+      >
+        <DialogTitle id="alert-dialog-title">
+          確認保存修改
+        </DialogTitle>
+        <DialogContent>
+          <DialogContentText id="alert-dialog-description">
+            您已編輯投影片源碼，是否要保存這些更改？
+          </DialogContentText>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={handleCancelEdit} color="primary">
+            取消
+          </Button>
+          <Button onClick={handleConfirmSave} color="primary" autoFocus>
+            保存
+          </Button>
+        </DialogActions>
+      </Dialog>
       
       <Snackbar
         open={snackbarOpen}

@@ -90,7 +90,7 @@ const EditLyrics: React.FC = () => {
     loadSong();
   }, [songId]);
 
-  // 保存歌詞
+  // 保存歌詞 (現在改為保存歌曲詳情)
   const handleSave = async () => {
     if (!title.trim()) {
       setError('歌曲標題不能為空');
@@ -101,21 +101,28 @@ const EditLyrics: React.FC = () => {
       setSaving(true);
       setError(null);
       
-      // 更新歌詞快取
-      const result = await window.electronAPI.updateLyricsCache(
+      // 準備要保存的數據
+      const songDetails = {
         title,
         artist,
         lyrics,
-        '手動輸入' // 來源
-      );
+        imageUrl: imageUrl === null ? undefined : imageUrl, // 將 null 轉換為 undefined
+      };
+      
+      // 呼叫新的 IPC Handler 來保存完整的歌曲詳情
+      const result = await window.electronAPI.saveSongDetails(songId, songDetails);
       
       if (result && result.success) {
-        setSnackbarMessage('歌詞已成功保存');
+        setSnackbarMessage('歌曲詳情已成功保存');
         setSnackbarOpen(true);
+        // 可以選擇性地重新加載數據或更新狀態
+        // loadSong(); // 例如，重新載入以確認
+      } else {
+        throw new Error('後端保存失敗');
       }
       setSaving(false);
     } catch (err: any) {
-      setError(`保存歌詞時發生錯誤: ${err.message}`);
+      setError(`保存歌曲詳情時發生錯誤: ${err.message}`);
       setSaving(false);
     }
   };
@@ -136,9 +143,16 @@ const EditLyrics: React.FC = () => {
       }
       
       if (result && result.imagePath) {
+        // 自動保存圖片關聯
+        await window.electronAPI.saveSongImageAssociation(
+          result.songId || songId, 
+          result.imagePath
+        );
+        
+        // 更新界面
         setImageUrl(result.imagePath);
         setHasImage(true);
-        setSnackbarMessage('圖片已成功生成');
+        setSnackbarMessage('圖片已成功生成並關聯');
         setSnackbarOpen(true);
       }
       
@@ -167,9 +181,16 @@ const EditLyrics: React.FC = () => {
       const result = await window.electronAPI.importLocalImage(songId, localImagePath);
       
       if (result && result.imagePath) {
+        // 自動保存圖片關聯
+        await window.electronAPI.saveSongImageAssociation(
+          result.songId || songId, 
+          result.imagePath
+        );
+        
+        // 更新界面
         setImageUrl(result.imagePath);
         setHasImage(true);
-        setSnackbarMessage('本地圖片已成功匯入');
+        setSnackbarMessage('本地圖片已成功匯入並關聯');
         setSnackbarOpen(true);
       }
       
@@ -190,9 +211,9 @@ const EditLyrics: React.FC = () => {
     }
   };
 
-  // 返回首頁
-  const handleBack = () => {
-    navigate('/');
+  // 返回搜尋頁
+  const handleBackSearch = () => {
+    navigate('/search');
   };
 
   // 關閉提示訊息
@@ -204,7 +225,7 @@ const EditLyrics: React.FC = () => {
     <Container maxWidth="lg" sx={{ mt: 4, mb: 4 }}>
       <Paper sx={{ p: 3 }}>
         <Box sx={{ display: 'flex', alignItems: 'center', mb: 3 }}>
-          <IconButton onClick={handleBack} sx={{ mr: 2 }}>
+          <IconButton onClick={handleBackSearch} sx={{ mr: 2 }}>
             <ArrowBackIcon />
           </IconButton>
           <Typography variant="h5">

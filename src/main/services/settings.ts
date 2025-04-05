@@ -19,7 +19,6 @@ const defaultSettings: Settings = {
 
   // 提示詞模板
   imagePromptTemplate: 'Positive Prompt: A minimalist and abstract background inspired by the atmosphere of the song {{songTitle}}, designed for church worship slides. The image should fully capture the essence of the lyrics: {{lyrics}}, with a soft, monochromatic color palette, gentle gradients, and a serene, worshipful ambiance. nsuring smooth transitions between colors, high resolution, and premium quality. The design should be extremely simple, avoiding any distractions while maintaining a reverent and uplifting aesthetic. The details should be kept to an absolute minimum, ensuring a clean and uncluttered visual.\nNegative Prompt: People, faces, human figures, silhouettes, body parts, hands, eyes, text, letters, symbols, icons, high contrast, complex patterns, intricate details, cluttered compositions, surreal elements, excessive textures, multiple colors, harsh gradients, sharp.',
-  slidesPromptTemplate: '請將以下歌詞轉換為符合 Marp 投影片格式的 Markdown。請遵循以下要求：\n1. 仔細判斷歌詞的段落屬性(如主歌、副歌...)，注意：用"空格"分開的句子算同一行。根據段落分段後(每段最多四行)，將每個段落放在一張投影片上，並使用"---"作為投影片分隔符\n2. 在每張投影片頂部加入背景圖片：![bg]({{imageUrl}})\n3. 不要添加任何不在原歌詞中的內容\n4. 每首歌的第一張投影片顯示"# 歌曲標題"\n5. 每行歌詞開頭用"# "標註\n6. 輸出時不需要任何額外的解釋、說明、"\`\`\`markdown"等字符，僅輸出純 Markdown 內容\n範例：\n---\nmarp: true\ncolor: "black"\nstyle: |\n  section {\n    text-align: center;\n  }\n  h1 {\n    -webkit-text-stroke: 0.2px white;\n  }\n\n---\n\n![bg](./images/test-bg1.png)\n\n# 第一首歌曲名稱\n\n---\n\n![bg](./images/test-bg1.png)\n\n# 第一行歌詞\n# 第二行歌詞\n# 第三行歌詞\n# 第四行歌詞\n\n---\n\n![bg](./images/test-bg2.png)\n\n# 第二首歌曲名稱\n\n---\n\n![bg](./images/test-bg2.png)\n\n# 第一行歌詞\n# 第二行歌詞\n\n歌詞內容：\n{{lyrics}}',
   customMarpHeader: `---
 marp: true
 color: "black"
@@ -30,8 +29,7 @@ style: |
     font-weight:900;
     -webkit-text-stroke: 2px white;
   }
-
----`,
+`,
 
   // 界面設定
   language: 'zh-TW',

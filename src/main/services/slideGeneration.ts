@@ -57,11 +57,17 @@ export class SlideGenerationService {
       // 確保快取目錄存在
       await this.initCacheDir();
 
-      // 檢查快取中是否已有此歌曲的投影片內容
-      const cachedSlides = await this.getSlidesFromCache(songId);
-      if (cachedSlides) {
-        return cachedSlides;
-      }
+      // --- DEBUG: 暫時移除快取檢查，強制重新生成 ---
+      // const cachedSlides = await this.getSlidesFromCache(songId);
+      // if (cachedSlides) {
+      //   // 記錄一下命中了快取
+      //   await LoggerService.info(`Slide generation for song ${songId} hit cache.`);
+      //   return cachedSlides;
+      // }
+      // --- END DEBUG ---
+
+      // 記錄將要用於生成投影片的參數
+      await LoggerService.info(`Generating slides for song ${songId}. Title: ${songTitle}, Artist: ${artist}, Lyrics length: ${lyrics?.length || 0}, Image path: ${imagePath}`);
 
       // 使用 SlideFormatter 生成投影片內容
       const customHeader = SettingsService.getSetting('customMarpHeader');

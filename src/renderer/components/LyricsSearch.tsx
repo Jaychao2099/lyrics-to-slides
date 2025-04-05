@@ -11,10 +11,12 @@ import {
   CardContent,
   Divider,
   Chip,
-  Snackbar
+  Snackbar,
+  List,
+  ListItem
 } from '@mui/material';
 import EditIcon from '@mui/icons-material/Edit';
-import { LyricsSearchResult } from '../../common/types';
+import { LyricsSearchResult, Song } from '../../common/types';
 
 interface LyricsSearchProps {
   onSearchComplete: (result: LyricsSearchResult) => void;
@@ -34,6 +36,9 @@ const LyricsSearch: React.FC<LyricsSearchProps> = ({ onSearchComplete }) => {
   const [editSuccessOpen, setEditSuccessOpen] = useState(false);
   const [isEdited, setIsEdited] = useState(false);
   const selectedResultRef = useRef<HTMLDivElement>(null);
+  const [existingSongs, setExistingSongs] = useState<Song[]>([]);
+  const [existingSongsLoading, setExistingSongsLoading] = useState(false);
+  const [existingSongsFilter, setExistingSongsFilter] = useState('');
 
   // 儲存編輯後滾動到選中的結果
   useEffect(() => {
@@ -41,6 +46,25 @@ const LyricsSearch: React.FC<LyricsSearchProps> = ({ onSearchComplete }) => {
       selectedResultRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
     }
   }, [editMode, isEdited]);
+
+  // 載入現有歌曲列表
+  useEffect(() => {
+    loadExistingSongs();
+  }, []);
+
+  // 載入現有歌曲
+  const loadExistingSongs = async () => {
+    try {
+      setExistingSongsLoading(true);
+      const songs = await window.electronAPI.getSongs();
+      setExistingSongs(songs);
+      console.log('已載入現有歌曲:', songs.length);
+    } catch (error) {
+      console.error('載入現有歌曲失敗:', error);
+    } finally {
+      setExistingSongsLoading(false);
+    }
+  };
 
   const handleSearch = async () => {
     // 驗證輸入
@@ -91,6 +115,41 @@ const LyricsSearch: React.FC<LyricsSearchProps> = ({ onSearchComplete }) => {
       setEditMode(true);
     }
   };
+
+  // 處理選擇現有歌曲
+  const handleSelectExistingSong = async (song: Song) => {
+    try {
+      // 確認關聯圖片是否存在
+      const imageCheck = await window.electronAPI.checkRelatedImage(song.id);
+      
+      if (!imageCheck.hasRelatedImage) {
+        // 如果沒有關聯圖片，顯示提醒
+        setError(`歌曲 "${song.title}" 沒有關聯的背景圖片，將在編輯頁面自動生成。`);
+      }
+      
+      // 轉換為LyricsSearchResult格式
+      const result: LyricsSearchResult = {
+        title: song.title,
+        artist: song.artist,
+        lyrics: song.lyrics,
+        source: '',
+        fromCache: true,
+        songId: song.id
+      };
+      
+      // 轉到編輯頁面
+      onSearchComplete(result);
+    } catch (error) {
+      console.error('選擇現有歌曲失敗:', error);
+      setError('選擇歌曲失敗，請稍後再試。');
+    }
+  };
+
+  // 過濾現有歌曲
+  const filteredExistingSongs = existingSongs.filter(song => 
+    song.title.toLowerCase().includes(existingSongsFilter.toLowerCase()) || 
+    (song.artist && song.artist.toLowerCase().includes(existingSongsFilter.toLowerCase()))
+  );
 
   const handleSaveEdit = async () => {
     if (selectedResult && editedLyrics.trim()) {
@@ -144,6 +203,9 @@ const LyricsSearch: React.FC<LyricsSearchProps> = ({ onSearchComplete }) => {
           hasDoubleNewlines: updatedResult.lyrics.includes('\n\n'),
           songId: updatedResult.songId
         });
+        
+        // 重新載入現有歌曲列表
+        loadExistingSongs();
       } catch (error) {
         console.error('更新歌詞快取失敗:', error);
         setError('更新歌詞快取失敗，但界面已更新。');
@@ -205,6 +267,9 @@ const LyricsSearch: React.FC<LyricsSearchProps> = ({ onSearchComplete }) => {
       setSelectedResult(newResult);
       setEditMode(false);
       setEditSuccessOpen(true);
+      
+      // 重新載入現有歌曲列表
+      loadExistingSongs();
     } catch (err: any) {
       setError(err.message || '保存新歌曲時發生錯誤');
       console.error('保存新歌曲失敗', err);
@@ -404,6 +469,56 @@ const LyricsSearch: React.FC<LyricsSearchProps> = ({ onSearchComplete }) => {
         >
           {loading ? <CircularProgress size={24} color="inherit" /> : '搜尋歌詞'}
         </Button>
+      </Box>
+
+      {/* 已存在的歌曲列表 */}
+      <Box sx={{ mb: 3 }}>
+        <Typography variant="h6" gutterBottom>
+          已存在的歌曲
+        </Typography>
+        <Box sx={{ mb: 2 }}>
+          <TextField
+            fullWidth
+            label="篩選歌曲"
+            value={existingSongsFilter}
+            onChange={(e) => setExistingSongsFilter(e.target.value)}
+            margin="normal"
+            variant="outlined"
+            placeholder="輸入歌曲名稱或歌手篩選"
+          />
+        </Box>
+        
+        {existingSongsLoading ? (
+          <Box sx={{ display: 'flex', justifyContent: 'center', my: 2 }}>
+            <CircularProgress />
+          </Box>
+        ) : filteredExistingSongs.length > 0 ? (
+          <List sx={{ maxHeight: '300px', overflow: 'auto', border: '1px solid #e0e0e0', borderRadius: '4px' }}>
+            {filteredExistingSongs.map((song) => (
+              <Paper key={song.id} sx={{ mb: 1, p: 1, mx: 1 }}>
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <Box>
+                    <Typography variant="subtitle1">{song.title}</Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      {song.artist}
+                    </Typography>
+                  </Box>
+                  <Button 
+                    variant="outlined" 
+                    size="small"
+                    onClick={() => handleSelectExistingSong(song)}
+                  >
+                    編輯
+                  </Button>
+                </Box>
+              </Paper>
+            ))}
+          </List>
+        ) : (
+          <Typography variant="body2" color="text.secondary" sx={{ textAlign: 'center', my: 2 }}>
+            {existingSongsFilter ? '沒有符合篩選條件的歌曲' : '目前沒有已存在的歌曲'}
+          </Typography>
+        )}
       </Box>
 
       {error && (

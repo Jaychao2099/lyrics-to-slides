@@ -297,9 +297,6 @@ export const DatabaseService = {
   
       const now = new Date().toISOString();
       
-      // 歌詞內容可能包含換行符，確保正確處理
-      const lyrics = song.lyrics !== undefined ? song.lyrics : existingSong.lyrics;
-      
       // 使用參數化查詢避免 SQL 注入
       const stmt = db.prepare(`
         UPDATE songs SET
@@ -312,16 +309,26 @@ export const DatabaseService = {
         WHERE id = ?
       `);
       
-      // 直接傳遞參數，讓 better-sqlite3 處理特殊字符和換行符
+      // --- 修改：更精確地處理傳入值和現有值 ---
+      const finalTitle = song.title !== undefined ? song.title : existingSong.title;
+      const finalArtist = song.artist !== undefined ? song.artist : existingSong.artist;
+      // 如果傳入的 lyrics 是 undefined，保留舊值；否則使用傳入的值（允許 '' 或 null，寫入資料庫時統一為空字串）
+      const finalLyrics = song.lyrics !== undefined ? (song.lyrics || '') : existingSong.lyrics;
+      // 如果傳入的 imageUrl 是 undefined，保留舊值；否則使用傳入的值（允許 '' 或 null，寫入資料庫時統一為空字串）
+      const finalImageUrl = song.imageUrl !== undefined ? (song.imageUrl || '') : (existingSong.imageUrl || '');
+      // slideContent 同理
+      const finalSlideContent = song.slideContent !== undefined ? (song.slideContent || '') : (existingSong.slideContent || '');
+      
       const result = stmt.run(
-        song.title || existingSong.title,
-        song.artist || existingSong.artist,
-        lyrics,
-        song.imageUrl || existingSong.imageUrl || '',
-        song.slideContent || existingSong.slideContent || '',
+        finalTitle,
+        finalArtist,
+        finalLyrics,
+        finalImageUrl,
+        finalSlideContent,
         now,
         id
       );
+      // --- 結束修改 ---
       
       return result.changes > 0;
     } catch (error) {
@@ -676,6 +683,28 @@ export const DatabaseService = {
       return true;
     } catch (error) {
       console.error(`刪除投影片集 ${slideSetId} 失敗:`, error);
+      return false;
+    }
+  },
+
+  /**
+   * 更新投影片集名稱
+   * @param slideSetId 投影片集ID
+   * @param newName 新名稱
+   * @returns 操作是否成功
+   */
+  updateSlideSetName(slideSetId: number, newName: string): boolean {
+    try {
+      const db = this.init();
+      const now = new Date().toISOString();
+      
+      // 更新投影片集名稱
+      db.prepare('UPDATE slide_sets SET name = ?, updated_at = ? WHERE id = ?')
+        .run(newName, now, slideSetId);
+      
+      return true;
+    } catch (error) {
+      console.error(`更新投影片集 ${slideSetId} 名稱失敗:`, error);
       return false;
     }
   }

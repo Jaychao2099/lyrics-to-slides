@@ -48,23 +48,25 @@ style: |
    */
   public static formatSong(lyrics: string, imagePath: string, title?: string): string {
     try {
-      // 首頁空白頁
-      let slides = `
-
----
-
-![bg](${imagePath})
-`;
+      // 初始化投影片內容（移除之前的首頁空白頁）
+      let slides = "";
 
       // 如果提供了標題，添加標題頁
       if (title) {
         slides += `
-
 ---
 
 ![bg](${imagePath})
 
 # ${title}
+`;
+      }
+      // 如果沒有標題，創建一個首頁空白頁
+      else {
+        slides += `
+---
+
+![bg](${imagePath})
 `;
       }
 
@@ -74,7 +76,6 @@ style: |
       // 為每個段落創建一頁投影片
       for (const paragraph of paragraphs) {
         slides += `
-
 ---
 
 ![bg](${imagePath})
@@ -85,7 +86,6 @@ ${paragraph}
 
       // 結尾空白頁
       slides += `
-
 ---
 
 ![bg](${imagePath})

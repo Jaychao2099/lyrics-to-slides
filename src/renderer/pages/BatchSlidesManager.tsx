@@ -113,6 +113,9 @@ const BatchSlidesManager: React.FC = () => {
   const [exportDialogOpen, setExportDialogOpen] = useState(false);
   const [exportPath, setExportPath] = useState('');
   const [exportFormat, setExportFormat] = useState('pdf');
+  const [editNameDialogOpen, setEditNameDialogOpen] = useState(false);
+  const [editName, setEditName] = useState('');
+  const [exportFileName, setExportFileName] = useState('');
 
   // 載入投影片集
   useEffect(() => {
@@ -146,10 +149,13 @@ const BatchSlidesManager: React.FC = () => {
   // 載入投影片集中的歌曲
   const loadSongsInSet = async (setId: number) => {
     try {
-      const slideSetSongs = await window.electronAPI.getSlideSetSongs(setId);
-      // 從SlideSetSong[]轉換為Song[]
-      const songs = slideSetSongs.map(item => item.song as Song).filter(song => song !== undefined);
-      setSongsInSet(songs);
+      // 獲取所有歌曲信息
+      const songs = await window.electronAPI.getSlideSetSongs(setId);
+      
+      // 數據庫返回的就是歌曲信息，直接設置
+      // 由於 TS 類型聲明與實際實現不匹配，這裡使用類型斷言
+      setSongsInSet(songs as unknown as Song[]);
+      console.log('載入歌曲列表成功:', songs);
     } catch (error) {
       console.error('載入投影片集歌曲失敗', error);
     }
@@ -307,6 +313,35 @@ const BatchSlidesManager: React.FC = () => {
     }
   };
 
+  // 打開編輯名稱對話框
+  const handleOpenEditNameDialog = () => {
+    if (!selectedSetId) return;
+    
+    const selectedSet = slideSets.find(set => set.id === selectedSetId);
+    if (selectedSet) {
+      setEditName(selectedSet.name);
+      setEditNameDialogOpen(true);
+    }
+  };
+
+  // 更新投影片集名稱
+  const handleUpdateSlideName = async () => {
+    try {
+      if (!selectedSetId || !editName.trim()) return;
+      
+      // 添加 updateSlideSetName API 調用
+      await window.electronAPI.updateSlideSetName(selectedSetId, editName);
+      
+      // 重新載入投影片集
+      await loadSlideSets();
+      
+      // 關閉對話框
+      setEditNameDialogOpen(false);
+    } catch (error: any) {
+      console.error('更新投影片集名稱失敗', error);
+    }
+  };
+
   // 打開導出對話框
   const handleOpenExportDialog = () => {
     if (!selectedSetId) return;
@@ -315,6 +350,21 @@ const BatchSlidesManager: React.FC = () => {
       alert('投影片集中沒有歌曲，請先添加歌曲。');
       return;
     }
+    
+    // 設置預設檔名為投影片集名稱
+    const selectedSet = slideSets.find(set => set.id === selectedSetId);
+    if (selectedSet) {
+      setExportFileName(selectedSet.name.replace(/[\\/:*?"<>|]/g, '_'));
+    }
+    
+    // 獲取預設輸出路徑
+    window.electronAPI.getSettings().then(settings => {
+      if (settings.defaultOutputDirectory) {
+        setExportPath(settings.defaultOutputDirectory);
+      }
+    }).catch(error => {
+      console.error('獲取預設輸出路徑失敗', error);
+    });
     
     setExportDialogOpen(true);
   };
@@ -336,11 +386,8 @@ const BatchSlidesManager: React.FC = () => {
     try {
       if (!selectedSetId || !exportPath) return;
       
-      const selectedSet = slideSets.find(set => set.id === selectedSetId);
-      if (!selectedSet) return;
-      
-      // 添加文件名
-      const fileName = `${selectedSet.name.replace(/[\\/:*?"<>|]/g, '_')}.${exportFormat}`;
+      // 添加檔案名稱
+      const fileName = `${exportFileName || 'slides'}.${exportFormat}`;
       const fullPath = `${exportPath}/${fileName}`;
       
       await window.electronAPI.exportBatchSlides(selectedSetId, fullPath, exportFormat);
@@ -436,14 +483,25 @@ const BatchSlidesManager: React.FC = () => {
                 </Typography>
                 
                 {selectedSetId && (
-                  <Button 
-                    startIcon={<Add />} 
-                    variant="contained" 
-                    size="small"
-                    onClick={handleOpenSelectSongDialog}
-                  >
-                    添加歌曲
-                  </Button>
+                  <Box>
+                    <Button 
+                      startIcon={<Edit />} 
+                      variant="outlined" 
+                      size="small"
+                      onClick={handleOpenEditNameDialog}
+                      sx={{ mr: 1 }}
+                    >
+                      編輯名稱
+                    </Button>
+                    <Button 
+                      startIcon={<Add />} 
+                      variant="contained" 
+                      size="small"
+                      onClick={handleOpenSelectSongDialog}
+                    >
+                      添加歌曲
+                    </Button>
+                  </Box>
                 )}
               </Box>
               
@@ -543,6 +601,7 @@ const BatchSlidesManager: React.FC = () => {
         onClose={() => setSelectSongDialogOpen(false)}
         fullWidth
         maxWidth="md"
+        keepMounted
       >
         <DialogTitle>選擇要添加的歌曲</DialogTitle>
         <DialogContent>
@@ -571,13 +630,26 @@ const BatchSlidesManager: React.FC = () => {
                         {song.artist}
                       </Typography>
                     </Box>
-                    <Button 
-                      variant="outlined" 
-                      size="small"
-                      onClick={() => handleAddSongToSet(song)}
-                    >
-                      添加
-                    </Button>
+                    <Box>
+                      {songsInSet.some(s => s.id === song.id) ? (
+                        <Button 
+                          variant="outlined" 
+                          size="small"
+                          disabled
+                          color="success"
+                        >
+                          已添加
+                        </Button>
+                      ) : (
+                        <Button 
+                          variant="outlined" 
+                          size="small"
+                          onClick={() => handleAddSongToSet(song)}
+                        >
+                          添加
+                        </Button>
+                      )}
+                    </Box>
                   </Box>
                 </Paper>
               ))
@@ -615,6 +687,16 @@ const BatchSlidesManager: React.FC = () => {
           </Box>
           
           <TextField
+            margin="dense"
+            label="檔案名稱"
+            fullWidth
+            variant="outlined"
+            value={exportFileName}
+            onChange={(e) => setExportFileName(e.target.value)}
+            sx={{ mb: 2 }}
+          />
+          
+          <TextField
             select
             label="格式"
             value={exportFormat}
@@ -635,9 +717,35 @@ const BatchSlidesManager: React.FC = () => {
           <Button 
             onClick={handleExportSlides}
             variant="contained"
-            disabled={!exportPath}
+            disabled={!exportPath || !exportFileName.trim()}
           >
             導出
+          </Button>
+        </DialogActions>
+      </Dialog>
+      
+      {/* 編輯名稱對話框 */}
+      <Dialog open={editNameDialogOpen} onClose={() => setEditNameDialogOpen(false)}>
+        <DialogTitle>編輯投影片集名稱</DialogTitle>
+        <DialogContent>
+          <TextField
+            autoFocus
+            margin="dense"
+            label="投影片集名稱"
+            fullWidth
+            variant="outlined"
+            value={editName}
+            onChange={(e) => setEditName(e.target.value)}
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setEditNameDialogOpen(false)}>取消</Button>
+          <Button 
+            onClick={handleUpdateSlideName}
+            variant="contained"
+            disabled={!editName.trim()}
+          >
+            更新
           </Button>
         </DialogActions>
       </Dialog>

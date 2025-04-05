@@ -40,6 +40,9 @@ interface ElectronAPI {
   checkRelatedSlide: (songId: number) => Promise<RelatedSlideResult>;
   saveSongImageAssociation: (songId: number, imagePath: string) => Promise<{success: boolean, message: string}>;
   saveSongSlideAssociation: (songId: number, slideContent: string) => Promise<{success: boolean, message: string}>;
+  saveSongDetails: (songId: number, songDetails: { title: string, artist?: string, lyrics?: string, imageUrl?: string }) => Promise<boolean>;
+  getSongById: (songId: number) => Promise<any>;
+  getTempPath: () => Promise<string>;
 }
 
 // 定義返回類型
@@ -117,6 +120,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // 取得歌曲列表
   getSongs: () => ipcRenderer.invoke('get-songs'),
   
+  // 新增：根據 ID 獲取單首歌曲
+  getSongById: (songId: number) => ipcRenderer.invoke('get-song-by-id', songId),
+  
   // 更新歌詞快取
   updateLyricsCache: (title: string, artist: string, lyrics: string, source: string) => 
     ipcRenderer.invoke('update-lyrics-cache', title, artist, lyrics, source),
@@ -137,6 +143,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // 匯入本地圖片
   importLocalImage: (songId: number, localImagePath: string) => 
     ipcRenderer.invoke('import-local-image', songId, localImagePath),
+  
+  // 新增：保存歌曲詳情
+  saveSongDetails: (songId: number, songDetails: { title: string, artist?: string, lyrics?: string, imageUrl?: string }) => 
+    ipcRenderer.invoke('save-song-details', songId, songDetails),
   
   // 獲取快取大小
   getCacheSize: () => ipcRenderer.invoke('get-cache-size'),
@@ -197,10 +207,14 @@ contextBridge.exposeInMainWorld('electronAPI', {
   removeSongFromSlideSet: (slideSetId: number, songId: number) => ipcRenderer.invoke('remove-song-from-slide-set', slideSetId, songId),
   updateSongOrderInSlideSet: (slideSetId: number, songId: number, newOrder: number) => ipcRenderer.invoke('update-song-order-in-slide-set', slideSetId, songId, newOrder),
   deleteSlideSet: (slideSetId: number) => ipcRenderer.invoke('delete-slide-set', slideSetId),
+  updateSlideSetName: (slideSetId: number, newName: string) => ipcRenderer.invoke('update-slide-set-name', slideSetId, newName),
   
   // 批次處理
   generateBatchSlides: (slideSetId: number) => ipcRenderer.invoke('generate-batch-slides', slideSetId),
   previewBatchSlides: (slideSetId: number) => ipcRenderer.invoke('preview-batch-slides', slideSetId),
   getBatchSlideContent: (slideSetId: number) => ipcRenderer.invoke('get-batch-slide-content', slideSetId),
   exportBatchSlides: (slideSetId: number, outputPath: string, format: string) => ipcRenderer.invoke('export-batch-slides', slideSetId, outputPath, format),
+  
+  // 新增：獲取系統臨時目錄路徑
+  getTempPath: () => ipcRenderer.invoke('get-temp-path'),
 } as ElectronAPI); 
