@@ -217,7 +217,7 @@ const LyricsSearch: React.FC<LyricsSearchProps> = ({ onSearchComplete }) => {
     setEditMode(false);
   };
 
-  const handleConfirm = () => {
+  const handleConfirm = async () => {
     if (selectedResult) {
       // 在控制台打印完整日誌，確認送出的內容
       console.log('確認使用歌詞：', {
@@ -227,6 +227,30 @@ const LyricsSearch: React.FC<LyricsSearchProps> = ({ onSearchComplete }) => {
         isEdited: selectedResult.isEdited || false,
         songId: selectedResult.songId || -1 // 添加songId到日誌
       });
+      
+      // 確保歌詞已經被儲存到快取中，並且有有效的songId
+      if (!selectedResult.songId || selectedResult.songId === -1) {
+        try {
+          console.log('歌詞尚未儲存，自動儲存中...');
+          // 更新快取中的歌詞
+          const result = await window.electronAPI.updateLyricsCache(
+            selectedResult.title,
+            selectedResult.artist,
+            selectedResult.lyrics,
+            selectedResult.source || '直接使用'
+          );
+          
+          // 更新歌曲ID
+          if (result && typeof result === 'object' && result.songId > 0) {
+            console.log(`歌詞已自動更新，songId: ${result.songId}`);
+            selectedResult.songId = result.songId;
+          } else {
+            console.error('自動儲存歌詞失敗:', result);
+          }
+        } catch (error) {
+          console.error('自動儲存歌詞到快取失敗:', error);
+        }
+      }
       
       // 確保songId有值，即使是-1
       const resultWithId = {
