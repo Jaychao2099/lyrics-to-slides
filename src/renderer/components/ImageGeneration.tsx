@@ -69,6 +69,9 @@ const ImageGeneration: React.FC<ImageGenerationProps> = ({
       setSongId(propsSongId);
     }
     
+    // 重置確認狀態
+    setIsConfirmed(false);
+    
     // 檢查是否有關聯圖片
     const checkRelatedImage = async () => {
       if (propsSongId > 0) {
@@ -112,7 +115,6 @@ const ImageGeneration: React.FC<ImageGenerationProps> = ({
     try {
       setIsGenerating(true);
       setError('');
-      setIsConfirmed(false);
       
       // 通過API生成圖片 - 根據main/index.ts中的定義:
       // ipcMain.handle('generate-image', async (_event, songTitle, lyrics, songId = -1)
@@ -125,7 +127,19 @@ const ImageGeneration: React.FC<ImageGenerationProps> = ({
       if (result && typeof result === 'object' && 'imagePath' in result && 'songId' in result) {
         setImageUrl(result.imagePath);
         setSongId(result.songId);
-        // 不再自動調用 onImageGenerated，等待用戶確認
+        
+        // 自動保存圖片關聯並調用onImageGenerated
+        try {
+          await window.electronAPI.saveSongImageAssociation(result.songId, result.imagePath);
+          onImageGenerated(result.imagePath, result.songId);
+          setIsConfirmed(true);
+          setSnackbarMessage('已設定背景圖片');
+          setSnackbarOpen(true);
+        } catch (err) {
+          console.error('保存圖片關聯失敗:', err);
+          // 即使關聯保存失敗，也繼續流程
+          onImageGenerated(result.imagePath, result.songId);
+        }
       } else {
         throw new Error('生成圖片失敗');
       }
@@ -149,7 +163,6 @@ const ImageGeneration: React.FC<ImageGenerationProps> = ({
       
       setIsGenerating(true);
       setError('');
-      setIsConfirmed(false);
       
       // 匯入本地圖片
       const result = await window.electronAPI.importLocalImage(
@@ -160,7 +173,19 @@ const ImageGeneration: React.FC<ImageGenerationProps> = ({
       if (result && typeof result === 'object' && 'imagePath' in result && 'songId' in result) {
         setImageUrl(result.imagePath);
         setSongId(result.songId);
-        // 不再自動調用 onImageGenerated，等待用戶確認
+        
+        // 自動保存圖片關聯並調用onImageGenerated
+        try {
+          await window.electronAPI.saveSongImageAssociation(result.songId, result.imagePath);
+          onImageGenerated(result.imagePath, result.songId);
+          setIsConfirmed(true);
+          setSnackbarMessage('已設定背景圖片');
+          setSnackbarOpen(true);
+        } catch (err) {
+          console.error('保存圖片關聯失敗:', err);
+          // 即使關聯保存失敗，也繼續流程
+          onImageGenerated(result.imagePath, result.songId);
+        }
       } else {
         throw new Error('匯入圖片失敗');
       }
@@ -182,7 +207,6 @@ const ImageGeneration: React.FC<ImageGenerationProps> = ({
 
       setIsGenerating(true);
       setError('');
-      setIsConfirmed(false);
       
       // 根據圖片來源選擇重新生成或匯入
       if (imageSource === ImageSourceOption.AI) {
@@ -195,6 +219,19 @@ const ImageGeneration: React.FC<ImageGenerationProps> = ({
         if (result && 'imagePath' in result) {
           setImageUrl(result.imagePath);
           setRating(null);
+          
+          // 自動保存圖片關聯並調用onImageGenerated
+          try {
+            await window.electronAPI.saveSongImageAssociation(songId, result.imagePath);
+            onImageGenerated(result.imagePath, songId);
+            setIsConfirmed(true);
+            setSnackbarMessage('已更新背景圖片');
+            setSnackbarOpen(true);
+          } catch (err) {
+            console.error('保存圖片關聯失敗:', err);
+            // 即使關聯保存失敗，也繼續流程
+            onImageGenerated(result.imagePath, songId);
+          }
         } else {
           throw new Error('重新生成圖片失敗');
         }
@@ -212,32 +249,6 @@ const ImageGeneration: React.FC<ImageGenerationProps> = ({
   // 處理圖片評分變化
   const handleRatingChange = (_event: React.ChangeEvent<{}>, newValue: number | null) => {
     setRating(newValue);
-  };
-
-  // 確認圖片選擇
-  const confirmImage = async () => {
-    if (imageUrl && songId >= 0) {
-      try {
-        console.log('確認使用圖片:', imageUrl, '歌曲ID:', songId);
-        
-        // 確保保存資源關聯
-        const saveResult = await window.electronAPI.saveSongImageAssociation(songId, imageUrl);
-        console.log('保存圖片關聯結果:', saveResult);
-        
-        // 繼續流程
-        onImageGenerated(imageUrl, songId);
-        setIsConfirmed(true);
-        setSnackbarMessage('已確認使用此背景圖片');
-        setSnackbarOpen(true);
-      } catch (err) {
-        console.error('保存圖片關聯失敗:', err);
-        // 即使關聯保存失敗，也繼續流程
-        onImageGenerated(imageUrl, songId);
-        setIsConfirmed(true);
-        setSnackbarMessage('已確認使用此背景圖片，但關聯保存可能失敗');
-        setSnackbarOpen(true);
-      }
-    }
   };
 
   // 處理圖片來源切換
@@ -358,15 +369,6 @@ const ImageGeneration: React.FC<ImageGenerationProps> = ({
                     startIcon={<CachedIcon />}
                   >
                     {imageSource === ImageSourceOption.AI ? '重新生成' : '更換圖片'}
-                  </Button>
-                  
-                  <Button
-                    variant="contained"
-                    color="success"
-                    onClick={confirmImage}
-                    disabled={isConfirmed}
-                  >
-                    確認使用此圖片
                   </Button>
                 </Stack>
               </Box>

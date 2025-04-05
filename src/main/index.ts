@@ -13,6 +13,9 @@ import { SlideExportService } from './services/slideExport';
 import { LoggerService } from './services/logger';
 import fs from 'fs';
 import { promises as fsPromises } from 'fs';
+import { SlideFormatter } from './services/slideFormatter';
+import { BatchSlideService } from './services/batchSlideService';
+import { Song } from '../common/types';
 
 // 開發模式標誌
 const isDev = process.env.NODE_ENV === 'development';
@@ -45,7 +48,36 @@ function createWindow() {
 
   // 載入應用主頁面
   const rendererPath = path.join(__dirname, '../renderer/index.html');
-  mainWindow.loadFile(rendererPath);
+  console.log(`嘗試載入渲染器路徑: ${rendererPath}`);
+  
+  // 檢查文件是否存在
+  if (fs.existsSync(rendererPath)) {
+    console.log(`渲染器路徑存在，正在載入...`);
+    const fileUrl = url.format({
+      pathname: rendererPath,
+      protocol: 'file:',
+      slashes: true
+    });
+    mainWindow.loadURL(fileUrl);
+  } else {
+    console.error(`渲染器路徑不存在: ${rendererPath}`);
+    // 嘗試使用絕對路徑
+    const absolutePath = path.resolve(__dirname, '../renderer/index.html');
+    console.log(`嘗試使用絕對路徑: ${absolutePath}`);
+    
+    if (fs.existsSync(absolutePath)) {
+      console.log(`絕對路徑存在，正在載入...`);
+      const fileUrl = url.format({
+        pathname: absolutePath,
+        protocol: 'file:',
+        slashes: true
+      });
+      mainWindow.loadURL(fileUrl);
+    } else {
+      console.error(`絕對路徑也不存在: ${absolutePath}`);
+      mainWindow.loadFile(rendererPath);
+    }
+  }
   
   // 開發環境下打開開發者工具
   if (isDev) {
@@ -58,6 +90,16 @@ function createWindow() {
   // 當窗口關閉時觸發
   mainWindow.on('closed', () => {
     mainWindow = null;
+  });
+  
+  // 監聽頁面加載完成事件
+  mainWindow.webContents.on('did-finish-load', () => {
+    console.log('頁面加載完成');
+  });
+  
+  // 監聽頁面加載失敗事件
+  mainWindow.webContents.on('did-fail-load', (event, errorCode, errorDescription) => {
+    console.error(`頁面加載失敗: ${errorCode} - ${errorDescription}`);
   });
 }
 
@@ -246,6 +288,20 @@ function setupIpcHandlers() {
   // 獲取歌曲列表
   ipcMain.handle('get-songs', () => {
     return DatabaseService.getSongs();
+  });
+  
+  // 新增：根據 ID 獲取單首歌曲
+  ipcMain.handle('get-song-by-id', async (_event, songId: number) => {
+    const startTime = LoggerService.apiStart('IPC', 'get-song-by-id', { songId });
+    try {
+      const song = DatabaseService.getSongById(songId);
+      await LoggerService.apiSuccess('IPC', 'get-song-by-id', { songId }, { success: !!song }, startTime);
+      return song; // 返回找到的歌曲對象或 null
+    } catch (error) {
+      console.error(`獲取歌曲 ID ${songId} 失敗:`, error);
+      await LoggerService.apiError('IPC', 'get-song-by-id', { songId }, error, startTime);
+      throw error;
+    }
   });
   
   // 歌詞搜尋
@@ -667,6 +723,16 @@ function setupIpcHandlers() {
     }
   });
   
+  // 獲取系統臨時目錄路徑
+  ipcMain.handle('get-temp-path', () => {
+    try {
+      return app.getPath('temp');
+    } catch (error) {
+      console.error('獲取臨時目錄路徑失敗:', error);
+      throw error;
+    }
+  });
+  
   // 清除所有快取
   ipcMain.handle('clear-cache', async () => {
     try {
@@ -896,6 +962,265 @@ function setupIpcHandlers() {
     } catch (error) {
       console.error('保存投影片關聯失敗:', error);
       return { success: false, message: '保存投影片關聯時發生錯誤' };
+    }
+  });
+  
+  // 投影片集相關操作 =========================================
+  
+  // 創建投影片集
+  ipcMain.handle('create-slide-set', async (_event, name: string) => {
+    try {
+      const startTime = LoggerService.apiStart('IPC', 'create-slide-set', { name });
+      
+      const slideSetId = DatabaseService.createSlideSet(name);
+      
+      await LoggerService.apiSuccess('IPC', 'create-slide-set', { name }, { slideSetId }, startTime);
+      return slideSetId;
+    } catch (error) {
+      console.error('創建投影片集失敗:', error);
+      await LoggerService.apiError('IPC', 'create-slide-set', { name: name }, error, Date.now());
+      throw error;
+    }
+  });
+  
+  // 獲取所有投影片集
+  ipcMain.handle('get-slide-sets', async () => {
+    try {
+      const startTime = LoggerService.apiStart('IPC', 'get-slide-sets', {});
+      
+      const slideSets = DatabaseService.getSlideSets();
+      
+      await LoggerService.apiSuccess('IPC', 'get-slide-sets', {}, { slideSetCount: slideSets.length }, startTime);
+      return slideSets;
+    } catch (error) {
+      console.error('獲取投影片集失敗:', error);
+      await LoggerService.apiError('IPC', 'get-slide-sets', {}, error, Date.now());
+      throw error;
+    }
+  });
+  
+  // 獲取投影片集中的歌曲
+  ipcMain.handle('get-slide-set-songs', async (_event, slideSetId: number) => {
+    try {
+      const startTime = LoggerService.apiStart('IPC', 'get-slide-set-songs', { slideSetId });
+      
+      const songs = DatabaseService.getSlideSetSongs(slideSetId);
+      
+      await LoggerService.apiSuccess('IPC', 'get-slide-set-songs', { slideSetId }, { songCount: songs.length }, startTime);
+      return songs;
+    } catch (error) {
+      console.error('獲取投影片集歌曲失敗:', error);
+      await LoggerService.apiError('IPC', 'get-slide-set-songs', { slideSetId }, error, Date.now());
+      throw error;
+    }
+  });
+  
+  // 添加歌曲到投影片集
+  ipcMain.handle('add-song-to-slide-set', async (_event, slideSetId: number, songId: number, displayOrder: number) => {
+    try {
+      const startTime = LoggerService.apiStart('IPC', 'add-song-to-slide-set', { slideSetId, songId, displayOrder });
+      
+      const result = DatabaseService.addSongToSlideSet(slideSetId, songId, displayOrder);
+      
+      await LoggerService.apiSuccess('IPC', 'add-song-to-slide-set', { slideSetId, songId, displayOrder }, { success: result }, startTime);
+      return result;
+    } catch (error) {
+      console.error('添加歌曲到投影片集失敗:', error);
+      await LoggerService.apiError('IPC', 'add-song-to-slide-set', { slideSetId, songId, displayOrder }, error, Date.now());
+      throw error;
+    }
+  });
+  
+  // 從投影片集移除歌曲
+  ipcMain.handle('remove-song-from-slide-set', async (_event, slideSetId: number, songId: number) => {
+    try {
+      const startTime = LoggerService.apiStart('IPC', 'remove-song-from-slide-set', { slideSetId, songId });
+      
+      const result = DatabaseService.removeSongFromSlideSet(slideSetId, songId);
+      
+      await LoggerService.apiSuccess('IPC', 'remove-song-from-slide-set', { slideSetId, songId }, { success: result }, startTime);
+      return result;
+    } catch (error) {
+      console.error('從投影片集移除歌曲失敗:', error);
+      await LoggerService.apiError('IPC', 'remove-song-from-slide-set', { slideSetId, songId }, error, Date.now());
+      throw error;
+    }
+  });
+  
+  // 更新歌曲在投影片集中的順序
+  ipcMain.handle('update-song-order-in-slide-set', async (_event, slideSetId: number, songId: number, newOrder: number) => {
+    try {
+      const startTime = LoggerService.apiStart('IPC', 'update-song-order-in-slide-set', { slideSetId, songId, newOrder });
+      
+      const result = DatabaseService.updateSongOrderInSlideSet(slideSetId, songId, newOrder);
+      
+      await LoggerService.apiSuccess('IPC', 'update-song-order-in-slide-set', { slideSetId, songId, newOrder }, { success: result }, startTime);
+      return result;
+    } catch (error) {
+      console.error('更新歌曲順序失敗:', error);
+      await LoggerService.apiError('IPC', 'update-song-order-in-slide-set', { slideSetId, songId, newOrder }, error, Date.now());
+      throw error;
+    }
+  });
+  
+  // 刪除投影片集
+  ipcMain.handle('delete-slide-set', async (_event, slideSetId: number) => {
+    try {
+      const startTime = LoggerService.apiStart('IPC', 'delete-slide-set', { slideSetId });
+      
+      const result = DatabaseService.deleteSlideSet(slideSetId);
+      
+      await LoggerService.apiSuccess('IPC', 'delete-slide-set', { slideSetId }, { success: result }, startTime);
+      return result;
+    } catch (error) {
+      console.error('刪除投影片集失敗:', error);
+      await LoggerService.apiError('IPC', 'delete-slide-set', { slideSetId }, error, Date.now());
+      throw error;
+    }
+  });
+  
+  // 更新投影片集名稱
+  ipcMain.handle('update-slide-set-name', async (_event, slideSetId: number, newName: string) => {
+    try {
+      const startTime = LoggerService.apiStart('IPC', 'update-slide-set-name', { slideSetId, newName });
+      
+      const result = DatabaseService.updateSlideSetName(slideSetId, newName);
+      
+      await LoggerService.apiSuccess('IPC', 'update-slide-set-name', { slideSetId, newName }, { success: result }, startTime);
+      return result;
+    } catch (error) {
+      console.error('更新投影片集名稱失敗:', error);
+      await LoggerService.apiError('IPC', 'update-slide-set-name', { slideSetId, newName }, error, Date.now());
+      throw error;
+    }
+  });
+  
+  // 批次處理相關操作 =========================================
+  
+  // 生成批次投影片
+  ipcMain.handle('generate-batch-slides', async (_event, slideSetId: number) => {
+    try {
+      mainWindow?.webContents.send('progress-update', 10, '正在生成批次投影片...');
+      
+      const slidesContent = await BatchSlideService.generateBatchSlides(slideSetId);
+      
+      mainWindow?.webContents.send('progress-update', 100, '批次投影片生成完成');
+      return slidesContent;
+    } catch (error) {
+      console.error('生成批次投影片失敗:', error);
+      mainWindow?.webContents.send('progress-update', 0, '生成批次投影片失敗');
+      throw error;
+    }
+  });
+  
+  // 獲取批次投影片內容
+  ipcMain.handle('get-batch-slide-content', async (_event, slideSetId: number) => {
+    try {
+      return await BatchSlideService.getBatchSlideContent(slideSetId);
+    } catch (error) {
+      console.error('獲取批次投影片內容失敗:', error);
+      throw error;
+    }
+  });
+  
+  // 預覽批次投影片
+  ipcMain.handle('preview-batch-slides', async (_event, slideSetId: number) => {
+    try {
+      const slidesContent = await BatchSlideService.getBatchSlideContent(slideSetId);
+      
+      // 將批次投影片暫存為臨時文件，以便瀏覽器預覽
+      const tempDir = path.join(app.getPath('temp'), 'lyrics-to-slides');
+      
+      // 確保臨時目錄存在
+      try {
+        await fsPromises.access(tempDir);
+      } catch (e) {
+        await fsPromises.mkdir(tempDir, { recursive: true });
+      }
+      
+      const tempFilePath = path.join(tempDir, `preview_${slideSetId}.html`);
+      
+      // 調用導出服務生成HTML預覽
+      const htmlPath = await SlideExportService.exportToHTML(slidesContent, tempFilePath);
+      
+      // 使用默認瀏覽器打開HTML文件
+      shell.openExternal(`file://${htmlPath}`);
+      
+      return;
+    } catch (error) {
+      console.error('預覽批次投影片失敗:', error);
+      throw error;
+    }
+  });
+  
+  // 導出批次投影片
+  ipcMain.handle('export-batch-slides', async (_event, slideSetId: number, outputPath: string, format: string) => {
+    try {
+      mainWindow?.webContents.send('progress-update', 10, `正在導出批次投影片為 ${format.toUpperCase()}...`);
+      
+      const slidesContent = await BatchSlideService.getBatchSlideContent(slideSetId);
+      
+      let exportedPath = '';
+      
+      switch (format.toLowerCase()) {
+        case 'pdf':
+          exportedPath = await SlideExportService.exportToPDF(slidesContent, outputPath);
+          break;
+        case 'pptx':
+          exportedPath = await SlideExportService.exportToPPTX(slidesContent, outputPath);
+          break;
+        case 'html':
+          exportedPath = await SlideExportService.exportToHTML(slidesContent, outputPath);
+          break;
+        default:
+          throw new Error(`不支持的導出格式: ${format}`);
+      }
+      
+      mainWindow?.webContents.send('progress-update', 100, '導出完成');
+      return exportedPath;
+    } catch (error) {
+      console.error('導出批次投影片失敗:', error);
+      mainWindow?.webContents.send('progress-update', 0, '導出失敗');
+      throw error;
+    }
+  });
+
+  // 保存歌曲詳情
+  ipcMain.handle('save-song-details', async (_event, songId: number, songDetails: { title: string, artist?: string, lyrics?: string, imageUrl?: string }) => {
+    const startTime = LoggerService.apiStart('IPC', 'save-song-details', { songId, songDetails });
+    try {
+      await LoggerService.info(`保存歌曲詳情請求: songId=${songId}, Details: ${JSON.stringify(songDetails)}`);
+      
+      // 清理歌詞（如果存在）
+      const cleanedLyrics = songDetails.lyrics ? LyricsSearchService.cleanLyrics(songDetails.lyrics) : undefined;
+      
+      // 準備更新的數據
+      const dataToUpdate: Partial<Song> = {
+        title: songDetails.title,
+        artist: songDetails.artist,
+        lyrics: cleanedLyrics,
+        imageUrl: songDetails.imageUrl,
+      };
+      
+      // 過濾掉 undefined 的值，避免覆蓋資料庫中的現有值
+      (Object.keys(dataToUpdate) as Array<keyof typeof dataToUpdate>).forEach(key => {
+        if (dataToUpdate[key] === undefined) {
+          delete dataToUpdate[key];
+        }
+      });
+      
+      const success = DatabaseService.updateSong(songId, dataToUpdate);
+      
+      if (success) {
+        await LoggerService.apiSuccess('IPC', 'save-song-details', { songId }, { success: true }, startTime);
+        return { success: true };
+      } else {
+        throw new Error('更新歌曲到資料庫失敗');
+      }
+    } catch (error) {
+      console.error('保存歌曲詳情失敗:', error);
+      await LoggerService.apiError('IPC', 'save-song-details', { songId, songDetails }, error, startTime);
+      throw error;
     }
   });
 }
