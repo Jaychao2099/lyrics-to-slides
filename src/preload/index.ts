@@ -187,5 +187,20 @@ contextBridge.exposeInMainWorld('electronAPI', {
     
   // 保存歌曲與投影片的關聯
   saveSongSlideAssociation: (songId: number, slideContent: string) => 
-    ipcRenderer.invoke('save-song-slide-association', songId, slideContent)
+    ipcRenderer.invoke('save-song-slide-association', songId, slideContent),
+  
+  // 投影片集管理
+  createSlideSet: (name: string) => ipcRenderer.invoke('create-slide-set', name),
+  getSlideSets: () => ipcRenderer.invoke('get-slide-sets'),
+  getSlideSetSongs: (slideSetId: number) => ipcRenderer.invoke('get-slide-set-songs', slideSetId),
+  addSongToSlideSet: (slideSetId: number, songId: number, displayOrder: number) => ipcRenderer.invoke('add-song-to-slide-set', slideSetId, songId, displayOrder),
+  removeSongFromSlideSet: (slideSetId: number, songId: number) => ipcRenderer.invoke('remove-song-from-slide-set', slideSetId, songId),
+  updateSongOrderInSlideSet: (slideSetId: number, songId: number, newOrder: number) => ipcRenderer.invoke('update-song-order-in-slide-set', slideSetId, songId, newOrder),
+  deleteSlideSet: (slideSetId: number) => ipcRenderer.invoke('delete-slide-set', slideSetId),
+  
+  // 批次處理
+  generateBatchSlides: (slideSetId: number) => ipcRenderer.invoke('generate-batch-slides', slideSetId),
+  previewBatchSlides: (slideSetId: number) => ipcRenderer.invoke('preview-batch-slides', slideSetId),
+  getBatchSlideContent: (slideSetId: number) => ipcRenderer.invoke('get-batch-slide-content', slideSetId),
+  exportBatchSlides: (slideSetId: number, outputPath: string, format: string) => ipcRenderer.invoke('export-batch-slides', slideSetId, outputPath, format),
 } as ElectronAPI); 

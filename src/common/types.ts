@@ -12,6 +12,7 @@ export interface Settings {
   // 提示詞模板
   imagePromptTemplate: string;
   slidesPromptTemplate: string;
+  customMarpHeader: string; // 新增: 自定義 Marp 標頭
 
   // 界面設定
   language: 'zh-TW' | 'zh-CN' | 'en';
@@ -28,6 +29,24 @@ export interface Song {
   slideContent?: string;
   createdAt: string;
   updatedAt: string;
+}
+
+// 投影片集類型
+export interface SlideSet {
+  id: number;
+  name: string;
+  createdAt: string;
+  updatedAt: string;
+  songCount?: number; // 前端展示用
+}
+
+// 投影片集歌曲關聯類型
+export interface SlideSetSong {
+  id: number;
+  slideSetId: number;
+  songId: number;
+  displayOrder: number;
+  song?: Song; // 關聯的完整歌曲信息
 }
 
 // 歌詞搜尋結果
@@ -121,6 +140,21 @@ export interface ElectronAPI {
   // 保存關聯資源
   saveSongImageAssociation: (songId: number, imagePath: string) => Promise<{success: boolean, message: string}>;
   saveSongSlideAssociation: (songId: number, slideContent: string) => Promise<{success: boolean, message: string}>;
+  
+  // 投影片集管理
+  createSlideSet: (name: string) => Promise<number>;
+  getSlideSets: () => Promise<SlideSet[]>;
+  getSlideSetSongs: (slideSetId: number) => Promise<SlideSetSong[]>;
+  addSongToSlideSet: (slideSetId: number, songId: number, displayOrder: number) => Promise<boolean>;
+  removeSongFromSlideSet: (slideSetId: number, songId: number) => Promise<boolean>;
+  updateSongOrderInSlideSet: (slideSetId: number, songId: number, newOrder: number) => Promise<boolean>;
+  deleteSlideSet: (slideSetId: number) => Promise<boolean>;
+  
+  // 批次處理
+  generateBatchSlides: (slideSetId: number) => Promise<string>;
+  previewBatchSlides: (slideSetId: number) => Promise<void>;
+  getBatchSlideContent: (slideSetId: number) => Promise<string>;
+  exportBatchSlides: (slideSetId: number, outputPath: string, format: string) => Promise<string>;
 }
 
 // 擴展 Window 接口

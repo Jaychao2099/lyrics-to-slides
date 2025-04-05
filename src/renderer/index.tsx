@@ -57,13 +57,4 @@ window.onload = async () => {
   } catch (error) {
     console.error('初始化時發生錯誤:', error);
   }
-};
-
-// 等待DOM完全加載
-document.addEventListener('DOMContentLoaded', () => {
-  const container = document.getElementById('app');
-  if (container) {
-    const root = createRoot(container);
-    root.render(<App />);
-  }
-}); 
+}; 
