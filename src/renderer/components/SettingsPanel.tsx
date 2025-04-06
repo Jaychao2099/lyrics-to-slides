@@ -97,7 +97,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ settings, onSave, onCance
       setIsCacheLoading(true);
       const result = await window.electronAPI.clearCache();
       if (result && result.success) {
-        setSnackbarMessage(`快取清除成功，共刪除 ${result.deletedImages + result.deletedSlides + result.deletedLyrics} 個文件`);
+        setSnackbarMessage(`快取清除成功，共刪除 ${result.deletedImages + result.deletedSlides + result.deletedLyrics + result.deletedBatchSlides} 個文件`);
         setSnackbarSeverity('success');
         setSnackbarOpen(true);
         fetchCacheInfo();

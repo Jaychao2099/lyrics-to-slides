@@ -802,19 +802,30 @@ function setupIpcHandlers() {
       const imgCacheResult = await ImageGenerationService.clearCache();
       const slidesCacheResult = await SlideGenerationService.clearCache();
       const lyricsCacheResult = await LyricsSearchService.clearCache();
+      const batchSlidesCacheResult = await BatchSlideService.clearCache();
       
       // 確保所有資源關聯都被清除
       mainWindow?.webContents.send('progress-update', 90, '確保所有關聯記錄被清除...');
       DatabaseService.clearAllSongResources();
       
+      // 刪除資料庫中所有投影片集
+      const db = DatabaseService.init();
+      const slideSetExists = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='slide_sets'").get();
+      
+      if (slideSetExists) {
+        db.prepare('DELETE FROM slide_sets').run();
+        console.log('資料庫中的所有投影片集已清除');
+      }
+      
       mainWindow?.webContents.send('progress-update', 100, '快取清除完成');
       
       // 組合結果
       return {
-        success: imgCacheResult.success && slidesCacheResult.success && lyricsCacheResult.success,
+        success: imgCacheResult.success && slidesCacheResult.success && lyricsCacheResult.success && batchSlidesCacheResult.success,
         deletedImages: imgCacheResult.deletedCount,
         deletedSlides: slidesCacheResult.deletedCount,
-        deletedLyrics: lyricsCacheResult.deletedCount
+        deletedLyrics: lyricsCacheResult.deletedCount,
+        deletedBatchSlides: batchSlidesCacheResult.deletedCount
       };
     } catch (error) {
       console.error('清除快取失敗:', error);
