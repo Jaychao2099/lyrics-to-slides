@@ -61,7 +61,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ settings, onSave, onCance
   const [showGoogleApiKey, setShowGoogleApiKey] = useState(false);
   const [showOpenaiApiKey, setShowOpenaiApiKey] = useState(false);
   
-  // 緩存管理狀態
+  // 快取管理狀態
   const [cacheInfo, setCacheInfo] = useState<any>(null);
   const [isCacheLoading, setIsCacheLoading] = useState<boolean>(false);
   const [snackbarOpen, setSnackbarOpen] = useState<boolean>(false);
@@ -71,15 +71,15 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ settings, onSave, onCance
   // 默認設定
   const [defaultSettings, setDefaultSettings] = useState<Settings | null>(null);
   
-  // 獲取緩存信息
+  // 獲取快取信息
   const fetchCacheInfo = async () => {
     try {
       setIsCacheLoading(true);
       const cacheData = await window.electronAPI.getCacheSize();
       setCacheInfo(cacheData);
     } catch (err) {
-      console.error('獲取緩存信息失敗:', err);
-      setSnackbarMessage('獲取緩存信息失敗');
+      console.error('獲取快取信息失敗:', err);
+      setSnackbarMessage('獲取快取信息失敗');
       setSnackbarSeverity('error');
       setSnackbarOpen(true);
     } finally {
@@ -87,24 +87,136 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ settings, onSave, onCance
     }
   };
 
-  // 清除緩存
+  // 清除所有快取
   const handleClearCache = async () => {
     try {
+      // 確認對話框
+      const confirmed = window.confirm('提醒：這將清除所有檔案。\n確定要繼續嗎？');
+      if (!confirmed) return;
+
       setIsCacheLoading(true);
       const result = await window.electronAPI.clearCache();
       if (result && result.success) {
-        setSnackbarMessage(`緩存清除成功，共刪除 ${result.deletedImages + result.deletedSlides + result.deletedLyrics} 個文件`);
+        setSnackbarMessage(`快取清除成功，共刪除 ${result.deletedImages + result.deletedSlides + result.deletedLyrics} 個文件`);
         setSnackbarSeverity('success');
         setSnackbarOpen(true);
         fetchCacheInfo();
       } else {
-        setSnackbarMessage('緩存清除失敗');
+        setSnackbarMessage('快取清除失敗');
         setSnackbarSeverity('error');
         setSnackbarOpen(true);
       }
     } catch (err) {
-      console.error('清除緩存失敗:', err);
-      setSnackbarMessage('清除緩存失敗');
+      console.error('清除快取失敗:', err);
+      setSnackbarMessage('清除快取失敗');
+      setSnackbarSeverity('error');
+      setSnackbarOpen(true);
+    } finally {
+      setIsCacheLoading(false);
+    }
+  };
+  
+  // 清除圖片快取
+  const handleClearImagesCache = async () => {
+    try {
+      setIsCacheLoading(true);
+      const result = await window.electronAPI.clearImagesCache();
+      if (result && result.success) {
+        setSnackbarMessage(`圖片快取清除成功，共刪除 ${result.deletedCount} 個檔案`);
+        setSnackbarSeverity('success');
+        setSnackbarOpen(true);
+        fetchCacheInfo();
+      } else {
+        setSnackbarMessage('圖片快取清除失敗');
+        setSnackbarSeverity('error');
+        setSnackbarOpen(true);
+      }
+    } catch (err) {
+      console.error('清除圖片快取失敗:', err);
+      setSnackbarMessage('清除圖片快取失敗');
+      setSnackbarSeverity('error');
+      setSnackbarOpen(true);
+    } finally {
+      setIsCacheLoading(false);
+    }
+  };
+  
+  // 清除投影片快取
+  const handleClearSlidesCache = async () => {
+    try {
+      setIsCacheLoading(true);
+      const result = await window.electronAPI.clearSlidesCache();
+      if (result && result.success) {
+        setSnackbarMessage(`投影片快取清除成功，共刪除 ${result.deletedCount} 個檔案`);
+        setSnackbarSeverity('success');
+        setSnackbarOpen(true);
+        fetchCacheInfo();
+      } else {
+        setSnackbarMessage('投影片快取清除失敗');
+        setSnackbarSeverity('error');
+        setSnackbarOpen(true);
+      }
+    } catch (err) {
+      console.error('清除投影片快取失敗:', err);
+      setSnackbarMessage('清除投影片快取失敗');
+      setSnackbarSeverity('error');
+      setSnackbarOpen(true);
+    } finally {
+      setIsCacheLoading(false);
+    }
+  };
+  
+  // 清除歌詞快取
+  const handleClearLyricsCache = async () => {
+    try {
+      // 確認對話框
+      const confirmed = window.confirm('提醒：這將刪除所有歌詞紀錄，即便之後搜尋相同歌曲，其相關圖片與投影片也不會存在。\n確定要繼續嗎？');
+      if (!confirmed) return;
+
+      setIsCacheLoading(true);
+      const result = await window.electronAPI.clearLyricsCache();
+      if (result && result.success) {
+        setSnackbarMessage(`歌詞快取清除成功，共刪除 ${result.deletedCount} 首歌詞`);
+        setSnackbarSeverity('success');
+        setSnackbarOpen(true);
+        fetchCacheInfo();
+      } else {
+        setSnackbarMessage('歌詞快取清除失敗');
+        setSnackbarSeverity('error');
+        setSnackbarOpen(true);
+      }
+    } catch (err) {
+      console.error('清除歌詞快取失敗:', err);
+      setSnackbarMessage('清除歌詞快取失敗');
+      setSnackbarSeverity('error');
+      setSnackbarOpen(true);
+    } finally {
+      setIsCacheLoading(false);
+    }
+  };
+  
+  // 清除投影片集快取
+  const handleClearBatchSlidesCache = async () => {
+    try {
+      // 確認對話框
+      const confirmed = window.confirm('提醒：這將刪除所有投影片集。確定要繼續嗎？');
+      if (!confirmed) return;
+      
+      setIsCacheLoading(true);
+      const result = await window.electronAPI.clearBatchSlidesCache();
+      if (result && result.success) {
+        setSnackbarMessage(`投影片集快取清除成功，共刪除 ${result.deletedCount} 個檔案`);
+        setSnackbarSeverity('success');
+        setSnackbarOpen(true);
+        fetchCacheInfo();
+      } else {
+        setSnackbarMessage('投影片集快取清除失敗');
+        setSnackbarSeverity('error');
+        setSnackbarOpen(true);
+      }
+    } catch (err) {
+      console.error('清除投影片集快取失敗:', err);
+      setSnackbarMessage('清除投影片集快取失敗');
       setSnackbarSeverity('error');
       setSnackbarOpen(true);
     } finally {
@@ -117,7 +229,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ settings, onSave, onCance
     setSnackbarOpen(false);
   };
   
-  // 當切換到緩存管理選項卡時加載緩存信息
+  // 當切換到快取管理選項卡時加載快取信息
   useEffect(() => {
     if (tabIndex === 3) {
       fetchCacheInfo();
@@ -182,17 +294,17 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ settings, onSave, onCance
     setSnackbarOpen(true);
   };
   
-  // 恢復提示詞模板默認值
+  // 恢復文件模板默認值
   const handleResetPromptTemplates = () => {
     if (!defaultSettings) return;
     
     setFormData(prevData => ({
       ...prevData,
       imagePromptTemplate: defaultSettings.imagePromptTemplate,
-      slidesPromptTemplate: defaultSettings.slidesPromptTemplate,
+      customMarpHeader: defaultSettings.customMarpHeader,
     }));
     
-    setSnackbarMessage('已恢復提示詞模板預設值');
+    setSnackbarMessage('已恢復文件模板預設值');
     setSnackbarSeverity('success');
     setSnackbarOpen(true);
   };
@@ -217,8 +329,8 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ settings, onSave, onCance
         <Tabs value={tabIndex} onChange={handleTabChange} aria-label="settings tabs">
           <Tab label="基本設定" />
           <Tab label="API 密鑰" />
-          <Tab label="提示詞模板" />
-          <Tab label="緩存管理" />
+          <Tab label="文件模板" />
+          <Tab label="快取管理" />
         </Tabs>
       </Box>
       
@@ -368,13 +480,13 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ settings, onSave, onCance
               }}
             />
             <FormHelperText>
-              請從 OpenAI 官網獲取 API 密鑰以啟用圖片生成和投影片生成功能
+              請從 OpenAI 官網獲取 API 密鑰以啟用圖片生成功能
             </FormHelperText>
           </Box>
         </Box>
       </TabPanel>
       
-      {/* 提示詞模板選項卡 */}
+      {/* 文件模板選項卡 */}
       <TabPanel value={tabIndex} index={2}>
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
           <Box>
@@ -395,17 +507,17 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ settings, onSave, onCance
           
           <Box>
             <Typography variant="h6" gutterBottom>
-              投影片生成提示詞
+              Marp標頭文本
             </Typography>
             <TextField
               fullWidth
-              label="投影片生成提示詞"
-              value={formData.slidesPromptTemplate}
-              onChange={(e) => handleChange('slidesPromptTemplate', e.target.value)}
+              label="Marp標頭文本"
+              value={formData.customMarpHeader}
+              onChange={(e) => handleChange('customMarpHeader', e.target.value)}
               margin="normal"
               multiline
-              rows={4}
-              helperText="可使用 {{lyrics}} 和 {{imageUrl}} 變數"
+              rows={8}
+              helperText="自定義Marp投影片格式的標頭文本，影響全局投影片樣式"
             />
           </Box>
           
@@ -422,11 +534,11 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ settings, onSave, onCance
         </Box>
       </TabPanel>
       
-      {/* 緩存管理選項卡 */}
+      {/* 快取管理選項卡 */}
       <TabPanel value={tabIndex} index={3}>
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
           <Typography variant="h6" gutterBottom>
-            緩存管理
+            快取管理
           </Typography>
           
           {isCacheLoading && <LinearProgress sx={{ mb: 2 }} />}
@@ -434,31 +546,87 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ settings, onSave, onCance
           {cacheInfo ? (
             <Box>
               <Typography variant="body1" gutterBottom>
-                總緩存大小: <strong>{cacheInfo.totalSize.totalSizeMB}</strong>
+                總快取大小: <strong>{cacheInfo.totalSize.totalSizeMB}</strong>
               </Typography>
               
               <Box sx={{ display: 'flex', flexDirection: { xs: 'column', md: 'row' }, gap: 2, mb: 2 }}>
                 <Paper elevation={1} sx={{ p: 2, flex: 1 }}>
-                  <Typography variant="subtitle1">圖片緩存</Typography>
-                  <Typography variant="body2">
-                    {cacheInfo.images.fileCount} 個檔案 ({cacheInfo.images.totalSizeMB})
-                  </Typography>
+                  <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                    <Typography variant="subtitle1">圖片快取</Typography>
+                    <Typography variant="body2">
+                      {cacheInfo.images.fileCount} 個檔案 ({cacheInfo.images.totalSizeMB})
+                    </Typography>
+                    <Button
+                      variant="outlined"
+                      color="error"
+                      onClick={handleClearImagesCache}
+                      disabled={isCacheLoading || cacheInfo.images.fileCount === 0}
+                      size="small"
+                      startIcon={<Delete />}
+                    >
+                      清除圖片快取
+                    </Button>
+                  </Box>
                 </Paper>
                 
                 <Paper elevation={1} sx={{ p: 2, flex: 1 }}>
-                  <Typography variant="subtitle1">投影片緩存</Typography>
-                  <Typography variant="body2">
-                    {cacheInfo.slides.fileCount} 個檔案 ({cacheInfo.slides.totalSizeMB})
-                  </Typography>
+                  <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                    <Typography variant="subtitle1">投影片快取</Typography>
+                    <Typography variant="body2">
+                      {cacheInfo.slides.fileCount} 個檔案 ({cacheInfo.slides.totalSizeMB})
+                    </Typography>
+                    <Button
+                      variant="outlined"
+                      color="error"
+                      onClick={handleClearSlidesCache}
+                      disabled={isCacheLoading || cacheInfo.slides.fileCount === 0}
+                      size="small"
+                      startIcon={<Delete />}
+                    >
+                      清除投影片快取
+                    </Button>
+                  </Box>
                 </Paper>
                 
                 <Paper elevation={1} sx={{ p: 2, flex: 1 }}>
-                  <Typography variant="subtitle1">歌詞緩存</Typography>
-                  <Typography variant="body2">
-                    {cacheInfo.lyrics?.songCount || 0} 首歌詞 ({cacheInfo.lyrics?.totalSizeMB || '0 MB'})
-                  </Typography>
+                  <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                    <Typography variant="subtitle1">歌詞快取</Typography>
+                    <Typography variant="body2">
+                      {cacheInfo.lyrics?.songCount || 0} 首歌詞 ({cacheInfo.lyrics?.totalSizeMB || '0 MB'})
+                    </Typography>
+                    <Button
+                      variant="outlined"
+                      color="error"
+                      onClick={handleClearLyricsCache}
+                      disabled={isCacheLoading || !(cacheInfo.lyrics?.songCount > 0)}
+                      size="small"
+                      startIcon={<Delete />}
+                    >
+                      清除歌詞快取
+                    </Button>
+                  </Box>
                 </Paper>
               </Box>
+              
+              {/* 投影片集快取管理 */}
+              <Paper elevation={1} sx={{ p: 2, mt: 2 }}>
+                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                  <Typography variant="subtitle1">投影片集快取</Typography>
+                  <Typography variant="body2">
+                    {cacheInfo.batchSlides?.fileCount || 0} 個檔案 ({cacheInfo.batchSlides?.totalSizeMB || '0 MB'})
+                  </Typography>
+                  <Button
+                    variant="outlined"
+                    color="error"
+                    onClick={handleClearBatchSlidesCache}
+                    disabled={isCacheLoading || (cacheInfo.batchSlides?.fileCount === 0)}
+                    size="small"
+                    startIcon={<Delete />}
+                  >
+                    清除投影片集快取
+                  </Button>
+                </Box>
+              </Paper>
               
               <Box sx={{ display: 'flex', justifyContent: 'flex-start', mt: 2 }}>
                 <Button
@@ -469,7 +637,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ settings, onSave, onCance
                   startIcon={<Delete />}
                   sx={{ mr: 1 }}
                 >
-                  清除所有緩存
+                  清除所有快取
                 </Button>
                 
                 <Button
@@ -478,19 +646,19 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ settings, onSave, onCance
                   disabled={isCacheLoading}
                   startIcon={<Refresh />}
                 >
-                  刷新緩存信息
+                  刷新快取信息
                 </Button>
               </Box>
               
               <Box sx={{ mt: 2 }}>
                 <Typography variant="body2" color="text.secondary">
-                  緩存包含生成的背景圖片、投影片內容和搜尋的歌詞。清除緩存將刪除這些檔案，並完全刪除所有歌詞資料，這意味著您必須重新搜索歌詞。
+                  快取包含生成的背景圖片、投影片內容和搜尋的歌詞。清除快取將刪除這些檔案，並完全刪除所有歌詞資料，這意味著您必須重新搜索歌詞。
                 </Typography>
               </Box>
             </Box>
           ) : (
             <Typography variant="body1">
-              {isCacheLoading ? '正在獲取緩存信息...' : '無法獲取緩存信息'}
+              {isCacheLoading ? '正在獲取快取信息...' : '無法獲取快取信息'}
             </Typography>
           )}
         </Box>

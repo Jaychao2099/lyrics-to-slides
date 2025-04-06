@@ -4,7 +4,6 @@
 import { app } from 'electron';
 import * as path from 'path';
 import * as fs from 'fs/promises';
-import OpenAI from 'openai';
 import { SettingsService } from './settings';
 import { DatabaseService } from './database';
 import { LoggerService } from './logger';
@@ -14,37 +13,26 @@ import { LoggerService } from './logger';
  * 實現規格書中第3.3節的功能
  */
 export class SlideGenerationService {
-  // OpenAI 實例
-  private static openai: OpenAI | null = null;
-  // 投影片緩存目錄
-  private static slidesCacheDir = path.join(app.getPath('userData'), 'cache', 'slides');
+  // 投影片快取目錄
+  private static slidesCacheDir = path.join(app.getPath('userData'), 'app_cache', 'slides');
 
   /**
-   * 初始化緩存目錄
+   * 初始化快取目錄
    */
   private static async initCacheDir(): Promise<void> {
     try {
-      await fs.mkdir(this.slidesCacheDir, { recursive: true });
-    } catch (error) {
-      console.error('建立投影片緩存目錄失敗:', error);
-    }
-  }
-
-  /**
-   * 初始化 OpenAI API
-   */
-  private static async initOpenAI(): Promise<void> {
-    try {
-      const apiKey = SettingsService.getSetting('openaiApiKey');
-      if (!apiKey) {
-        throw new Error('未設定OpenAI API金鑰');
+      try {
+        // 先檢查目錄是否存在
+        await fs.access(this.slidesCacheDir);
+        // 目錄已存在，無需創建
+      } catch (e) {
+        // 目錄不存在，創建它
+        await fs.mkdir(this.slidesCacheDir, { recursive: true });
+        console.log(`投影片快取目錄創建成功: ${this.slidesCacheDir}`);
       }
-      this.openai = new OpenAI({
-        apiKey: apiKey as string,
-      });
     } catch (error) {
-      console.error('初始化OpenAI API失敗:', error);
-      throw error;
+      console.error('建立投影片快取目錄失敗:', error);
+      await LoggerService.error('建立投影片快取目錄失敗', error);
     }
   }
 
@@ -66,165 +54,49 @@ export class SlideGenerationService {
   ): Promise<string> {
     const startTime = LoggerService.apiStart('SlideGenerationService', 'generateSlides', { songId, songTitle, artist, lyricsLength: lyrics?.length });
     try {
-      // 確保緩存目錄存在
+      // 確保快取目錄存在
       await this.initCacheDir();
 
-      // 檢查緩存中是否已有此歌曲的投影片內容
-      const cachedSlides = await this.getSlidesFromCache(songId);
-      if (cachedSlides) {
-        return cachedSlides;
-      }
+      // --- DEBUG: 暫時移除快取檢查，強制重新生成 ---
+      // const cachedSlides = await this.getSlidesFromCache(songId);
+      // if (cachedSlides) {
+      //   // 記錄一下命中了快取
+      //   await LoggerService.info(`Slide generation for song ${songId} hit cache.`);
+      //   return cachedSlides;
+      // }
+      // --- END DEBUG ---
 
-      // 初始化 OpenAI API
-      if (!this.openai) {
-        await this.initOpenAI();
-      }
+      // 記錄將要用於生成投影片的參數
+      await LoggerService.info(`Generating slides for song ${songId}. Title: ${songTitle}, Artist: ${artist}, Lyrics length: ${lyrics?.length || 0}, Image path: ${imagePath}`);
+
+      // 使用 SlideFormatter 生成投影片內容
+      const customHeader = SettingsService.getSetting('customMarpHeader');
       
-      if (!this.openai) {
-        throw new Error('無法初始化 OpenAI API');
-      }
-
-      // 獲取投影片生成提示詞模板
-      const promptTemplate = SettingsService.getSetting('slidesPromptTemplate') || 
-        `請將以下歌詞轉換為符合 Marp 投影片格式的 Markdown。請遵循以下要求：
-1. 仔細判斷歌詞的段落屬性(如主歌、副歌...)，注意：用"空格"分開的句子算同一行。根據段落分段後(每段最多四行)，將每個段落放在一張投影片上，並使用"---"作為投影片分隔符
-2. 在每張投影片頂部加入背景圖片：![bg]({{imageUrl}})
-3. 不要添加任何不在原歌詞中的內容
-4. 每首歌的第一張投影片顯示"# 歌曲標題"
-5. 每行歌詞開頭用"# "標註
-6. 輸出時不需要任何額外的解釋、說明、"\`\`\`markdown"等字符，僅輸出純 Markdown 內容
-範例：
----
-marp: true
-color: "black"
-style: |
-  section {
-    text-align: center;
-  }
-  h1 {
-    -webkit-text-stroke: 0.2px white;
-  }
-
----
-
-![bg](./images/test-bg1.png)
-
-# 第一首歌曲名稱
-
----
-
-![bg](./images/test-bg1.png)
-
-# 第一行歌詞
-# 第二行歌詞
-# 第三行歌詞
-# 第四行歌詞
-
----
-
-![bg](./images/test-bg2.png)
-
-# 第二首歌曲名稱
-
----
-
-![bg](./images/test-bg2.png)
-
-# 第一行歌詞
-# 第二行歌詞
-
-歌詞內容：
-{{lyrics}}`;
-
-      // 替換提示詞中的變數
-      const relativePath = path.relative(this.slidesCacheDir, imagePath)
-        .replace(/\\/g, '/'); // 轉換路徑分隔符為正斜線
+      // 導入 SlideFormatter 服務
+      const { SlideFormatter } = require('./slideFormatter');
       
-      const finalPrompt = promptTemplate
-        .replace('{{lyrics}}', lyrics)
-        .replace('{{imageUrl}}', imagePath) // 使用絕對路徑
-        .replace('{{songTitle}}', songTitle)
-        .replace('{{artist}}', artist);
-      
-      // 記錄生成投影片的提示詞
-      await LoggerService.info(`生成投影片的提示詞: ${finalPrompt.substring(0, 100)}...`);
-
       // 生成投影片內容
-      if (!this.openai) {
-        throw new Error('OpenAI API未初始化');
-      }
+      const slidesContent = SlideFormatter.formatSong(lyrics, imagePath, songTitle);
       
-      // 記錄 OpenAI API 請求
-      const openaiStartTime = LoggerService.apiStart('OpenAI', 'chat.completions.create', { 
-        model: "gpt-4o-mini",
-        prompt: finalPrompt.substring(0, 100) + '...',
-        promptLength: finalPrompt.length
-      });
-      
-      let response;
-      try {
-        response = await this.openai.chat.completions.create({
-          model: "gpt-4o-mini",
-          messages: [
-            {
-              role: "system",
-              content: "你是一個專業的文件轉換助手，專精於將歌詞轉換成符合Marp投影片格式的Markdown文件。"
-            },
-            { role: "user", content: finalPrompt }
-          ],
-          temperature: 0.7,
-        });
-        
-        await LoggerService.apiSuccess('OpenAI', 'chat.completions.create', 
-          { 
-            model: "gpt-4o-mini", 
-            prompt: finalPrompt,
-            promptLength: finalPrompt.length
-          }, 
-          { 
-            content: response?.choices?.[0]?.message?.content ? '有內容' : '無內容',
-            contentLength: response?.choices?.[0]?.message?.content?.length || 0
-          }, 
-          openaiStartTime
-        );
-      } catch (apiError) {
-        await LoggerService.apiError('OpenAI', 'chat.completions.create', 
-          { 
-            model: "gpt-4o-mini", 
-            prompt: finalPrompt,
-            promptLength: finalPrompt.length
-          }, 
-          apiError, 
-          openaiStartTime
-        );
-        throw apiError;
-      }
+      // 組合完整內容，加上自定義標頭
+      const fullSlidesContent = SlideFormatter.generateMarpHeader(customHeader as string) + slidesContent;
 
-      const slidesContent = response.choices[0].message.content;
-      
-      if (!slidesContent) {
-        throw new Error('投影片生成失敗');
-      }
-
-      // 修復圖片路徑
-      const fixedSlidesContent = this.fixImagePathsInSlides(slidesContent);
-
-      // 儲存投影片內容到緩存
-      await this.saveSlidesToCache(songId, fixedSlidesContent);
+      // 儲存投影片內容到快取
+      await this.saveSlidesToCache(songId, fullSlidesContent);
       
       // 更新歌曲記錄
       const db = DatabaseService.init();
       const updateStmt = db.prepare('UPDATE songs SET slide_content = ?, updated_at = ? WHERE id = ?');
-      updateStmt.run(fixedSlidesContent, new Date().toISOString(), songId);
+      updateStmt.run(fullSlidesContent, new Date().toISOString(), songId);
       
       // 記錄成功
       await LoggerService.apiSuccess('SlideGenerationService', 'generateSlides', 
         { songId, songTitle, artist, lyricsLength: lyrics?.length }, 
-        { slidesContentLength: fixedSlidesContent.length }, 
+        { slidesContentLength: fullSlidesContent.length }, 
         startTime
       );
 
-      return fixedSlidesContent;
+      return fullSlidesContent;
     } catch (error) {
       console.error('生成投影片失敗:', error);
       await LoggerService.apiError('SlideGenerationService', 'generateSlides', 
@@ -237,7 +109,7 @@ style: |
   }
 
   /**
-   * 將投影片內容保存到緩存
+   * 將投影片內容保存到快取
    * @param songId 歌曲ID
    * @param slidesContent Marp格式的投影片內容
    */
@@ -245,8 +117,11 @@ style: |
     try {
       const filePath = path.join(this.slidesCacheDir, `${songId}.md`);
       await fs.writeFile(filePath, slidesContent, 'utf-8');
+      
+      // 保存投影片與歌曲的關聯
+      DatabaseService.saveSongResource(songId, 'slide', filePath);
     } catch (error) {
-      console.error('保存投影片到緩存失敗:', error);
+      console.error('保存投影片到快取失敗:', error);
       throw error;
     }
   }
@@ -264,7 +139,7 @@ style: |
       let fixedPath = imagePath.replace(/\\/g, '/');
       
       // 確保 "cache" 目錄名稱為大寫 "Cache"
-      fixedPath = fixedPath.replace(/\/cache\//i, '/Cache/');
+      // fixedPath = fixedPath.replace(/\/cache\//i, '/Cache/');
       
       return `![bg](${fixedPath})`;
     });
@@ -273,12 +148,29 @@ style: |
   }
 
   /**
-   * 從緩存獲取投影片內容
+   * 從快取獲取投影片內容
    * @param songId 歌曲ID
    * @returns Marp格式的投影片內容 或 null
    */
   public static async getSlidesFromCache(songId: number): Promise<string | null> {
     try {
+      // 首先檢查關聯表中是否有存儲的投影片
+      const associatedSlide = DatabaseService.getSongResource(songId, 'slide');
+      if (associatedSlide) {
+        // 檢查檔案是否存在
+        try {
+          await fs.access(associatedSlide);
+          // 文件存在，讀取檔案內容
+          const content = await fs.readFile(associatedSlide, 'utf-8');
+          // 修復圖片路徑
+          return this.fixImagePathsInSlides(content);
+        } catch (e) {
+          // 文件不存在，嘗試尋找其他快取投影片
+          console.log(`關聯的投影片檔案不存在: ${associatedSlide}，嘗試尋找其他快取投影片`);
+        }
+      }
+      
+      // 嘗試使用常規快取路徑
       const filePath = path.join(this.slidesCacheDir, `${songId}.md`);
       
       try {
@@ -286,6 +178,8 @@ style: |
         await fs.access(filePath);
         // 讀取檔案內容
         const content = await fs.readFile(filePath, 'utf-8');
+        // 同時更新關聯表
+        DatabaseService.saveSongResource(songId, 'slide', filePath);
         // 修復圖片路徑
         return this.fixImagePathsInSlides(content);
       } catch (e) {
@@ -293,7 +187,7 @@ style: |
         return null;
       }
     } catch (error) {
-      console.error('從緩存獲取投影片失敗:', error);
+      console.error('從快取獲取投影片失敗:', error);
       return null;
     }
   }
@@ -308,7 +202,7 @@ style: |
       // 修復圖片路徑
       const fixedSlidesContent = this.fixImagePathsInSlides(slidesContent);
       
-      // 更新緩存中的投影片內容
+      // 更新快取中的投影片內容
       await this.saveSlidesToCache(songId, fixedSlidesContent);
       
       // 更新歌曲記錄
@@ -331,14 +225,14 @@ style: |
   }
 
   /**
-   * 獲取緩存大小
-   * @returns 緩存大小信息（總大小和檔案數量）
+   * 獲取快取大小
+   * @returns 快取大小信息（總大小和檔案數量）
    */
   public static async getCacheSize(): Promise<{ totalSizeBytes: number; totalSizeMB: string; fileCount: number }> {
     const startTime = LoggerService.apiStart('SlideGenerationService', 'getCacheSize', {});
     
     try {
-      // 確保緩存目錄存在
+      // 確保快取目錄存在
       await this.initCacheDir();
       
       // 讀取目錄中的所有檔案
@@ -357,7 +251,7 @@ style: |
             fileCount++;
           }
         } catch (e) {
-          await LoggerService.error(`無法讀取緩存檔案 ${file} 的信息`, e);
+          await LoggerService.error(`無法讀取快取檔案 ${file} 的信息`, e);
         }
       }
       
@@ -373,21 +267,21 @@ style: |
       
       return result;
     } catch (error) {
-      console.error('獲取緩存大小失敗:', error);
+      console.error('獲取快取大小失敗:', error);
       await LoggerService.apiError('SlideGenerationService', 'getCacheSize', {}, error, startTime);
       throw error;
     }
   }
 
   /**
-   * 清除投影片緩存
+   * 清除投影片快取
    * @returns 清除結果
    */
   public static async clearCache(): Promise<{ success: boolean; deletedCount: number }> {
     const startTime = LoggerService.apiStart('SlideGenerationService', 'clearCache', {});
     
     try {
-      // 確保緩存目錄存在
+      // 確保快取目錄存在
       await this.initCacheDir();
       
       // 讀取目錄中的所有檔案
@@ -405,7 +299,7 @@ style: |
             deletedCount++;
           }
         } catch (e) {
-          await LoggerService.error(`無法刪除緩存檔案 ${file}`, e);
+          await LoggerService.error(`無法刪除快取檔案 ${file}`, e);
         }
       }
       
@@ -424,6 +318,10 @@ style: |
         } else {
           await LoggerService.info('slides 表不存在，跳過資料庫清理');
         }
+        
+        // 清除投影片資源關聯記錄
+        await LoggerService.info('清除投影片關聯記錄');
+        DatabaseService.clearSongResourcesByType('slide');
       } catch (dbError) {
         await LoggerService.error('清除資料庫中的投影片記錄失敗', dbError);
       }
@@ -437,7 +335,7 @@ style: |
       
       return result;
     } catch (error) {
-      console.error('清除緩存失敗:', error);
+      console.error('清除快取失敗:', error);
       await LoggerService.apiError('SlideGenerationService', 'clearCache', {}, error, startTime);
       
       return {
@@ -446,4 +344,178 @@ style: |
       };
     }
   }
-} 
+
+  /**
+   * 批次生成投影片內容
+   * @param slideSetId 投影片集ID
+   * @returns 生成的Marp格式投影片內容
+   */
+  public static async generateBatchSlides(slideSetId: number): Promise<string> {
+    const startTime = LoggerService.apiStart('SlideGenerationService', 'generateBatchSlides', { slideSetId });
+    try {
+      // 確保快取目錄存在
+      await this.initCacheDir();
+      
+      // 定義查詢結果的類型
+      interface SongQueryResult {
+        song_id: number;
+        display_order: number;
+        title: string;
+        artist: string;
+        lyrics: string;
+      }
+      
+      // 獲取投影片集中的所有歌曲
+      const db = DatabaseService.init();
+      const slideSetSongs = db.prepare(`
+        SELECT ss.song_id, ss.display_order, s.title, s.artist, s.lyrics 
+        FROM slide_set_songs ss
+        JOIN songs s ON ss.song_id = s.id
+        WHERE ss.slide_set_id = ?
+        ORDER BY ss.display_order
+      `).all(slideSetId) as SongQueryResult[];
+      
+      if (!slideSetSongs || slideSetSongs.length === 0) {
+        throw new Error(`投影片集 ${slideSetId} 中沒有歌曲`);
+      }
+      
+      // 準備歌曲信息列表
+      const songInfoList = [];
+      
+      for (const songItem of slideSetSongs) {
+        const songId = songItem.song_id;
+        
+        // 檢查是否有關聯的圖片
+        const imagePath = DatabaseService.getSongResource(songId, 'image');
+        if (!imagePath) {
+          throw new Error(`歌曲 ${songItem.title} (ID: ${songId}) 沒有關聯的圖片`);
+        }
+        
+        // 添加到歌曲信息列表
+        songInfoList.push({
+          title: songItem.title,
+          artist: songItem.artist,
+          lyrics: songItem.lyrics,
+          imagePath
+        });
+      }
+      
+      // 使用 SlideFormatter 批次生成投影片內容
+      const { SlideFormatter } = require('./slideFormatter');
+      
+      // 獲取自定義 Marp 標頭
+      const customHeader = SettingsService.getSetting('customMarpHeader');
+      
+      // 生成完整的投影片內容
+      let slideContent = SlideFormatter.generateBatchSlides(songInfoList, customHeader as string);
+      
+      // 修復圖片路徑
+      slideContent = this.fixImagePathsInSlides(slideContent);
+      
+      // 將生成的投影片內容儲存到批次快取中
+      const batchSlideCachePath = path.join(this.slidesCacheDir, `batch_${slideSetId}.md`);
+      await fs.writeFile(batchSlideCachePath, slideContent, 'utf-8');
+      
+      // 記錄成功信息
+      await LoggerService.apiSuccess('SlideGenerationService', 'generateBatchSlides', 
+        { slideSetId, songCount: songInfoList.length }, 
+        { slidesContentLength: slideContent.length },
+        startTime
+      );
+      
+      return slideContent;
+    } catch (error) {
+      console.error('批次生成投影片失敗:', error);
+      await LoggerService.apiError('SlideGenerationService', 'generateBatchSlides', 
+        { slideSetId }, 
+        error, 
+        startTime
+      );
+      throw error;
+    }
+  }
+  
+  /**
+   * 獲取批次投影片內容
+   * @param slideSetId 投影片集ID
+   * @returns 批次生成的Marp格式投影片內容
+   */
+  public static async getBatchSlideContent(slideSetId: number): Promise<string> {
+    try {
+      // 嘗試從快取中獲取批次生成的投影片
+      const batchSlideCachePath = path.join(this.slidesCacheDir, `batch_${slideSetId}.md`);
+      
+      try {
+        // 檢查檔案是否存在
+        await fs.access(batchSlideCachePath);
+        // 檔案存在，讀取內容
+        const content = await fs.readFile(batchSlideCachePath, 'utf-8');
+        // 修復圖片路徑
+        return this.fixImagePathsInSlides(content);
+      } catch (e) {
+        // 快取不存在，重新生成
+        return await this.generateBatchSlides(slideSetId);
+      }
+    } catch (error) {
+      console.error('獲取批次投影片內容失敗:', error);
+      throw error;
+    }
+  }
+  
+  /**
+   * 預覽批次投影片
+   * @param slideSetId 投影片集ID
+   */
+  public static async previewBatchSlides(slideSetId: number): Promise<void> {
+    try {
+      // 獲取批次投影片內容
+      const slideContent = await this.getBatchSlideContent(slideSetId);
+      // 此功能留給渲染進程實現
+      console.log('預覽批次投影片功能由渲染進程實現');
+    } catch (error) {
+      console.error('預覽批次投影片失敗:', error);
+      throw error;
+    }
+  }
+  
+  /**
+   * 匯出批次投影片
+   * @param slideSetId 投影片集ID
+   * @param outputPath 輸出路徑
+   * @param format 輸出格式
+   * @returns 匯出的檔案路徑
+   */
+  public static async exportBatchSlides(slideSetId: number, outputPath: string, format: string): Promise<string> {
+    try {
+      // 獲取批次投影片內容
+      const slideContent = await this.getBatchSlideContent(slideSetId);
+      
+      // 根據格式匯出
+      let exportPath = '';
+      switch (format.toLowerCase()) {
+        case 'pdf':
+          // 使用 PDF 匯出服務匯出 - 實際實現可能需要另外的服務
+          const { ExportService } = require('./export');
+          exportPath = await ExportService.exportToPDF(slideContent, outputPath);
+          break;
+        case 'pptx':
+          // 使用 PPTX 匯出服務匯出
+          const { ExportService: ExportServicePPTX } = require('./export');
+          exportPath = await ExportServicePPTX.exportToPPTX(slideContent, outputPath);
+          break;
+        case 'html':
+          // 使用 HTML 匯出服務匯出
+          const { ExportService: ExportServiceHTML } = require('./export');
+          exportPath = await ExportServiceHTML.exportToHTML(slideContent, outputPath);
+          break;
+        default:
+          throw new Error(`不支持的匯出格式: ${format}`);
+      }
+      
+      return exportPath;
+    } catch (error) {
+      console.error('匯出批次投影片失敗:', error);
+      throw error;
+    }
+  }
+}

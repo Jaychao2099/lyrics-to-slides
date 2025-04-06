@@ -17,30 +17,38 @@ import * as iconv from 'iconv-lite';
  * 實現規格書中第3.1節的功能
  */
 export class LyricsSearchService {
-  // 緩存目錄
-  private static lyricsCacheDir = path.join(app.getPath('userData'), 'cache', 'lyrics');
+  // 快取目錄
+  private static lyricsCacheDir = path.join(app.getPath('userData'), 'app_cache', 'lyrics');
 
   /**
-   * 初始化緩存目錄
+   * 初始化快取目錄
    */
   private static async initCacheDir(): Promise<void> {
     try {
-      await fs.mkdir(this.lyricsCacheDir, { recursive: true });
+      try {
+        // 先檢查目錄是否存在
+        await fs.access(this.lyricsCacheDir);
+        // 目錄已存在，無需創建
+      } catch (e) {
+        // 目錄不存在，創建它
+        await fs.mkdir(this.lyricsCacheDir, { recursive: true });
+        console.log(`歌詞快取目錄創建成功: ${this.lyricsCacheDir}`);
+      }
     } catch (error) {
-      console.error('建立歌詞緩存目錄失敗:', error);
-      await LoggerService.error('建立歌詞緩存目錄失敗', error);
+      console.error('建立歌詞快取目錄失敗:', error);
+      await LoggerService.error('建立歌詞快取目錄失敗', error);
     }
   }
 
   /**
-   * 獲取緩存大小
-   * @returns 緩存大小信息（總大小和檔案數量）
+   * 獲取快取大小
+   * @returns 快取大小信息（總大小和檔案數量）
    */
   public static async getCacheSize(): Promise<{ totalSizeBytes: number; totalSizeMB: string; fileCount: number }> {
     const startTime = LoggerService.apiStart('LyricsSearchService', 'getCacheSize', {});
     
     try {
-      // 確保緩存目錄存在
+      // 確保快取目錄存在
       await this.initCacheDir();
       
       // 讀取目錄中的所有檔案
@@ -59,7 +67,7 @@ export class LyricsSearchService {
             fileCount++;
           }
         } catch (e) {
-          await LoggerService.error(`無法讀取緩存檔案 ${file} 的信息`, e);
+          await LoggerService.error(`無法讀取快取檔案 ${file} 的信息`, e);
         }
       }
       
@@ -80,21 +88,21 @@ export class LyricsSearchService {
       
       return result;
     } catch (error) {
-      console.error('獲取緩存大小失敗:', error);
+      console.error('獲取快取大小失敗:', error);
       await LoggerService.apiError('LyricsSearchService', 'getCacheSize', {}, error, startTime);
       throw error;
     }
   }
 
   /**
-   * 清除歌詞緩存
+   * 清除歌詞快取
    * @returns 清除結果
    */
   public static async clearCache(): Promise<{ success: boolean; deletedCount: number }> {
     const startTime = LoggerService.apiStart('LyricsSearchService', 'clearCache', {});
     
     try {
-      // 確保緩存目錄存在
+      // 確保快取目錄存在
       await this.initCacheDir();
       
       // 讀取目錄中的所有檔案
@@ -112,7 +120,7 @@ export class LyricsSearchService {
             deletedCount++;
           }
         } catch (e) {
-          await LoggerService.error(`無法刪除緩存檔案 ${file}`, e);
+          await LoggerService.error(`無法刪除快取檔案 ${file}`, e);
         }
       }
       
@@ -124,6 +132,11 @@ export class LyricsSearchService {
         const tableExists = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='songs'").get();
         
         if (tableExists) {
+          // 刪除歌曲記錄前，先清除所有資源關聯記錄
+          await LoggerService.info('清除所有資源關聯記錄');
+          DatabaseService.clearAllSongResources();
+          
+          // 刪除歌曲記錄
           const deleteQuery = "DELETE FROM songs";
           await LoggerService.logDatabaseOperation('刪除', deleteQuery, []);
           db.prepare(deleteQuery).run();
@@ -144,7 +157,7 @@ export class LyricsSearchService {
       
       return result;
     } catch (error) {
-      console.error('清除緩存失敗:', error);
+      console.error('清除快取失敗:', error);
       await LoggerService.apiError('LyricsSearchService', 'clearCache', {}, error, startTime);
       
       return {
@@ -217,21 +230,21 @@ export class LyricsSearchService {
     const results: LyricsSearchResult[] = [];
     
     try {
-      // 檢查緩存
+      // 檢查快取
       if (!artist) {
         // 搜尋確切標題匹配的所有歌曲
         const cachedSongs = await DatabaseService.searchSongsByExactTitle(songTitle);
         
         if (cachedSongs.length > 0) {
-          console.log(`[LyricsSearch] 找到緩存歌曲: ${cachedSongs.length}首`);
+          console.log(`[LyricsSearch] 找到快取歌曲: ${cachedSongs.length}首`);
           
-          // 將所有緩存歌曲添加到結果中
+          // 將所有快取歌曲添加到結果中
           cachedSongs.forEach(song => {
             results.push({
               title: song.title,
               artist: song.artist,
               lyrics: song.lyrics,
-              source: '', // 緩存歌曲沒有來源URL
+              source: '', // 快取歌曲沒有來源URL
               fromCache: true,
               songId: song.id
             });
@@ -239,9 +252,9 @@ export class LyricsSearchService {
         }
       }
       
-      // 如果沒有找到緩存結果，或者指定了歌手，則嘗試API搜尋
+      // 如果沒有找到快取結果，或者指定了歌手，則嘗試API搜尋
       if (results.length === 0 || artist) {
-        console.log(`[LyricsSearch] 沒有緩存結果，嘗試API搜尋`);
+        console.log(`[LyricsSearch] 沒有快取結果，嘗試API搜尋`);
         
         try {
           // 使用 searchLyricsUrl 方法獲取歌詞頁面 URL
@@ -273,9 +286,9 @@ export class LyricsSearchService {
           }
         } catch (err) {
           console.error('[LyricsSearch] API搜尋失敗:', err);
-          // 如果API搜尋失敗但有緩存結果，仍然返回緩存結果
+          // 如果API搜尋失敗但有快取結果，仍然返回快取結果
           if (results.length > 0) {
-            console.log('[LyricsSearch] API搜尋失敗，但返回緩存結果');
+            console.log('[LyricsSearch] API搜尋失敗，但返回快取結果');
           } else {
             throw new Error('歌詞搜尋失敗');
           }
@@ -563,20 +576,23 @@ export class LyricsSearchService {
       return '';
     }
     
-    // 去除多餘空行
-    let cleaned = lyrics.replace(/\n{3,}/g, '\n\n');
+    this.log(`清理歌詞原始內容前100字符: ${lyrics.substring(0, 100)}`);
+    this.log(`原始歌詞中連續換行符數量: ${(lyrics.match(/\n\n/g) || []).length}`);
     
-    // 清除所有方括號包圍的內容
+    // 步驟1: 保存原始換行格式 - 替換連續的兩個換行符為特殊標記
+    let cleaned = lyrics.replace(/\n\n/g, '\uE000'); // 使用 Unicode 私有區域字符作為臨時替代
+    
+    // 步驟2: 清除所有方括號包圍的內容
     cleaned = cleaned.replace(/\[.*?\]/g, '');
     
-    // 清除常見的Markdown格式標記
+    // 步驟3: 清除常見的Markdown格式標記
     cleaned = cleaned.replace(/(\*\*|\*|__).*?(\*\*|\*|__)/g, '');
     
-    // 處理版權信息
+    // 步驟4: 處理版權信息
     cleaned = cleaned.replace(/版權屬.*所有/g, '');
     cleaned = cleaned.replace(/詩集：.*?\n/g, '');
     
-    // 去除常見的不需要的內容
+    // 步驟5: 去除常見的不需要的內容
     const removePatterns = [
       'Lyrics',
       'lyrics',
@@ -596,15 +612,15 @@ export class LyricsSearchService {
       '間奏曲'
     ];
     
-    removePatterns.forEach(pattern => {
+    for (const pattern of removePatterns) {
       cleaned = cleaned.replace(new RegExp(`.*${pattern}.*\n?`, 'g'), '');
-    });
+    }
     
-    // 修復常見格式問題
+    // 步驟6: 修復常見格式問題
     cleaned = cleaned.replace(/\s{2,}/g, ' '); // 多個空格替換為一個
     cleaned = cleaned.trim();
     
-    // 處理中文標點符號
+    // 步驟7: 處理中文標點符號
     cleaned = cleaned.replace(/，\n/g, '\n');
     cleaned = cleaned.replace(/。/g, '\n');
     cleaned = cleaned.replace(/，/g, ' ');
@@ -612,17 +628,21 @@ export class LyricsSearchService {
     cleaned = cleaned.replace(/；/g, ' ');
     cleaned = cleaned.replace(/、/g, ' ');
     
-    // 處理分節：確保段落之間有適當的空行
-    cleaned = cleaned.replace(/\n{3,}/g, '\n\n');  // 再次確保不會有過多連續空行
+    // 步驟8: 將超過三個連續的換行符替換為兩個換行
+    cleaned = cleaned.replace(/\n{3,}/g, '\n\n');
     
-    // 輸出處理後的歌詞內容前100字符做調試
+    // 步驟9: 恢復原始的連續換行符
+    cleaned = cleaned.replace(/\uE000/g, '\n\n'); 
+    
+    // 最終確認換行符
     this.log(`清理後歌詞前100字符: ${cleaned.substring(0, 100)}`);
+    this.log(`清理後歌詞中連續換行符數量: ${(cleaned.match(/\n\n/g) || []).length}`);
     
     return cleaned;
   }
 
   /**
-   * 更新歌詞緩存
+   * 更新歌詞快取
    * @param title 歌曲名稱
    * @param artist 歌手名稱
    * @param lyrics 歌詞內容
@@ -634,9 +654,9 @@ export class LyricsSearchService {
     artist: string, 
     lyrics: string, 
     source: string
-  ): Promise<boolean> {
+  ): Promise<{success: boolean, songId: number}> {
     try {
-      this.log(`開始更新歌詞緩存: ${title} - ${artist}`);
+      this.log(`開始更新歌詞快取: ${title} - ${artist}`);
       
       // 確保保存前對歌詞進行清理
       const cleanedLyrics = this.cleanLyrics(lyrics);
@@ -644,13 +664,22 @@ export class LyricsSearchService {
       // 先查詢是否有匹配的歌曲
       const matchedSongs = DatabaseService.searchSongs(title);
       let updated = false;
+      let songId = -1;
       
       if (matchedSongs.length > 0) {
         // 查找最匹配的歌曲
-        const exactMatch = matchedSongs.find(song => 
-          song.title.toLowerCase() === title.toLowerCase() && 
-          ((!artist && !song.artist) || song.artist.toLowerCase() === artist.toLowerCase())
-        );
+        // 改進邏輯：針對歌手名稱的比較進行優化
+        // 1. 如果標題完全匹配
+        // 2. 並且符合以下條件之一:
+        //    a. 歌手名稱都存在且匹配
+        //    b. 歌手名稱都不存在
+        //    c. 其中一方的歌手名稱為空字串或未定義
+        const exactMatch = matchedSongs.find(song => {
+          const titleMatch = song.title.toLowerCase() === title.toLowerCase();
+          const artistMatch = (!artist || !artist.trim()) && (!song.artist || !song.artist.trim()) || 
+                              (artist && song.artist && song.artist.toLowerCase() === artist.toLowerCase());
+          return titleMatch && artistMatch;
+        });
         
         // 如果找到精確匹配，則更新歌詞
         if (exactMatch) {
@@ -659,27 +688,31 @@ export class LyricsSearchService {
             lyrics: cleanedLyrics
           });
           
+          songId = exactMatch.id;
+          
           if (updated) {
-            this.log(`成功更新歌曲 "${title}" 的歌詞緩存`);
+            this.log(`成功更新歌曲 "${title}" 的歌詞快取，ID: ${songId}`);
           } else {
-            this.log(`更新歌曲 "${title}" 的歌詞緩存失敗`, 'error');
+            this.log(`更新歌曲 "${title}" 的歌詞快取失敗`, 'error');
           }
-          return updated;
+          return {success: updated, songId};
         }
       }
       
       // 如果沒有找到匹配的記錄，創建新記錄
       this.log(`沒有找到匹配的歌曲記錄，添加新記錄: ${title}`);
-      const newSongId = DatabaseService.addSong({
+      songId = DatabaseService.addSong({
         title: title,
         artist: artist,
         lyrics: cleanedLyrics
       });
       
-      return newSongId > 0;
+      this.log(`添加新歌曲完成，ID: ${songId}`);
+      
+      return {success: songId > 0, songId};
     } catch (error) {
-      this.log(`更新歌詞緩存時發生錯誤: ${error}`, 'error');
-      return false;
+      this.log(`更新歌詞快取時發生錯誤: ${error}`, 'error');
+      return {success: false, songId: -1};
     }
   }
 }

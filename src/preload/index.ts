@@ -31,8 +31,29 @@ interface ElectronAPI {
   importLocalImage: (songId: number, localImagePath: string) => Promise<{songId: number, imagePath: string}>;
   getCacheSize: () => Promise<any>;
   clearCache: () => Promise<any>;
-  updateLyricsCache: (title: string, artist: string, lyrics: string, source: string) => Promise<boolean>;
+  clearImagesCache: () => Promise<any>;
+  clearSlidesCache: () => Promise<any>;
+  clearLyricsCache: () => Promise<any>;
+  updateLyricsCache: (title: string, artist: string, lyrics: string, source: string) => Promise<{success: boolean, songId: number}>;
   addNewSong: (title: string, artist: string, lyrics: string, source: string) => Promise<boolean>;
+  checkRelatedImage: (songId: number) => Promise<RelatedImageResult>;
+  checkRelatedSlide: (songId: number) => Promise<RelatedSlideResult>;
+  saveSongImageAssociation: (songId: number, imagePath: string) => Promise<{success: boolean, message: string}>;
+  saveSongSlideAssociation: (songId: number, slideContent: string) => Promise<{success: boolean, message: string}>;
+  saveSongDetails: (songId: number, songDetails: { title: string, artist?: string, lyrics?: string, imageUrl?: string }) => Promise<boolean>;
+  getSongById: (songId: number) => Promise<any>;
+  getTempPath: () => Promise<string>;
+}
+
+// 定義返回類型
+interface RelatedImageResult {
+  hasRelatedImage: boolean;
+  imagePath?: string;
+}
+
+interface RelatedSlideResult {
+  hasRelatedSlide: boolean;
+  slideContent?: string;
 }
 
 // 暴露給渲染進程的 API
@@ -99,7 +120,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // 取得歌曲列表
   getSongs: () => ipcRenderer.invoke('get-songs'),
   
-  // 更新歌詞緩存
+  // 新增：根據 ID 獲取單首歌曲
+  getSongById: (songId: number) => ipcRenderer.invoke('get-song-by-id', songId),
+  
+  // 更新歌詞快取
   updateLyricsCache: (title: string, artist: string, lyrics: string, source: string) => 
     ipcRenderer.invoke('update-lyrics-cache', title, artist, lyrics, source),
   
@@ -120,11 +144,27 @@ contextBridge.exposeInMainWorld('electronAPI', {
   importLocalImage: (songId: number, localImagePath: string) => 
     ipcRenderer.invoke('import-local-image', songId, localImagePath),
   
-  // 獲取緩存大小
+  // 新增：保存歌曲詳情
+  saveSongDetails: (songId: number, songDetails: { title: string, artist?: string, lyrics?: string, imageUrl?: string }) => 
+    ipcRenderer.invoke('save-song-details', songId, songDetails),
+  
+  // 獲取快取大小
   getCacheSize: () => ipcRenderer.invoke('get-cache-size'),
   
-  // 清除緩存
+  // 清除所有快取
   clearCache: () => ipcRenderer.invoke('clear-cache'),
+  
+  // 清除圖片快取
+  clearImagesCache: () => ipcRenderer.invoke('clear-images-cache'),
+  
+  // 清除投影片快取
+  clearSlidesCache: () => ipcRenderer.invoke('clear-slides-cache'),
+  
+  // 清除歌詞快取
+  clearLyricsCache: () => ipcRenderer.invoke('clear-lyrics-cache'),
+  
+  // 清除批次投影片快取
+  clearBatchSlidesCache: () => ipcRenderer.invoke('clear-batch-slides-cache'),
   
   // 監聽進度更新
   onProgressUpdate: (callback: (progress: number, status: string) => void) => {
@@ -146,5 +186,38 @@ contextBridge.exposeInMainWorld('electronAPI', {
     return () => {
       ipcRenderer.removeListener('main-process-log', listener);
     };
-  }
+  },
+  
+  // 檢查歌曲是否有關聯圖片
+  checkRelatedImage: (songId: number) => ipcRenderer.invoke('check-related-image', songId),
+  
+  // 檢查歌曲是否有關聯投影片  
+  checkRelatedSlide: (songId: number) => ipcRenderer.invoke('check-related-slide', songId),
+  
+  // 保存歌曲與圖片的關聯
+  saveSongImageAssociation: (songId: number, imagePath: string) => 
+    ipcRenderer.invoke('save-song-image-association', songId, imagePath),
+    
+  // 保存歌曲與投影片的關聯
+  saveSongSlideAssociation: (songId: number, slideContent: string) => 
+    ipcRenderer.invoke('save-song-slide-association', songId, slideContent),
+  
+  // 投影片集管理
+  createSlideSet: (name: string) => ipcRenderer.invoke('create-slide-set', name),
+  getSlideSets: () => ipcRenderer.invoke('get-slide-sets'),
+  getSlideSetSongs: (slideSetId: number) => ipcRenderer.invoke('get-slide-set-songs', slideSetId),
+  addSongToSlideSet: (slideSetId: number, songId: number, displayOrder: number) => ipcRenderer.invoke('add-song-to-slide-set', slideSetId, songId, displayOrder),
+  removeSongFromSlideSet: (slideSetId: number, songId: number) => ipcRenderer.invoke('remove-song-from-slide-set', slideSetId, songId),
+  updateSongOrderInSlideSet: (slideSetId: number, songId: number, newOrder: number) => ipcRenderer.invoke('update-song-order-in-slide-set', slideSetId, songId, newOrder),
+  deleteSlideSet: (slideSetId: number) => ipcRenderer.invoke('delete-slide-set', slideSetId),
+  updateSlideSetName: (slideSetId: number, newName: string) => ipcRenderer.invoke('update-slide-set-name', slideSetId, newName),
+  
+  // 批次處理
+  generateBatchSlides: (slideSetId: number) => ipcRenderer.invoke('generate-batch-slides', slideSetId),
+  previewBatchSlides: (slideSetId: number) => ipcRenderer.invoke('preview-batch-slides', slideSetId),
+  getBatchSlideContent: (slideSetId: number) => ipcRenderer.invoke('get-batch-slide-content', slideSetId),
+  exportBatchSlides: (slideSetId: number, outputPath: string, format: string) => ipcRenderer.invoke('export-batch-slides', slideSetId, outputPath, format),
+  
+  // 新增：獲取系統臨時目錄路徑
+  getTempPath: () => ipcRenderer.invoke('get-temp-path'),
 } as ElectronAPI); 

@@ -31,6 +31,7 @@ Desktop.ini
 .idea/
 .vscode/
 .cursor/
+.windsurfrules
 *.swp
 *.swo
 .vs/
@@ -49,6 +50,7 @@ Desktop.ini
 .stylelintcache
 
 # 測試相關
+test-slide/
 /coverage/
 /.nyc_output/
 /test-results/
