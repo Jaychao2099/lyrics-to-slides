@@ -272,6 +272,13 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ settings, onSave, onCance
     onSave(formData);
   };
   
+  // 處理取消按鈕
+  const handleCancel = () => {
+    // 重置表單數據為初始設定
+    setFormData({ ...settings });
+    onCancel();
+  };
+  
   // 處理選項卡變更
   const handleTabChange = (_event: React.SyntheticEvent, newValue: number) => {
     setTabIndex(newValue);
@@ -665,7 +672,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ settings, onSave, onCance
       </TabPanel>
       
       <Box sx={{ display: 'flex', justifyContent: 'flex-end', mt: 3 }}>
-        <Button variant="outlined" onClick={onCancel} sx={{ mr: 1 }}>
+        <Button variant="outlined" onClick={handleCancel} sx={{ mr: 1 }}>
           取消
         </Button>
         <Button variant="contained" onClick={handleSave}>

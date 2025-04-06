@@ -471,6 +471,20 @@ const LyricsSearch: React.FC<LyricsSearchProps> = ({ onSearchComplete }) => {
         </Button>
       </Box>
 
+      {/* 手動輸入歌詞按鈕 */}
+      <Box sx={{ mt: 3, mb: 3, textAlign: 'center' }}>
+        <Button
+          variant="outlined"
+          color="primary"
+          onClick={handleManualEntry}
+        >
+          手動輸入歌詞
+        </Button>
+        <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+          找不到歌詞？您可以選擇手動輸入歌詞內容
+        </Typography>
+      </Box>
+
       {/* 已存在的歌曲列表 */}
       <Box sx={{ mb: 3 }}>
         <Typography variant="h6" gutterBottom>
@@ -533,14 +547,6 @@ const LyricsSearch: React.FC<LyricsSearchProps> = ({ onSearchComplete }) => {
             <Typography variant="h6">
               搜尋結果 ({searchResults.length})
             </Typography>
-            <Button
-              variant="outlined"
-              color="secondary"
-              onClick={handleManualEntry}
-              size="small"
-            >
-              都不是我要找的歌曲
-            </Button>
           </Box>
           
           {searchResults.map((result, index) => (
@@ -607,15 +613,8 @@ const LyricsSearch: React.FC<LyricsSearchProps> = ({ onSearchComplete }) => {
 
       {searchResults.length === 0 && !loading && !error && (
         <Box sx={{ mt: 3, textAlign: 'center' }}>
-          <Button
-            variant="outlined"
-            color="primary"
-            onClick={handleManualEntry}
-          >
-            手動輸入歌詞
-          </Button>
           <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
-            找不到歌詞？您可以選擇手動輸入歌詞內容
+            請搜尋或從已存在的歌曲中選擇
           </Typography>
         </Box>
       )}

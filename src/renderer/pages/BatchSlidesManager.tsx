@@ -344,8 +344,6 @@ const BatchSlidesManager: React.FC = () => {
 
   // 打開導出對話框
   const handleOpenExportDialog = () => {
-    if (!selectedSetId) return;
-    
     if (songsInSet.length === 0) {
       alert('投影片集中沒有歌曲，請先添加歌曲。');
       return;
@@ -357,13 +355,16 @@ const BatchSlidesManager: React.FC = () => {
       setExportFileName(selectedSet.name.replace(/[\\/:*?"<>|]/g, '_'));
     }
     
-    // 獲取預設輸出路徑
+    // 獲取預設輸出路徑和預設匯出格式
     window.electronAPI.getSettings().then(settings => {
       if (settings.defaultOutputDirectory) {
         setExportPath(settings.defaultOutputDirectory);
       }
+      if (settings.defaultExportFormat) {
+        setExportFormat(settings.defaultExportFormat);
+      }
     }).catch(error => {
-      console.error('獲取預設輸出路徑失敗', error);
+      console.error('獲取預設設定失敗', error);
     });
     
     setExportDialogOpen(true);

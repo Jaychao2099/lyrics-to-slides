@@ -1,6 +1,6 @@
 {
   "name": "lyrics-to-slides",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "將歌曲名稱轉換為精美投影片的桌面應用程式",
   "main": "dist/main/index.js",
   "scripts": {
@@ -11,8 +11,7 @@
     "build:renderer": "webpack",
     "copy-html": "node -e \"const fs=require('fs'); const path=require('path'); const mkdirp=require('mkdirp'); const dir=path.join('dist','renderer'); mkdirp.sync(dir); fs.copyFileSync(path.join('src','renderer','index.html'), path.join(dir,'index.html'));\"",
     "watch": "tsc -w",
-    "rebuild": "electron-rebuild",
-    "test": "jest"
+    "rebuild": "electron-rebuild"
   },
   "keywords": [
     "electron",
@@ -37,7 +36,6 @@
     "eslint": "^9.23.0",
     "i18next": "^24.2.3",
     "i18next-react": "^0.2.2",
-    "jest": "^29.7.0",
     "markdown-it": "^14.1.0",
     "node-fetch": "^2",
     "openai": "^4.90.0",
@@ -52,7 +50,6 @@
   "devDependencies": {
     "@types/better-sqlite3": "*",
     "@types/cheerio": "*",
-    "@types/jest": "^29.5.14",
     "@types/node": "*",
     "@types/node-fetch": "*",
     "@types/react": "*",
@@ -64,7 +61,6 @@
     "html-webpack-plugin": "^5.6.3",
     "mkdirp": "^3.0.1",
     "style-loader": "^4.0.0",
-    "ts-jest": "^29.3.0",
     "ts-loader": "^9.5.2",
     "typescript": "*",
     "webpack": "^5.98.0",

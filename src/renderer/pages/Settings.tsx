@@ -27,9 +27,32 @@ const Settings: React.FC = () => {
     try {
       await window.electronAPI.saveSettings(newSettings);
       setSettings(newSettings);
+      
+      // 觸發自定義事件通知其他組件設定已變更
+      const event = new CustomEvent('settings-changed');
+      window.dispatchEvent(event);
+      
+      // 如果主題已變更，立即應用
+      if (settings && settings.theme !== newSettings.theme) {
+        console.log('主題已從', settings.theme, '變更為', newSettings.theme);
+      }
     } catch (error) {
       console.error('保存設定失敗', error);
     }
+  };
+  
+  const handleCancelSettings = () => {
+    // 重新載入現有設定
+    const loadSettings = async () => {
+      try {
+        const settings = await window.electronAPI.getSettings();
+        setSettings(settings);
+      } catch (error) {
+        console.error('重新載入設定失敗', error);
+      }
+    };
+    
+    loadSettings();
   };
   
   if (loading) {
@@ -50,8 +73,8 @@ const Settings: React.FC = () => {
         <Paper sx={{ p: 3 }}>
           <SettingsPanel 
             settings={settings} 
-            onSave={handleSaveSettings} 
-            onCancel={() => {}} 
+            onSave={handleSaveSettings}
+            onCancel={handleCancelSettings}
           />
         </Paper>
       )}
