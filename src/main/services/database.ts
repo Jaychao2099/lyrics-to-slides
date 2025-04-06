@@ -680,6 +680,34 @@ export const DatabaseService = {
       
       // 關聯記錄會因外鍵約束自動刪除
       
+      // 刪除對應的批次投影片快取檔案 (set_[slideSetId].md)
+      try {
+        const fs = require('fs/promises');
+        const path = require('path');
+        const { app } = require('electron');
+        const batchSlideCacheDir = path.join(app.getPath('userData'), 'app_cache', 'batch_slides');
+        const cacheFilePath = path.join(batchSlideCacheDir, `set_${slideSetId}.md`);
+        
+        // 檢查檔案是否存在
+        fs.access(cacheFilePath)
+          .then(() => {
+            // 檔案存在，刪除它
+            return fs.unlink(cacheFilePath);
+          })
+          .then(() => {
+            console.log(`成功刪除投影片集 ${slideSetId} 的快取檔案`);
+          })
+          .catch((err: NodeJS.ErrnoException) => {
+            // 如果是檔案不存在的錯誤，這是可接受的
+            if (err.code !== 'ENOENT') {
+              console.error(`刪除投影片集 ${slideSetId} 的快取檔案失敗:`, err);
+            }
+          });
+      } catch (cacheError) {
+        console.error(`刪除投影片集 ${slideSetId} 快取檔案時出錯:`, cacheError);
+        // 快取檔案刪除失敗不影響整體操作結果
+      }
+      
       return true;
     } catch (error) {
       console.error(`刪除投影片集 ${slideSetId} 失敗:`, error);

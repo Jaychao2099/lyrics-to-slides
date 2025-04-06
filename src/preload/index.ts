@@ -163,6 +163,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // 清除歌詞快取
   clearLyricsCache: () => ipcRenderer.invoke('clear-lyrics-cache'),
   
+  // 清除批次投影片快取
+  clearBatchSlidesCache: () => ipcRenderer.invoke('clear-batch-slides-cache'),
+  
   // 監聽進度更新
   onProgressUpdate: (callback: (progress: number, status: string) => void) => {
     const listener = (_event: any, progress: number, status: string) => callback(progress, status);

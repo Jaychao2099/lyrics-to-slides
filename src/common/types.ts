@@ -138,6 +138,10 @@ export interface ElectronAPI {
     success: boolean;
     deletedCount: number;
   }>;
+  clearBatchSlidesCache: () => Promise<{
+    success: boolean;
+    deletedCount: number;
+  }>;
   // 檢查關聯資源
   checkRelatedImage: (songId: number) => Promise<RelatedImageResult>;
   checkRelatedSlide: (songId: number) => Promise<RelatedSlideResult>;

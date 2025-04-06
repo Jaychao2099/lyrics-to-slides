@@ -221,4 +221,53 @@ export class BatchSlideService {
       };
     }
   }
+
+  /**
+   * 獲取快取大小
+   * @returns 快取大小信息（總大小和檔案數量）
+   */
+  public static async getCacheSize(): Promise<{ totalSizeBytes: number; totalSizeMB: string; fileCount: number }> {
+    const startTime = LoggerService.apiStart('BatchSlideService', 'getCacheSize', {});
+    
+    try {
+      // 確保快取目錄存在
+      await this.initCacheDir();
+      
+      // 讀取目錄中的所有檔案
+      const files = await fs.readdir(this.batchSlidesCacheDir);
+      let totalSize = 0;
+      let fileCount = 0;
+      
+      // 計算總大小
+      for (const file of files) {
+        try {
+          const filePath = path.join(this.batchSlidesCacheDir, file);
+          const stats = await fs.stat(filePath);
+          
+          if (stats.isFile()) {
+            totalSize += stats.size;
+            fileCount++;
+          }
+        } catch (e) {
+          await LoggerService.error(`無法讀取快取檔案 ${file} 的信息`, e);
+        }
+      }
+      
+      const totalSizeMB = (totalSize / (1024 * 1024)).toFixed(2);
+      
+      const result = {
+        totalSizeBytes: totalSize,
+        totalSizeMB: `${totalSizeMB} MB`,
+        fileCount
+      };
+      
+      await LoggerService.apiSuccess('BatchSlideService', 'getCacheSize', {}, result, startTime);
+      
+      return result;
+    } catch (error) {
+      console.error('獲取快取大小失敗:', error);
+      await LoggerService.apiError('BatchSlideService', 'getCacheSize', {}, error, startTime);
+      throw error;
+    }
+  }
 } 

@@ -702,9 +702,10 @@ function setupIpcHandlers() {
       const imgCacheSize = await ImageGenerationService.getCacheSize();
       const slidesCacheSize = await SlideGenerationService.getCacheSize();
       const lyricsCacheSize = await LyricsSearchService.getCacheSize();
+      const batchSlidesCacheSize = await BatchSlideService.getCacheSize();
       
       // 計算總大小
-      const totalSizeBytes = imgCacheSize.totalSizeBytes + slidesCacheSize.totalSizeBytes + lyricsCacheSize.totalSizeBytes;
+      const totalSizeBytes = imgCacheSize.totalSizeBytes + slidesCacheSize.totalSizeBytes + lyricsCacheSize.totalSizeBytes + batchSlidesCacheSize.totalSizeBytes;
       const totalSizeMB = (totalSizeBytes / (1024 * 1024)).toFixed(2);
       
       // 組合結果
@@ -715,7 +716,8 @@ function setupIpcHandlers() {
         },
         images: imgCacheSize,
         slides: slidesCacheSize,
-        lyrics: lyricsCacheSize
+        lyrics: lyricsCacheSize,
+        batchSlides: batchSlidesCacheSize
       };
     } catch (error) {
       console.error('獲取快取大小失敗:', error);
@@ -807,7 +809,7 @@ function setupIpcHandlers() {
     }
   });
   
-  // 只清除歌詞快取
+  // 清除歌詞快取
   ipcMain.handle('clear-lyrics-cache', async () => {
     try {
       mainWindow?.webContents.send('progress-update', 10, '正在清除歌詞快取...');
@@ -825,6 +827,37 @@ function setupIpcHandlers() {
     } catch (error) {
       console.error('清除歌詞快取失敗:', error);
       mainWindow?.webContents.send('progress-update', 0, '清除歌詞快取失敗');
+      throw error;
+    }
+  });
+  
+  // 清除批次投影片快取
+  ipcMain.handle('clear-batch-slides-cache', async () => {
+    try {
+      mainWindow?.webContents.send('progress-update', 10, '正在清除投影片集快取...');
+      
+      // 清除批次投影片快取
+      const batchSlidesCacheResult = await BatchSlideService.clearCache();
+      
+      // 刪除資料庫中所有投影片集
+      const db = DatabaseService.init();
+      const slideSetExists = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='slide_sets'").get();
+      
+      if (slideSetExists) {
+        db.prepare('DELETE FROM slide_sets').run();
+        console.log('資料庫中的所有投影片集已清除');
+      }
+      
+      mainWindow?.webContents.send('progress-update', 100, '投影片集快取清除完成');
+      
+      // 返回結果
+      return {
+        success: batchSlidesCacheResult.success,
+        deletedCount: batchSlidesCacheResult.deletedCount
+      };
+    } catch (error) {
+      console.error('清除投影片集快取失敗:', error);
+      mainWindow?.webContents.send('progress-update', 0, '清除投影片集快取失敗');
       throw error;
     }
   });

@@ -90,6 +90,10 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ settings, onSave, onCance
   // 清除所有快取
   const handleClearCache = async () => {
     try {
+      // 確認對話框
+      const confirmed = window.confirm('提醒：這將清除所有檔案。\n確定要繼續嗎？');
+      if (!confirmed) return;
+
       setIsCacheLoading(true);
       const result = await window.electronAPI.clearCache();
       if (result && result.success) {
@@ -165,6 +169,10 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ settings, onSave, onCance
   // 清除歌詞快取
   const handleClearLyricsCache = async () => {
     try {
+      // 確認對話框
+      const confirmed = window.confirm('提醒：這將刪除所有歌詞紀錄，即便之後搜尋相同歌曲，其相關圖片與投影片也不會存在。\n確定要繼續嗎？');
+      if (!confirmed) return;
+
       setIsCacheLoading(true);
       const result = await window.electronAPI.clearLyricsCache();
       if (result && result.success) {
@@ -180,6 +188,35 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ settings, onSave, onCance
     } catch (err) {
       console.error('清除歌詞快取失敗:', err);
       setSnackbarMessage('清除歌詞快取失敗');
+      setSnackbarSeverity('error');
+      setSnackbarOpen(true);
+    } finally {
+      setIsCacheLoading(false);
+    }
+  };
+  
+  // 清除投影片集快取
+  const handleClearBatchSlidesCache = async () => {
+    try {
+      // 確認對話框
+      const confirmed = window.confirm('提醒：這將刪除所有投影片集。確定要繼續嗎？');
+      if (!confirmed) return;
+      
+      setIsCacheLoading(true);
+      const result = await window.electronAPI.clearBatchSlidesCache();
+      if (result && result.success) {
+        setSnackbarMessage(`投影片集快取清除成功，共刪除 ${result.deletedCount} 個檔案`);
+        setSnackbarSeverity('success');
+        setSnackbarOpen(true);
+        fetchCacheInfo();
+      } else {
+        setSnackbarMessage('投影片集快取清除失敗');
+        setSnackbarSeverity('error');
+        setSnackbarOpen(true);
+      }
+    } catch (err) {
+      console.error('清除投影片集快取失敗:', err);
+      setSnackbarMessage('清除投影片集快取失敗');
       setSnackbarSeverity('error');
       setSnackbarOpen(true);
     } finally {
@@ -570,6 +607,26 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ settings, onSave, onCance
                   </Box>
                 </Paper>
               </Box>
+              
+              {/* 投影片集快取管理 */}
+              <Paper elevation={1} sx={{ p: 2, mt: 2 }}>
+                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                  <Typography variant="subtitle1">投影片集快取</Typography>
+                  <Typography variant="body2">
+                    {cacheInfo.batchSlides?.fileCount || 0} 個檔案 ({cacheInfo.batchSlides?.totalSizeMB || '0 MB'})
+                  </Typography>
+                  <Button
+                    variant="outlined"
+                    color="error"
+                    onClick={handleClearBatchSlidesCache}
+                    disabled={isCacheLoading || (cacheInfo.batchSlides?.fileCount === 0)}
+                    size="small"
+                    startIcon={<Delete />}
+                  >
+                    清除投影片集快取
+                  </Button>
+                </Box>
+              </Paper>
               
               <Box sx={{ display: 'flex', justifyContent: 'flex-start', mt: 2 }}>
                 <Button
