@@ -83,9 +83,6 @@ function createWindow() {
   // 開發環境下打開開發者工具
   if (isDev) {
     mainWindow.webContents.openDevTools();
-  } else {
-    // 在生產環境下也打開開發者工具以便偵錯
-    mainWindow.webContents.openDevTools();
   }
 
   // 當窗口關閉時觸發
