@@ -27,7 +27,35 @@ style: |
     text-align: center;
     font-size:80px;
     font-weight:900;
-    -webkit-text-stroke: 2px white;
+    text-shadow: 
+      -5px -5px 0 white, -5px -4px 0 white, -5px -3px 0 white, -5px -2px 0 white, -5px -1px 0 white,
+      -5px 0px 0 white, -5px 1px 0 white, -5px 2px 0 white, -5px 3px 0 white, -5px 4px 0 white, -5px 5px 0 white,
+      -4px -5px 0 white, -4px -4px 0 white, -4px -3px 0 white, -4px -2px 0 white, -4px -1px 0 white,
+      -4px 0px 0 white, -4px 1px 0 white, -4px 2px 0 white, -4px 3px 0 white, -4px 4px 0 white, -4px 5px 0 white,
+      -3px -5px 0 white, -3px -4px 0 white, -3px -3px 0 white, -3px -2px 0 white, -3px -1px 0 white,
+      -3px 0px 0 white, -3px 1px 0 white, -3px 2px 0 white, -3px 3px 0 white, -3px 4px 0 white, -3px 5px 0 white,
+      -2px -5px 0 white, -2px -4px 0 white, -2px -3px 0 white, -2px -2px 0 white, -2px -1px 0 white,
+      -2px 0px 0 white, -2px 1px 0 white, -2px 2px 0 white, -2px 3px 0 white, -2px 4px 0 white, -2px 5px 0 white,
+      -1px -5px 0 white, -1px -4px 0 white, -1px -3px 0 white, -1px -2px 0 white, -1px -1px 0 white,
+      -1px 0px 0 white, -1px 1px 0 white, -1px 2px 0 white, -1px 3px 0 white, -1px 4px 0 white, -1px 5px 0 white,
+      0px -5px 0 white, 0px -4px 0 white, 0px -3px 0 white, 0px -2px 0 white, 0px -1px 0 white,
+      0px 0px 0 white, 0px 1px 0 white, 0px 2px 0 white, 0px 3px 0 white, 0px 4px 0 white, 0px 5px 0 white,
+      1px -5px 0 white, 1px -4px 0 white, 1px -3px 0 white, 1px -2px 0 white, 1px -1px 0 white,
+      1px 0px 0 white, 1px 1px 0 white, 1px 2px 0 white, 1px 3px 0 white, 1px 4px 0 white, 1px 5px 0 white,
+      2px -5px 0 white, 2px -4px 0 white, 2px -3px 0 white, 2px -2px 0 white, 2px -1px 0 white,
+      2px 0px 0 white, 2px 1px 0 white, 2px 2px 0 white, 2px 3px 0 white, 2px 4px 0 white, 2px 5px 0 white,
+      3px -5px 0 white, 3px -4px 0 white, 3px -3px 0 white, 3px -2px 0 white, 3px -1px 0 white,
+      3px 0px 0 white, 3px 1px 0 white, 3px 2px 0 white, 3px 3px 0 white, 3px 4px 0 white, 3px 5px 0 white,
+      4px -5px 0 white, 4px -4px 0 white, 4px -3px 0 white, 4px -2px 0 white, 4px -1px 0 white,
+      4px 0px 0 white, 4px 1px 0 white, 4px 2px 0 white, 4px 3px 0 white, 4px 4px 0 white, 4px 5px 0 white,
+      5px -5px 0 white, 5px -4px 0 white, 5px -3px 0 white, 5px -2px 0 white, 5px -1px 0 white,
+      5px 0px 0 white, 5px 1px 0 white, 5px 2px 0 white, 5px 3px 0 white, 5px 4px 0 white, 5px 5px 0 white;
+  }
+  h1 {
+    position:absolute;
+    top: 20px;
+    right: 40px;
+    font-size:20px;
   }
 `,
 

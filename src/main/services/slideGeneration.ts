@@ -139,7 +139,7 @@ export class SlideGenerationService {
       let fixedPath = imagePath.replace(/\\/g, '/');
       
       // 確保 "cache" 目錄名稱為大寫 "Cache"
-      fixedPath = fixedPath.replace(/\/cache\//i, '/Cache/');
+      // fixedPath = fixedPath.replace(/\/cache\//i, '/Cache/');
       
       return `![bg](${fixedPath})`;
     });
@@ -407,7 +407,10 @@ export class SlideGenerationService {
       const customHeader = SettingsService.getSetting('customMarpHeader');
       
       // 生成完整的投影片內容
-      const slideContent = SlideFormatter.generateBatchSlides(songInfoList, customHeader as string);
+      let slideContent = SlideFormatter.generateBatchSlides(songInfoList, customHeader as string);
+      
+      // 修復圖片路徑
+      slideContent = this.fixImagePathsInSlides(slideContent);
       
       // 將生成的投影片內容儲存到批次快取中
       const batchSlideCachePath = path.join(this.slidesCacheDir, `batch_${slideSetId}.md`);

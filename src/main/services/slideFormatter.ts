@@ -32,7 +32,35 @@ style: |
     text-align: center;
     font-size:80px;
     font-weight:900;
-    -webkit-text-stroke: 2px white;
+    text-shadow: 
+      -5px -5px 0 white, -5px -4px 0 white, -5px -3px 0 white, -5px -2px 0 white, -5px -1px 0 white,
+      -5px 0px 0 white, -5px 1px 0 white, -5px 2px 0 white, -5px 3px 0 white, -5px 4px 0 white, -5px 5px 0 white,
+      -4px -5px 0 white, -4px -4px 0 white, -4px -3px 0 white, -4px -2px 0 white, -4px -1px 0 white,
+      -4px 0px 0 white, -4px 1px 0 white, -4px 2px 0 white, -4px 3px 0 white, -4px 4px 0 white, -4px 5px 0 white,
+      -3px -5px 0 white, -3px -4px 0 white, -3px -3px 0 white, -3px -2px 0 white, -3px -1px 0 white,
+      -3px 0px 0 white, -3px 1px 0 white, -3px 2px 0 white, -3px 3px 0 white, -3px 4px 0 white, -3px 5px 0 white,
+      -2px -5px 0 white, -2px -4px 0 white, -2px -3px 0 white, -2px -2px 0 white, -2px -1px 0 white,
+      -2px 0px 0 white, -2px 1px 0 white, -2px 2px 0 white, -2px 3px 0 white, -2px 4px 0 white, -2px 5px 0 white,
+      -1px -5px 0 white, -1px -4px 0 white, -1px -3px 0 white, -1px -2px 0 white, -1px -1px 0 white,
+      -1px 0px 0 white, -1px 1px 0 white, -1px 2px 0 white, -1px 3px 0 white, -1px 4px 0 white, -1px 5px 0 white,
+      0px -5px 0 white, 0px -4px 0 white, 0px -3px 0 white, 0px -2px 0 white, 0px -1px 0 white,
+      0px 0px 0 white, 0px 1px 0 white, 0px 2px 0 white, 0px 3px 0 white, 0px 4px 0 white, 0px 5px 0 white,
+      1px -5px 0 white, 1px -4px 0 white, 1px -3px 0 white, 1px -2px 0 white, 1px -1px 0 white,
+      1px 0px 0 white, 1px 1px 0 white, 1px 2px 0 white, 1px 3px 0 white, 1px 4px 0 white, 1px 5px 0 white,
+      2px -5px 0 white, 2px -4px 0 white, 2px -3px 0 white, 2px -2px 0 white, 2px -1px 0 white,
+      2px 0px 0 white, 2px 1px 0 white, 2px 2px 0 white, 2px 3px 0 white, 2px 4px 0 white, 2px 5px 0 white,
+      3px -5px 0 white, 3px -4px 0 white, 3px -3px 0 white, 3px -2px 0 white, 3px -1px 0 white,
+      3px 0px 0 white, 3px 1px 0 white, 3px 2px 0 white, 3px 3px 0 white, 3px 4px 0 white, 3px 5px 0 white,
+      4px -5px 0 white, 4px -4px 0 white, 4px -3px 0 white, 4px -2px 0 white, 4px -1px 0 white,
+      4px 0px 0 white, 4px 1px 0 white, 4px 2px 0 white, 4px 3px 0 white, 4px 4px 0 white, 4px 5px 0 white,
+      5px -5px 0 white, 5px -4px 0 white, 5px -3px 0 white, 5px -2px 0 white, 5px -1px 0 white,
+      5px 0px 0 white, 5px 1px 0 white, 5px 2px 0 white, 5px 3px 0 white, 5px 4px 0 white, 5px 5px 0 white;
+  }
+  h1 {
+    position:absolute;
+    top: 20px;
+    right: 40px;
+    font-size:20px;
   }
 `;
 
@@ -51,24 +79,8 @@ style: |
       // 初始化投影片內容（移除之前的首頁空白頁）
       let slides = "";
 
-      // 如果提供了標題，添加標題頁
-      if (title) {
-        slides += `
----
-
-![bg](${imagePath})
-
-# ${title}
-`;
-      }
-      // 如果沒有標題，創建一個首頁空白頁
-      else {
-        slides += `
----
-
-![bg](${imagePath})
-`;
-      }
+      // 修復圖片路徑，將反斜線替換為正斜線
+      const fixedImagePath = imagePath.replace(/\\/g, '/');
 
       // 按照雙換行分段 (\n\n)
       const paragraphs = lyrics.split('\n\n').filter(p => p.trim());
@@ -78,8 +90,8 @@ style: |
         slides += `
 ---
 
-![bg](${imagePath})
-
+![bg](${fixedImagePath})
+# ${title}
 ${paragraph}
 `;
       }
@@ -88,7 +100,8 @@ ${paragraph}
       slides += `
 ---
 
-![bg](${imagePath})
+![bg](${fixedImagePath})
+# ${title}
 `;
 
       return slides;

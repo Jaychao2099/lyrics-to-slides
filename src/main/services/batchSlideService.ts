@@ -78,7 +78,10 @@ export class BatchSlideService {
       const customHeader = SettingsService.getSetting('customMarpHeader');
       
       // 生成合併投影片
-      const slidesContent = SlideFormatter.generateBatchSlides(songInfoList, customHeader as string);
+      let slidesContent = SlideFormatter.generateBatchSlides(songInfoList, customHeader as string);
+      
+      // 修復圖片路徑
+      slidesContent = this.fixImagePathsInSlides(slidesContent);
 
       // 保存到快取
       const filePath = path.join(this.batchSlidesCacheDir, `set_${slideSetId}.md`);
@@ -107,6 +110,20 @@ export class BatchSlideService {
   }
 
   /**
+   * 處理投影片內容中的圖片路徑
+   * @param slidesContent 投影片內容
+   * @returns 處理後的投影片內容
+   */
+  private static fixImagePathsInSlides(slidesContent: string): string {
+    // 修復路徑分隔符，將 \ 替換為 /
+    return slidesContent.replace(/!\[bg\]\((.*?)\)/g, (match, imagePath) => {
+      // 替換所有反斜線為正斜線
+      let fixedPath = imagePath.replace(/\\/g, '/');
+      return `![bg](${fixedPath})`;
+    });
+  }
+
+  /**
    * 從快取獲取批次投影片內容
    * @param slideSetId 投影片集ID
    * @returns 快取的Marp格式投影片內容或null
@@ -123,7 +140,8 @@ export class BatchSlideService {
         await fs.access(filePath);
         // 文件存在，讀取檔案內容
         const content = await fs.readFile(filePath, 'utf-8');
-        return content;
+        // 修復圖片路徑
+        return this.fixImagePathsInSlides(content);
       } catch (e) {
         // 檔案不存在
         return null;

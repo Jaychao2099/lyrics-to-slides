@@ -9,7 +9,7 @@ export interface Settings {
   defaultOutputDirectory: string;
   defaultExportFormat: 'pdf' | 'pptx' | 'html';
 
-  // 提示詞模板
+  // 文件模板
   imagePromptTemplate: string;
   customMarpHeader: string; // 新增: 自定義 Marp 標頭
 
