@@ -257,7 +257,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ settings, onSave, onCance
     setSnackbarOpen(true);
   };
   
-  // 恢復提示詞模板默認值
+  // 恢復文件模板默認值
   const handleResetPromptTemplates = () => {
     if (!defaultSettings) return;
     
@@ -267,7 +267,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ settings, onSave, onCance
       customMarpHeader: defaultSettings.customMarpHeader,
     }));
     
-    setSnackbarMessage('已恢復提示詞模板預設值');
+    setSnackbarMessage('已恢復文件模板預設值');
     setSnackbarSeverity('success');
     setSnackbarOpen(true);
   };
@@ -292,7 +292,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ settings, onSave, onCance
         <Tabs value={tabIndex} onChange={handleTabChange} aria-label="settings tabs">
           <Tab label="基本設定" />
           <Tab label="API 密鑰" />
-          <Tab label="提示詞模板" />
+          <Tab label="文件模板" />
           <Tab label="快取管理" />
         </Tabs>
       </Box>
@@ -449,7 +449,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ settings, onSave, onCance
         </Box>
       </TabPanel>
       
-      {/* 提示詞模板選項卡 */}
+      {/* 文件模板選項卡 */}
       <TabPanel value={tabIndex} index={2}>
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
           <Box>
