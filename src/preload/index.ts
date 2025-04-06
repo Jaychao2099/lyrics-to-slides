@@ -12,7 +12,7 @@ interface ElectronAPI {
   generateSlides: (songId: number, songTitle: string, artist: string, lyrics: string, imagePath: string) => Promise<string>;
   updateSlides: (songId: number, slidesContent: string) => Promise<boolean>;
   getSlides: (songId: number) => Promise<string>;
-  previewSlides: (marpContent: string) => Promise<string>;
+  previewSlides: (marpContent: string) => Promise<{success: boolean}>;
   exportToPDF: (marpContent: string, outputPath: string) => Promise<string>;
   exportToPPTX: (marpContent: string, outputPath: string) => Promise<string>;
   exportToHTML: (marpContent: string, outputPath: string) => Promise<string>;
