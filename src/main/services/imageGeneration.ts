@@ -146,7 +146,7 @@ export class ImageGenerationService {
       let imageResponse;
       try {
         imageResponse = await this.openai.images.generate({
-          model: "dall-e-3", // 或 "dall-e-2"
+          model: "dall-e-3", // "dall-e-3", "dall-e-2", "4o"
           prompt: finalPrompt,
           n: 1,
           size: "1024x1024",

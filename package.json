@@ -1,6 +1,6 @@
 {
   "name": "lyrics-to-slides",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "將歌曲名稱轉換為精美投影片的桌面應用程式",
   "main": "dist/main/index.js",
   "scripts": {

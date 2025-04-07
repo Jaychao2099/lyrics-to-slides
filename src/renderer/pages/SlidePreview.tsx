@@ -418,7 +418,7 @@ const SlidePreview: React.FC = () => {
                     onClick={handleOpenPreview}
                     color="primary"
                   >
-                    打開預覽視窗
+                    預覽
                   </Button>
                   
                   <Button
@@ -484,7 +484,7 @@ const SlidePreview: React.FC = () => {
                             size="small"
                             sx={{ mr: 1 }}
                           >
-                            編輯源碼
+                            編輯源代碼
                           </Button>
                         )}
                         {!isEditing && (
@@ -565,7 +565,7 @@ const SlidePreview: React.FC = () => {
                 </Card>
                 
                 <Alert severity="info" sx={{ mb: 2 }}>
-                  提示：投影片是使用 Marp 格式生成的，您可以通過「匯出」功能導出為 PDF、PPTX 或其他格式。您也可以直接編輯源碼來自定義投影片。
+                  提示：投影片是使用 Marp 格式生成的，您可以通過「匯出」功能導出為 PDF、PPTX 或其他格式。您也可以直接編輯源代碼來自定義投影片。
                 </Alert>
               </Box>
             )}

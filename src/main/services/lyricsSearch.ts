@@ -329,7 +329,7 @@ export class LyricsSearchService {
     if (artist) {
       query += ` ${artist}`;
     }
-    query += ` 歌詞 繁體中文`;
+    query += ` 歌詞`;
     
     this.log(`搜尋歌詞URL，查詢: ${query}`);
 
@@ -347,15 +347,17 @@ export class LyricsSearchService {
       }
 
       if (data.items && data.items.length > 0) {
+        // 在這裡加上日誌，看看 API 實際返回了什麼
+        this.log('Google API 返回的結果 (data.items):');
+        data.items.forEach((item: any, index: number) => {
+          this.log(`  [${index}] ${item.link}`);
+        });
         // 優先選擇特定歌詞網站的結果
         const preferredSites = [
-          // 'mojim.com', // 魔鏡歌詞網 (中文歌詞) // 關站了...
+          'christianstudy.com', // 基督教研經網(讚美詩歌)
           'kkbox.com', // KKBOX (中文歌詞)
           'musixmatch.com',
           'genius.com',
-          'christianstudy.com', // 基督教研經網(讚美詩歌)
-          // 'azlyrics.com', // 沒啥用
-          // 'lyrics.com'    // 沒啥用
         ];
         
         // 嘗試找到優先網站的結果
