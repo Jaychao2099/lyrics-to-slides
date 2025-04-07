@@ -1366,7 +1366,15 @@ function setupIpcHandlers() {
   });
 
   // 保存歌曲詳情
-  ipcMain.handle('save-song-details', async (_event, songId: number, songDetails: { title: string, artist?: string, lyrics?: string, imageUrl?: string }) => {
+  ipcMain.handle('save-song-details', async (_event, songId: number, songDetails: { 
+    title: string, 
+    artist?: string, 
+    lyrics?: string, 
+    imageUrl?: string,
+    textColor?: string,
+    strokeColor?: string,
+    strokeSize?: number 
+  }) => {
     const startTime = LoggerService.apiStart('IPC', 'save-song-details', { songId, songDetails });
     try {
       await LoggerService.info(`保存歌曲詳情請求: songId=${songId}, Details: ${JSON.stringify(songDetails)}`);
@@ -1380,6 +1388,9 @@ function setupIpcHandlers() {
         artist: songDetails.artist,
         lyrics: cleanedLyrics,
         imageUrl: songDetails.imageUrl,
+        textColor: songDetails.textColor,
+        strokeColor: songDetails.strokeColor,
+        strokeSize: songDetails.strokeSize
       };
       
       // 過濾掉 undefined 的值，避免覆蓋資料庫中的現有值
@@ -1400,7 +1411,7 @@ function setupIpcHandlers() {
     } catch (error) {
       console.error('保存歌曲詳情失敗:', error);
       await LoggerService.apiError('IPC', 'save-song-details', { songId, songDetails }, error, startTime);
-      throw error;
+      return { success: false };
     }
   });
 }

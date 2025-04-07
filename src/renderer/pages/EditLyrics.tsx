@@ -33,6 +33,9 @@ const EditLyrics: React.FC = () => {
   const [artist, setArtist] = useState('');
   const [lyrics, setLyrics] = useState('');
   const [imageUrl, setImageUrl] = useState<string | null>(null);
+  const [textColor, setTextColor] = useState('black');
+  const [strokeColor, setStrokeColor] = useState('white');
+  const [strokeSize, setStrokeSize] = useState(5);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -41,352 +44,461 @@ const EditLyrics: React.FC = () => {
   const [hasImage, setHasImage] = useState(false);
   const [hasSlide, setHasSlide] = useState(false);
 
-  // 載入歌曲數據
+  // 載入歌曲資料
   useEffect(() => {
     const loadSong = async () => {
       try {
-        if (!songId) {
-          setError('無效的歌曲 ID');
-          setLoading(false);
-          return;
+        const songData = await window.electronAPI.getSongById(songId);
+        if (songData) {
+          setSong(songData);
+          setTitle(songData.title);
+          setArtist(songData.artist || '');
+          setLyrics(songData.lyrics || '');
+          setImageUrl(songData.imageUrl || null);
+          setTextColor(songData.textColor || 'black');
+          setStrokeColor(songData.strokeColor || 'white');
+          setStrokeSize(songData.strokeSize || 5);
+          
+          // 檢查是否有關聯的圖片和投影片
+          const imageResult = await window.electronAPI.checkRelatedImage(songId);
+          const slideResult = await window.electronAPI.checkRelatedSlide(songId);
+          
+          // 如果有imageUrl或檢查到關聯圖片，則設置hasImage為true
+          setHasImage(!!songData.imageUrl || imageResult.hasRelatedImage);
+          setHasSlide(slideResult.hasRelatedSlide);
         }
-        
-        setLoading(true);
-        
-        // 獲取所有歌曲
-        const songs = await window.electronAPI.getSongs();
-        const currentSong = songs.find(s => s.id === songId);
-        
-        if (!currentSong) {
-          setError(`找不到 ID 為 ${songId} 的歌曲`);
-          setLoading(false);
-          return;
-        }
-        
-        // 載入歌曲數據
-        setSong(currentSong);
-        setTitle(currentSong.title);
-        setArtist(currentSong.artist || '');
-        setLyrics(currentSong.lyrics);
-        
-        // 檢查是否有關聯圖片
-        const imageResult = await window.electronAPI.checkRelatedImage(songId);
-        setHasImage(imageResult.hasRelatedImage);
-        if (imageResult.hasRelatedImage && imageResult.imagePath) {
-          setImageUrl(imageResult.imagePath);
-        }
-        
-        // 檢查是否有關聯投影片
-        const slideResult = await window.electronAPI.checkRelatedSlide(songId);
-        setHasSlide(slideResult.hasRelatedSlide);
-        
-        setLoading(false);
-      } catch (err: any) {
-        setError(`載入歌曲時發生錯誤: ${err.message}`);
+      } catch (error) {
+        setError('載入歌曲資料失敗');
+        console.error('載入歌曲資料失敗:', error);
+      } finally {
         setLoading(false);
       }
     };
-    
+
     loadSong();
   }, [songId]);
 
-  // 保存歌詞 (現在改為保存歌曲詳情)
-  const handleSave = async () => {
-    if (!title.trim()) {
-      setError('歌曲標題不能為空');
-      return;
+  // 添加一個useEffect來監控imageUrl變化
+  useEffect(() => {
+    // 當imageUrl存在時，自動設置hasImage為true
+    if (imageUrl) {
+      setHasImage(true);
     }
-    
+  }, [imageUrl]);
+
+  // 儲存歌曲資料
+  const handleSave = async () => {
+    setSaving(true);
     try {
-      setSaving(true);
-      setError(null);
-      
-      // 準備要保存的數據
-      const songDetails = {
+      // 先儲存歌曲基本資料
+      const result = await window.electronAPI.saveSongDetails(songId, {
         title,
         artist,
         lyrics,
-        imageUrl: imageUrl === null ? undefined : imageUrl, // 將 null 轉換為 undefined
-      };
-      
-      // 呼叫新的 IPC Handler 來保存完整的歌曲詳情
-      const result = await window.electronAPI.saveSongDetails(songId, songDetails);
-      
-      if (result && result.success) {
-        setSnackbarMessage('歌曲詳情已成功保存');
-        setSnackbarOpen(true);
-        // 可以選擇性地重新加載數據或更新狀態
-        // loadSong(); // 例如，重新載入以確認
-      } else {
-        throw new Error('後端保存失敗');
-      }
-      setSaving(false);
-    } catch (err: any) {
-      setError(`保存歌曲詳情時發生錯誤: ${err.message}`);
-      setSaving(false);
-    }
-  };
+        imageUrl: imageUrl || undefined,
+        textColor,
+        strokeColor,
+        strokeSize
+      });
 
-  // 生成/重新生成圖片
-  const handleGenerateImage = async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      
-      let result;
-      if (hasImage) {
-        // 重新生成圖片
-        result = await window.electronAPI.regenerateImage(songId, title, lyrics);
+      if (result.success) {
+        // 如果有圖片但hasImage為false，嘗試修復關聯
+        if (imageUrl && !hasImage) {
+          try {
+            await window.electronAPI.saveSongImageAssociation(songId, imageUrl);
+            setHasImage(true);
+            setSnackbarMessage('儲存成功並修復圖片關聯');
+          } catch (imageError) {
+            console.error('修復圖片關聯失敗:', imageError);
+            setSnackbarMessage('儲存成功，但圖片關聯修復失敗');
+          }
+        } else {
+          setSnackbarMessage('儲存成功');
+        }
+        setSnackbarOpen(true);
       } else {
-        // 首次生成圖片
-        result = await window.electronAPI.generateImage(title, lyrics, songId);
+        setError('儲存失敗');
       }
-      
-      if (result && result.imagePath) {
-        // 自動保存圖片關聯
-        await window.electronAPI.saveSongImageAssociation(
-          result.songId || songId, 
-          result.imagePath
-        );
-        
-        // 更新界面
-        setImageUrl(result.imagePath);
-        setHasImage(true);
-        setSnackbarMessage('圖片已成功生成並關聯');
-        setSnackbarOpen(true);
-      }
-      
-      setLoading(false);
-    } catch (err: any) {
-      setError(`生成圖片時發生錯誤: ${err.message}`);
-      setLoading(false);
-    }
-  };
-
-  // 選擇並匯入本地圖片
-  const handleImportLocalImage = async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      
-      // 選擇本地圖片
-      const localImagePath = await window.electronAPI.selectLocalImage();
-      
-      if (!localImagePath) {
-        setLoading(false);
-        return; // 使用者取消了選擇
-      }
-      
-      // 匯入圖片
-      const result = await window.electronAPI.importLocalImage(songId, localImagePath);
-      
-      if (result && result.imagePath) {
-        // 自動保存圖片關聯
-        await window.electronAPI.saveSongImageAssociation(
-          result.songId || songId, 
-          result.imagePath
-        );
-        
-        // 更新界面
-        setImageUrl(result.imagePath);
-        setHasImage(true);
-        setSnackbarMessage('本地圖片已成功匯入並關聯');
-        setSnackbarOpen(true);
-      }
-      
-      setLoading(false);
-    } catch (err: any) {
-      setError(`匯入本地圖片時發生錯誤: ${err.message}`);
-      setLoading(false);
+    } catch (error) {
+      setError('儲存失敗');
+      console.error('儲存失敗:', error);
+    } finally {
+      setSaving(false);
     }
   };
 
   // 預覽投影片
   const handlePreview = async () => {
     try {
-      // 導航到預覽頁面
-      navigate(`/preview/${songId}`);
-    } catch (err: any) {
-      setError(`導航到預覽頁面時發生錯誤: ${err.message}`);
+      if (!imageUrl) {
+        setError('請先生成或選擇背景圖片，圖片URL不存在');
+        return;
+      }
+
+      if (!hasImage) {
+        // 雖然有imageUrl但hasImage為false，嘗試修復關聯
+        setError('圖片關聯似乎有問題，嘗試修復...');
+        
+        try {
+          // 先保存圖片關聯
+          await window.electronAPI.saveSongImageAssociation(songId, imageUrl);
+          setHasImage(true);
+          setError(null);
+          setSnackbarMessage('已修復圖片關聯');
+          setSnackbarOpen(true);
+        } catch (repairError) {
+          setError('修復圖片關聯失敗，請重新生成或選擇圖片');
+          console.error('修復圖片關聯失敗:', repairError);
+          return;
+        }
+      }
+
+      // 獲取投影片內容
+      const slideContent = await window.electronAPI.getSlides(songId);
+      if (slideContent) {
+        await window.electronAPI.previewSlides(slideContent);
+      } else {
+        setError('找不到投影片內容，請先重新生成投影片');
+      }
+    } catch (error) {
+      setError('預覽投影片失敗');
+      console.error('預覽投影片失敗:', error);
     }
   };
 
-  // 返回搜尋頁
-  const handleBackSearch = () => {
-    navigate('/search');
+  // 重新生成投影片
+  const handleRegenerateSlides = async () => {
+    try {
+      if (!imageUrl) {
+        setError('請先生成或選擇背景圖片，圖片URL不存在');
+        return;
+      }
+
+      if (!hasImage) {
+        // 嘗試修復圖片關聯
+        setError('圖片關聯似乎有問題，嘗試修復...');
+        
+        try {
+          // 先保存圖片關聯
+          await window.electronAPI.saveSongImageAssociation(songId, imageUrl);
+          setHasImage(true);
+          setError(null);
+          setSnackbarMessage('已修復圖片關聯');
+          setSnackbarOpen(true);
+        } catch (repairError) {
+          setError('修復圖片關聯失敗，請重新生成或選擇圖片');
+          console.error('修復圖片關聯失敗:', repairError);
+          return;
+        }
+      }
+
+      // 更新歌曲詳情，確保imageUrl正確保存
+      await window.electronAPI.saveSongDetails(songId, {
+        title,
+        artist,
+        lyrics,
+        imageUrl,
+        textColor,
+        strokeColor,
+        strokeSize
+      });
+
+      const slideContent = await window.electronAPI.generateSlides(
+        songId,
+        title,
+        artist,
+        lyrics,
+        imageUrl
+      );
+
+      if (slideContent) {
+        await window.electronAPI.previewSlides(slideContent);
+        setHasSlide(true);
+        setSnackbarMessage('投影片重新生成成功');
+        setSnackbarOpen(true);
+      } else {
+        setError('投影片生成失敗，未返回內容');
+      }
+    } catch (error) {
+      setError('重新生成投影片失敗');
+      console.error('重新生成投影片失敗:', error);
+    }
   };
 
-  // 關閉提示訊息
-  const handleSnackbarClose = () => {
-    setSnackbarOpen(false);
+  // 匯出投影片
+  const handleExport = async () => {
+    try {
+      if (!hasSlide) {
+        setError('請先生成投影片');
+        return;
+      }
+
+      const slideContent = await window.electronAPI.getSlides(songId);
+      if (!slideContent) {
+        setError('找不到投影片內容');
+        return;
+      }
+
+      const outputPath = await window.electronAPI.selectDirectory();
+      if (!outputPath) {
+        return;
+      }
+
+      const formats = ['pdf', 'pptx', 'html'];
+      const results = await window.electronAPI.batchExport(slideContent, formats, outputPath);
+      
+      setSnackbarMessage('匯出成功');
+      setSnackbarOpen(true);
+    } catch (error) {
+      setError('匯出失敗');
+      console.error('匯出失敗:', error);
+    }
   };
+
+  // 選擇本地圖片
+  const handleSelectLocalImage = async () => {
+    try {
+      const imagePath = await window.electronAPI.selectLocalImage();
+      if (imagePath) {
+        const result = await window.electronAPI.importLocalImage(songId, imagePath);
+        if (result) {
+          setImageUrl(result.imagePath);
+          setHasImage(true);
+          
+          // 確保保存圖片關聯
+          await window.electronAPI.saveSongImageAssociation(songId, result.imagePath);
+          
+          // 更新歌曲詳情中的imageUrl
+          await window.electronAPI.saveSongDetails(songId, {
+            title,
+            artist,
+            lyrics,
+            imageUrl: result.imagePath,
+            textColor,
+            strokeColor,
+            strokeSize
+          });
+          
+          setSnackbarMessage('圖片匯入成功並已關聯');
+          setSnackbarOpen(true);
+        }
+      }
+    } catch (error) {
+      setError('匯入圖片失敗');
+      console.error('匯入圖片失敗:', error);
+    }
+  };
+
+  // 返回上一頁
+  const handleBack = () => {
+    navigate(-1);
+  };
+
+  if (loading) {
+    return (
+      <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
+        <CircularProgress />
+      </Box>
+    );
+  }
 
   return (
-    <Container maxWidth="lg" sx={{ mt: 4, mb: 4 }}>
-      <Paper sx={{ p: 3 }}>
+    <Container maxWidth="lg">
+      <Paper sx={{ p: 3, mt: 3 }}>
         <Box sx={{ display: 'flex', alignItems: 'center', mb: 3 }}>
-          <IconButton onClick={handleBackSearch} sx={{ mr: 2 }}>
+          <IconButton onClick={handleBack} sx={{ mr: 2 }}>
             <ArrowBackIcon />
           </IconButton>
-          <Typography variant="h5">
-            {loading ? '載入中...' : `編輯歌詞 - ${title}`}
+          <Typography variant="h4" component="h1">
+            編輯歌詞
           </Typography>
         </Box>
-        
+
         {error && (
-          <Alert severity="error" sx={{ mb: 3 }}>
+          <Alert severity="error" sx={{ mb: 2 }}>
             {error}
           </Alert>
         )}
-        
-        {loading ? (
-          <Box sx={{ display: 'flex', justifyContent: 'center', p: 4 }}>
-            <CircularProgress />
-          </Box>
-        ) : (
-          <Grid container spacing={3}>
-            <Box sx={{ width: '100%', px: 2, py: 1 }} gridColumn={{ xs: 'span 12', md: 'span 6' }}>
+
+        <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' }, gap: 3 }}>
+          <Card>
+            <CardContent>
+              <Typography variant="h6" gutterBottom>
+                基本資訊
+              </Typography>
               <TextField
+                fullWidth
                 label="歌曲標題"
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
-                fullWidth
                 margin="normal"
-                variant="outlined"
-                required
               />
-              
               <TextField
+                fullWidth
                 label="歌手"
                 value={artist}
                 onChange={(e) => setArtist(e.target.value)}
-                fullWidth
                 margin="normal"
-                variant="outlined"
               />
-              
               <TextField
+                fullWidth
                 label="歌詞"
                 value={lyrics}
                 onChange={(e) => setLyrics(e.target.value)}
-                fullWidth
-                multiline
-                rows={16}
                 margin="normal"
-                variant="outlined"
-                required
-                placeholder="請輸入歌詞，使用空行分隔每個段落..."
-                helperText="提示：空行（連續兩個換行）將被用於分隔投影片頁面"
+                multiline
+                rows={10}
               />
-              
-              <Box sx={{ mt: 3, display: 'flex', gap: 2 }}>
-                <Button
-                  variant="contained"
-                  color="primary"
-                  startIcon={<SaveIcon />}
-                  onClick={handleSave}
-                  disabled={saving}
-                >
-                  {saving ? '保存中...' : '保存歌詞'}
-                </Button>
-                
-                <Button
-                  variant="outlined"
-                  color="secondary"
-                  startIcon={<PreviewIcon />}
-                  onClick={handlePreview}
-                  disabled={!hasImage || !songId}
-                >
-                  預覽投影片
-                </Button>
-              </Box>
-            </Box>
-            
-            <Box sx={{ width: '100%', px: 2, py: 1 }} gridColumn={{ xs: 'span 12', md: 'span 6' }}>
-              <Card variant="outlined" sx={{ mb: 3 }}>
-                <CardContent>
-                  <Typography variant="h6" gutterBottom>
-                    背景圖片
-                  </Typography>
-                  
-                  {imageUrl ? (
-                    <Box sx={{ mt: 2, mb: 2, textAlign: 'center' }}>
-                      <img 
-                        src={`file://${imageUrl}`} 
-                        alt="背景圖片" 
-                        style={{ maxWidth: '100%', maxHeight: '300px', objectFit: 'contain' }} 
-                      />
-                    </Box>
-                  ) : (
-                    <Box sx={{ mt: 2, mb: 2, textAlign: 'center', height: '200px', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#f5f5f5' }}>
-                      <Typography color="textSecondary">
-                        尚未生成圖片
-                      </Typography>
-                    </Box>
-                  )}
-                  
-                  <Box sx={{ display: 'flex', gap: 2, mt: 2 }}>
-                    <Button
-                      variant="contained"
-                      color="primary"
-                      startIcon={<ImageIcon />}
-                      onClick={handleGenerateImage}
-                      disabled={loading}
-                      fullWidth
-                    >
-                      {hasImage ? '重新生成圖片' : '生成背景圖片'}
-                    </Button>
-                    
-                    <Button
-                      variant="outlined"
-                      color="primary"
-                      onClick={handleImportLocalImage}
-                      disabled={loading}
-                      fullWidth
-                    >
-                      匯入本地圖片
-                    </Button>
-                  </Box>
-                </CardContent>
-              </Card>
-              
-              <Card variant="outlined">
-                <CardContent>
-                  <Typography variant="h6" gutterBottom>
-                    投影片狀態
-                  </Typography>
-                  
-                  <Alert severity={hasSlide ? "success" : "info"} sx={{ mt: 2 }}>
-                    {hasSlide 
-                      ? '此歌曲已有關聯投影片，可以直接預覽或導出。' 
-                      : '此歌曲尚未生成投影片，請點擊"預覽投影片"按鈕生成。'}
-                  </Alert>
-                  
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardContent>
+              <Typography variant="h6" gutterBottom>
+                文字格式設定
+              </Typography>
+              <TextField
+                fullWidth
+                label="文字顏色"
+                value={textColor}
+                onChange={(e) => setTextColor(e.target.value)}
+                margin="normal"
+                type="color"
+              />
+              <TextField
+                fullWidth
+                label="邊框顏色"
+                value={strokeColor}
+                onChange={(e) => setStrokeColor(e.target.value)}
+                margin="normal"
+                type="color"
+              />
+              <TextField
+                fullWidth
+                label="邊框粗細"
+                value={strokeSize}
+                onChange={(e) => setStrokeSize(Number(e.target.value))}
+                margin="normal"
+                type="number"
+                inputProps={{ min: 0, max: 20 }}
+              />
+            </CardContent>
+          </Card>
+
+          <Box>
+            <Card>
+              <CardContent>
+                <Typography variant="h6" gutterBottom>
+                  背景圖片
+                </Typography>
+                {imageUrl ? (
                   <Box sx={{ mt: 2 }}>
-                    <Button
-                      variant="contained"
-                      color="secondary"
-                      startIcon={<PreviewIcon />}
-                      onClick={handlePreview}
-                      disabled={!hasImage || !songId}
-                      fullWidth
-                    >
-                      預覽投影片
-                    </Button>
+                    <img
+                      src={imageUrl}
+                      alt="背景圖片"
+                      style={{ maxWidth: '100%', maxHeight: '200px' }}
+                    />
                   </Box>
-                </CardContent>
-              </Card>
-            </Box>
-          </Grid>
-        )}
+                ) : (
+                  <Typography color="text.secondary">
+                    尚未設定背景圖片
+                  </Typography>
+                )}
+                <Box sx={{ display: 'flex', gap: 2, mt: 2 }}>
+                  <Button
+                    variant="contained"
+                    color="primary"
+                    onClick={async () => {
+                      try {
+                        const result = await window.electronAPI.generateImage(
+                          title,
+                          lyrics,
+                          songId
+                        );
+                        if (result && result.imagePath && result.songId) {
+                          setImageUrl(result.imagePath);
+                          setHasImage(true);
+                          
+                          // 確保保存圖片關聯
+                          await window.electronAPI.saveSongImageAssociation(
+                            result.songId, 
+                            result.imagePath
+                          );
+                          
+                          // 更新歌曲詳情中的imageUrl
+                          await window.electronAPI.saveSongDetails(songId, {
+                            title,
+                            artist,
+                            lyrics,
+                            imageUrl: result.imagePath,
+                            textColor,
+                            strokeColor,
+                            strokeSize
+                          });
+                          
+                          setSnackbarMessage('AI圖片生成成功並已關聯');
+                          setSnackbarOpen(true);
+                        }
+                      } catch (error) {
+                        setError('生成AI圖片失敗');
+                        console.error('生成AI圖片失敗:', error);
+                      }
+                    }}
+                  >
+                    使用AI生成圖片
+                  </Button>
+                  <Button
+                    variant="outlined"
+                    startIcon={<ImageIcon />}
+                    onClick={handleSelectLocalImage}
+                  >
+                    選擇本地圖片
+                  </Button>
+                </Box>
+              </CardContent>
+            </Card>
+          </Box>
+        </Box>
+
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: 3 }}>
+          <Button
+            variant="contained"
+            color="primary"
+            onClick={handleSave}
+            startIcon={<SaveIcon />}
+            disabled={saving}
+          >
+            儲存
+          </Button>
+
+          <Box>
+            <Button
+              variant="outlined"
+              color="primary"
+              onClick={handlePreview}
+              sx={{ mr: 1 }}
+              disabled={!hasSlide}
+            >
+              預覽投影片
+            </Button>
+            <Button
+              variant="outlined"
+              color="secondary"
+              onClick={handleRegenerateSlides}
+              disabled={!hasImage}
+            >
+              重新生成投影片
+            </Button>
+          </Box>
+        </Box>
+
+        <Snackbar
+          open={snackbarOpen}
+          autoHideDuration={3000}
+          onClose={() => setSnackbarOpen(false)}
+          message={snackbarMessage}
+        />
       </Paper>
-      
-      <Snackbar
-        open={snackbarOpen}
-        autoHideDuration={4000}
-        onClose={handleSnackbarClose}
-        message={snackbarMessage}
-      />
     </Container>
   );
 };

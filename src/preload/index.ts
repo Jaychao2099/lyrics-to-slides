@@ -40,7 +40,15 @@ interface ElectronAPI {
   checkRelatedSlide: (songId: number) => Promise<RelatedSlideResult>;
   saveSongImageAssociation: (songId: number, imagePath: string) => Promise<{success: boolean, message: string}>;
   saveSongSlideAssociation: (songId: number, slideContent: string) => Promise<{success: boolean, message: string}>;
-  saveSongDetails: (songId: number, songDetails: { title: string, artist?: string, lyrics?: string, imageUrl?: string }) => Promise<boolean>;
+  saveSongDetails: (songId: number, songDetails: { 
+    title: string, 
+    artist?: string, 
+    lyrics?: string, 
+    imageUrl?: string,
+    textColor?: string,
+    strokeColor?: string,
+    strokeSize?: number 
+  }) => Promise<{success: boolean}>;
   getSongById: (songId: number) => Promise<any>;
   getTempPath: () => Promise<string>;
 }
@@ -145,8 +153,15 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.invoke('import-local-image', songId, localImagePath),
   
   // 新增：保存歌曲詳情
-  saveSongDetails: (songId: number, songDetails: { title: string, artist?: string, lyrics?: string, imageUrl?: string }) => 
-    ipcRenderer.invoke('save-song-details', songId, songDetails),
+  saveSongDetails: (songId: number, songDetails: { 
+    title: string, 
+    artist?: string, 
+    lyrics?: string, 
+    imageUrl?: string,
+    textColor?: string,
+    strokeColor?: string,
+    strokeSize?: number 
+  }) => ipcRenderer.invoke('save-song-details', songId, songDetails),
   
   // 獲取快取大小
   getCacheSize: () => ipcRenderer.invoke('get-cache-size'),

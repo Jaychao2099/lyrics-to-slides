@@ -70,7 +70,10 @@ export class BatchSlideService {
           lyrics: song.lyrics,
           imagePath,
           title: song.title,
-          artist: song.artist
+          artist: song.artist,
+          textColor: song.textColor,
+          strokeColor: song.strokeColor,
+          strokeSize: song.strokeSize
         });
       }
 
@@ -103,7 +106,7 @@ export class BatchSlideService {
 
       return slidesContent;
     } catch (error) {
-      console.error('生成批次投影片失敗:', error);
+      // 記錄錯誤
       await LoggerService.apiError('BatchSlideService', 'generateBatchSlides', { slideSetId }, error, startTime);
       throw error;
     }
