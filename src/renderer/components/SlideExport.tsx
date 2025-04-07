@@ -74,6 +74,11 @@ const SlideExport: React.FC<SlideExportProps> = ({ songTitle, slideContent }) =>
         if (settings && settings.defaultOutputDirectory) {
           setOutputPath(settings.defaultOutputDirectory);
         }
+        // 使用預設匯出格式
+        if (settings && settings.defaultExportFormat) {
+          setExportFormat(settings.defaultExportFormat);
+          setSelectedFormats([settings.defaultExportFormat]);
+        }
       } catch (err) {
         console.error('載入預設輸出路徑失敗:', err);
       }

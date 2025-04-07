@@ -76,11 +76,64 @@ const SlideExportPage: React.FC = () => {
 };
 
 function App() {
-  const theme = createTheme({
+  const [themeMode, setThemeMode] = useState<'light' | 'dark' | 'system'>('light');
+  const [actualTheme, setActualTheme] = useState<'light' | 'dark'>('light');
+  
+  // 創建一個監聽設定變更的函數
+  const refreshTheme = async () => {
+    try {
+      const settings = await window.electronAPI.getSettings();
+      setThemeMode(settings.theme);
+      console.log('主題設定已更新:', settings.theme);
+    } catch (error) {
+      console.error('載入主題設定失敗:', error);
+    }
+  };
+  
+  useEffect(() => {
+    // 載入使用者設定的主題
+    refreshTheme();
+    
+    // 設定一個自定義事件來監聽設定變更
+    const handleSettingsChange = () => {
+      refreshTheme();
+    };
+    
+    // 添加事件監聽器
+    window.addEventListener('settings-changed', handleSettingsChange);
+    
+    // 清理函數
+    return () => {
+      window.removeEventListener('settings-changed', handleSettingsChange);
+    };
+  }, []);
+  
+  useEffect(() => {
+    // 根據主題選項決定實際使用的主題
+    if (themeMode === 'system') {
+      // 使用系統主題
+      const prefersDarkMode = window.matchMedia('(prefers-color-scheme: dark)').matches;
+      setActualTheme(prefersDarkMode ? 'dark' : 'light');
+      
+      // 監聽系統主題變化
+      const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+      const handleChange = (e: MediaQueryListEvent) => {
+        setActualTheme(e.matches ? 'dark' : 'light');
+      };
+      
+      mediaQuery.addEventListener('change', handleChange);
+      return () => mediaQuery.removeEventListener('change', handleChange);
+    } else {
+      // 直接使用用戶設定的主題
+      setActualTheme(themeMode === 'dark' ? 'dark' : 'light');
+    }
+  }, [themeMode]);
+
+  const theme = React.useMemo(() => createTheme({
     palette: {
-      mode: 'light',
+      mode: actualTheme,
     },
-  });
+  }), [actualTheme]);
 
   return (
     <ThemeProvider theme={theme}>

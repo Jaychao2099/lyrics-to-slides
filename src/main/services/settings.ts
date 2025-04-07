@@ -18,7 +18,7 @@ const defaultSettings: Settings = {
   defaultExportFormat: 'pdf',
 
   // 文件模板
-  imagePromptTemplate: 'Positive Prompt: A minimalist and abstract background inspired by the atmosphere of the song {{songTitle}}, designed for church worship slides. The image should fully capture the essence of the lyrics: {{lyrics}}, with a soft, monochromatic color palette, gentle gradients, and a serene, worshipful ambiance. Ensuring smooth transitions between colors, high resolution, and premium quality. The design should be extremely simple, avoiding any distractions while maintaining a reverent and uplifting aesthetic. The details should be kept to an absolute minimum, ensuring a clean and uncluttered visual.\nNegative Prompt: People, faces, human figures, silhouettes, body parts, hands, eyes, text, letters, symbols, icons, high contrast, complex patterns, intricate details, cluttered compositions, surreal elements, excessive textures, multiple colors, harsh gradients, sharp.',
+  imagePromptTemplate: 'Positive Prompt: "minimalist design, abstract shapes, monochrome illustration: slide background image inspired by the atmosphere of the song " {{songTitle}}", designed for church worship slides. Low contrast:1.2, can have normal church elements or some elements of the lyrics: " {{lyrics}}". "\nNegative Prompt: "no text:2, no letters:2, no People:2, no faces:2, no human figures:2, no silhouettes:2, no body parts:2, no hands:2, no eyes:2, no symbols, no icons, no complex patterns, no intricate details, no cluttered compositions, no surreal elements, no excessive textures, no multiple colors, no harsh gradients, low sharpness."',
   customMarpHeader: `---
 marp: true
 color: "black"

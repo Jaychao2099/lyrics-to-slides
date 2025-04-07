@@ -6,9 +6,10 @@ import { Settings as SettingsType } from '../../common/types';
 interface SettingsProps {
   settings?: SettingsType;
   onSave?: (settings: SettingsType) => void;
+  onCancel?: () => void;
 }
 
-const Settings: React.FC<SettingsProps> = ({ settings, onSave }) => {
+const Settings: React.FC<SettingsProps> = ({ settings, onSave, onCancel }) => {
   return (
     <Box>
       <Typography variant="h5" gutterBottom>
@@ -19,7 +20,7 @@ const Settings: React.FC<SettingsProps> = ({ settings, onSave }) => {
         <SettingsPanel 
           settings={settings} 
           onSave={onSave || (() => {})}
-          onCancel={() => {}}
+          onCancel={onCancel || (() => {})}
         />
       ) : (
         <Typography>載入設定中...</Typography>

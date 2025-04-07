@@ -32,9 +32,8 @@ const SlideEditor: React.FC<SlideEditorProps> = ({ lyrics, imageUrl, songId: pro
   const [isGenerating, setIsGenerating] = useState<boolean>(false);
   const [error, setError] = useState<string>('');
   const [slideContent, setSlideContent] = useState<string>('');
-  const [songId, setSongId] = useState<number>(propsSongId || -1);
+  const [songId, setSongId] = useState<number>(propsSongId || 0);
   const [tabValue, setTabValue] = useState<number>(0);
-  const [previewHtml, setPreviewHtml] = useState<string>('');
   const [editingContent, setEditingContent] = useState<string>('');
   const [snackbarOpen, setSnackbarOpen] = useState<boolean>(false);
   const [snackbarMessage, setSnackbarMessage] = useState<string>('');
@@ -54,45 +53,43 @@ const SlideEditor: React.FC<SlideEditorProps> = ({ lyrics, imageUrl, songId: pro
       hasSlideContent: !!slideContent
     });
     
-    const checkRelatedSlide = async () => {
+    const loadExistingSlides = async () => {
       if (songId > 0) {
         try {
-          console.log('開始檢查歌曲ID', songId, '的關聯投影片');
-          // 檢查是否有關聯投影片
-          const result = await window.electronAPI.checkRelatedSlide(songId);
-          console.log('關聯投影片檢查結果:', result);
-          
-          if (result && result.hasRelatedSlide && result.slideContent) {
-            console.log('找到關聯投影片，長度:', result.slideContent.length);
-            // 找到關聯投影片，直接加載
-            setSlideContent(result.slideContent);
-            setEditingContent(result.slideContent);
-            updatePreview(result.slideContent);
-            
-            // 可以添加提示
-            setSnackbarMessage('已加載關聯投影片');
-            setSnackbarOpen(true);
-            return;
-          } else {
-            console.log('未找到關聯投影片或內容無效');
-          }
+          await checkRelatedSlide();
         } catch (err) {
-          console.error('檢查關聯投影片失敗:', err);
+          console.error('加載已有投影片失敗:', err);
         }
       } else {
-        console.log('songId無效，跳過關聯投影片檢查:', songId);
-      }
-      
-      // 如果沒有關聯投影片並且有歌詞和圖片，則生成新的投影片
-      if (lyrics && imageUrl && !slideContent && !isGenerating) {
-        console.log('未找到關聯投影片，開始生成新投影片');
         generateSlides();
       }
     };
     
-    checkRelatedSlide();
-  }, [lyrics, imageUrl, songId]);
+    loadExistingSlides();
+  }, [songId, lyrics, imageUrl]);
 
+  const checkRelatedSlide = async () => {
+    try {
+      const slideResult = await window.electronAPI.checkRelatedSlide(songId);
+      
+      if (slideResult.hasRelatedSlide) {
+        const slidesContent = await window.electronAPI.getSlides(songId);
+        if (slidesContent) {
+          setSlideContent(slidesContent);
+          setEditingContent(slidesContent);
+        } else {
+          await generateSlides();
+        }
+      } else {
+        await generateSlides();
+      }
+    } catch (err: any) {
+      console.error('檢查關聯投影片失敗:', err);
+      setError(err.message || '檢查關聯投影片時發生錯誤');
+      await generateSlides();
+    }
+  };
+  
   const generateSlides = async () => {
     try {
       setIsGenerating(true);
@@ -109,7 +106,6 @@ const SlideEditor: React.FC<SlideEditorProps> = ({ lyrics, imageUrl, songId: pro
       if (result) {
         setSlideContent(result);
         setEditingContent(result);
-        updatePreview(result);
       } else {
         throw new Error('生成投影片失敗');
       }
@@ -121,21 +117,8 @@ const SlideEditor: React.FC<SlideEditorProps> = ({ lyrics, imageUrl, songId: pro
     }
   };
 
-  const updatePreview = async (content: string) => {
-    try {
-      const html = await window.electronAPI.previewSlides(content);
-      setPreviewHtml(typeof html === 'string' ? html : '預覽載入中...');
-    } catch (err: any) {
-      console.error('預覽生成錯誤:', err);
-      setPreviewHtml('<div>預覽生成錯誤</div>');
-    }
-  };
-
   const handleTabChange = (event: React.SyntheticEvent, newValue: number) => {
     setTabValue(newValue);
-    if (newValue === 1) {
-      updatePreview(editingContent);
-    }
   };
 
   const handleContentChange = (event: React.ChangeEvent<HTMLTextAreaElement>) => {
@@ -148,7 +131,6 @@ const SlideEditor: React.FC<SlideEditorProps> = ({ lyrics, imageUrl, songId: pro
       setSnackbarOpen(true);
       
       setSlideContent(editingContent);
-      updatePreview(editingContent);
       
       if (songId > 0) {
         const saved = await window.electronAPI.updateSlides(songId, editingContent);
@@ -314,16 +296,11 @@ const SlideEditor: React.FC<SlideEditorProps> = ({ lyrics, imageUrl, songId: pro
               </Stack>
             </Box>
           ) : (
-            <Box 
-              sx={{ 
-                p: 2, 
-                minHeight: '300px', 
-                border: '1px solid #ddd',
-                borderRadius: 1,
-                overflow: 'auto'
-              }}
-              dangerouslySetInnerHTML={{ __html: previewHtml }}
-            />
+            <Box sx={{ height: '500px', width: '100%', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+              <Typography variant="body1" color="textSecondary">
+                預覽視窗已在獨立窗口中打開
+              </Typography>
+            </Box>
           )}
         </Paper>
       )}

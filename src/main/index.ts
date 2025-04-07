@@ -16,6 +16,7 @@ import { promises as fsPromises } from 'fs';
 import { SlideFormatter } from './services/slideFormatter';
 import { BatchSlideService } from './services/batchSlideService';
 import { Song } from '../common/types';
+import { spawn } from 'child_process';
 
 // 開發模式標誌
 const isDev = process.env.NODE_ENV === 'development';
@@ -81,9 +82,6 @@ function createWindow() {
   
   // 開發環境下打開開發者工具
   if (isDev) {
-    mainWindow.webContents.openDevTools();
-  } else {
-    // 在生產環境下也打開開發者工具以便偵錯
     mainWindow.webContents.openDevTools();
   }
 
@@ -572,46 +570,103 @@ function setupIpcHandlers() {
   ipcMain.handle('preview-slides', async (_event, marpContent) => {
     try {
       mainWindow?.webContents.send('progress-update', 10, '正在預覽投影片...');
-      // 使用臨時文件實現預覽，返回HTML內容
+      
+      // 檢查是否有正在運行的預覽視窗
+      const existingPreview = BrowserWindow.getAllWindows().find(win => 
+        win.getTitle() === '投影片預覽' && !win.isDestroyed()
+      );
+      
+      if (existingPreview) {
+        // 如果已有預覽視窗，則激活它而不是創建新的
+        if (existingPreview.isMinimized()) existingPreview.restore();
+        existingPreview.focus();
+        
+        // 更新現有視窗的內容 (可選)
+        mainWindow?.webContents.send('progress-update', 100, '更新現有預覽視窗內容');
+        return { success: true };
+      }
+      
+      // 使用臨時文件實現預覽
       const tempDir = path.join(app.getPath('temp'), 'lyrics-slides-preview');
       await fs.promises.mkdir(tempDir, { recursive: true });
-      const tempFile = path.join(tempDir, 'preview.html');
+      const tempFile = path.join(tempDir, 'preview.md');
+      const tempHtmlFile = path.join(tempDir, 'preview.html');
       
       // 修復投影片內容中的圖片路徑
       const fixedMarpContent = SlideGenerationService.fixImagePathsInSlides(marpContent);
       
-      // 使用簡單的HTML包裝Marp內容
-      const htmlContent = `
-        <!DOCTYPE html>
-        <html>
-        <head>
-          <meta charset="UTF-8">
-          <title>投影片預覽</title>
-          <style>
-            body { margin: 0; padding: 0; }
-            .slide { 
-              padding: 20px; 
-              margin-bottom: 20px; 
-              border: 1px solid #ccc; 
-              page-break-after: always; 
-            }
-            img { max-width: 100%; height: auto; }
-          </style>
-        </head>
-        <body>
-          <div class="preview">
-            ${fixedMarpContent.split('---').map((slide: string) => 
-              `<div class="slide">${slide.trim()}</div>`
-            ).join('')}
-          </div>
-        </body>
-        </html>
-      `;
+      // 將 Marp 內容寫入臨時檔案
+      await fs.promises.writeFile(tempFile, fixedMarpContent, 'utf-8');
       
-      await fs.promises.writeFile(tempFile, htmlContent, 'utf-8');
+      // 使用 Marp CLI 將 Markdown 轉換為 HTML
+      const isWin = process.platform === 'win32';
+      const marpCliPath = path.join(process.cwd(), 'node_modules', '.bin', isWin ? 'marp.cmd' : 'marp');
+      
+      // 準備 Marp CLI 參數
+      const marpArgs = [
+        tempFile,
+        '--html',
+        '--allow-local-files',
+        '--output',
+        tempHtmlFile,
+        '--theme-set',
+        'default',
+        '--no-stdin'
+      ];
+      
+      // 執行 Marp CLI 轉換
+      const childProcess = isWin
+        ? spawn('cmd.exe', ['/c', marpCliPath, ...marpArgs], { stdio: 'pipe' })
+        : spawn(marpCliPath, marpArgs, { stdio: 'pipe' });
+        
+      await new Promise((resolve, reject) => {
+        childProcess.on('close', (code) => {
+          if (code === 0) {
+            resolve(null);
+          } else {
+            reject(new Error(`Marp CLI 退出碼: ${code}`));
+          }
+        });
+        childProcess.on('error', reject);
+      });
+      
       mainWindow?.webContents.send('progress-update', 100, '投影片預覽準備完成');
       
-      return htmlContent;
+      // 獲取主窗口（如果不存在則創建）
+      let mainWin = BrowserWindow.getAllWindows().find(w => !w.isDestroyed());
+      
+      if (!mainWin) {
+        return { success: false, error: '找不到主窗口' };
+      }
+      
+      // 創建預覽窗口
+      const previewWindow = new BrowserWindow({
+        width: 1024,
+        height: 768,
+        parent: mainWin,
+        title: '投影片預覽',
+        webPreferences: {
+          contextIsolation: true,
+          nodeIntegration: false
+        }
+      });
+      
+      // 設置關閉時的行為
+      previewWindow.on('closed', () => {
+        // 釋放引用
+        // 由於這是一個局部變數，GC 會自動處理
+      });
+      
+      // 載入生成的HTML文件
+      await previewWindow.loadFile(tempHtmlFile);
+      
+      // 如果在開發模式中，打開開發者工具
+      if (isDev) {
+        previewWindow.webContents.openDevTools();
+      }
+      
+      // 返回成功狀態
+      return { success: true };
     } catch (error) {
       console.error('預覽投影片失敗:', error);
       mainWindow?.webContents.send('progress-update', 0, '預覽投影片失敗');
@@ -744,19 +799,30 @@ function setupIpcHandlers() {
       const imgCacheResult = await ImageGenerationService.clearCache();
       const slidesCacheResult = await SlideGenerationService.clearCache();
       const lyricsCacheResult = await LyricsSearchService.clearCache();
+      const batchSlidesCacheResult = await BatchSlideService.clearCache();
       
       // 確保所有資源關聯都被清除
       mainWindow?.webContents.send('progress-update', 90, '確保所有關聯記錄被清除...');
       DatabaseService.clearAllSongResources();
       
+      // 刪除資料庫中所有投影片集
+      const db = DatabaseService.init();
+      const slideSetExists = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='slide_sets'").get();
+      
+      if (slideSetExists) {
+        db.prepare('DELETE FROM slide_sets').run();
+        console.log('資料庫中的所有投影片集已清除');
+      }
+      
       mainWindow?.webContents.send('progress-update', 100, '快取清除完成');
       
       // 組合結果
       return {
-        success: imgCacheResult.success && slidesCacheResult.success && lyricsCacheResult.success,
+        success: imgCacheResult.success && slidesCacheResult.success && lyricsCacheResult.success && batchSlidesCacheResult.success,
         deletedImages: imgCacheResult.deletedCount,
         deletedSlides: slidesCacheResult.deletedCount,
-        deletedLyrics: lyricsCacheResult.deletedCount
+        deletedLyrics: lyricsCacheResult.deletedCount,
+        deletedBatchSlides: batchSlidesCacheResult.deletedCount
       };
     } catch (error) {
       console.error('清除快取失敗:', error);
@@ -1159,10 +1225,24 @@ function setupIpcHandlers() {
   // 預覽批次投影片
   ipcMain.handle('preview-batch-slides', async (_event, slideSetId: number) => {
     try {
+      // 檢查是否有正在運行的批次預覽視窗
+      const existingPreview = BrowserWindow.getAllWindows().find(win => 
+        win.getTitle() === '批次投影片預覽' && !win.isDestroyed()
+      );
+      
+      if (existingPreview) {
+        // 如果已有預覽視窗，則激活它而不是創建新的
+        if (existingPreview.isMinimized()) existingPreview.restore();
+        existingPreview.focus();
+        
+        // 可以選擇重新生成內容
+        return;
+      }
+      
       const slidesContent = await BatchSlideService.getBatchSlideContent(slideSetId);
       
-      // 將批次投影片暫存為臨時文件，以便瀏覽器預覽
-      const tempDir = path.join(app.getPath('temp'), 'lyrics-to-slides');
+      // 將批次投影片暫存為臨時文件，以便預覽
+      const tempDir = path.join(app.getPath('temp'), 'lyrics-slides-preview');
       
       // 確保臨時目錄存在
       try {
@@ -1171,13 +1251,80 @@ function setupIpcHandlers() {
         await fsPromises.mkdir(tempDir, { recursive: true });
       }
       
-      const tempFilePath = path.join(tempDir, `preview_${slideSetId}.html`);
+      const tempFile = path.join(tempDir, 'batch_preview.md');
+      const tempHtmlFile = path.join(tempDir, 'batch_preview.html');
       
-      // 調用導出服務生成HTML預覽
-      const htmlPath = await SlideExportService.exportToHTML(slidesContent, tempFilePath);
+      // 修復投影片內容中的圖片路徑
+      const fixedMarpContent = SlideGenerationService.fixImagePathsInSlides(slidesContent);
       
-      // 使用默認瀏覽器打開HTML文件
-      shell.openExternal(`file://${htmlPath}`);
+      // 將 Marp 內容寫入臨時檔案
+      await fsPromises.writeFile(tempFile, fixedMarpContent, 'utf-8');
+      
+      // 使用 Marp CLI 將 Markdown 轉換為 HTML
+      const isWin = process.platform === 'win32';
+      const marpCliPath = path.join(process.cwd(), 'node_modules', '.bin', isWin ? 'marp.cmd' : 'marp');
+      
+      // 準備 Marp CLI 參數
+      const marpArgs = [
+        tempFile,
+        '--html',
+        '--allow-local-files',
+        '--output',
+        tempHtmlFile,
+        '--theme-set',
+        'default',
+        '--no-stdin'
+      ];
+      
+      // 執行 Marp CLI 轉換
+      const childProcess = isWin
+        ? spawn('cmd.exe', ['/c', marpCliPath, ...marpArgs], { stdio: 'pipe' })
+        : spawn(marpCliPath, marpArgs, { stdio: 'pipe' });
+        
+      await new Promise((resolve, reject) => {
+        childProcess.on('close', (code) => {
+          if (code === 0) {
+            resolve(null);
+          } else {
+            reject(new Error(`Marp CLI 退出碼: ${code}`));
+          }
+        });
+        childProcess.on('error', reject);
+      });
+      
+      // 獲取主窗口（如果不存在則創建）
+      let mainWin = BrowserWindow.getAllWindows().find(w => !w.isDestroyed());
+      
+      if (!mainWin) {
+        // 如果找不到窗口，則返回錯誤
+        return;
+      }
+      
+      // 創建預覽窗口
+      const previewWindow = new BrowserWindow({
+        width: 1024,
+        height: 768,
+        parent: mainWin,
+        title: '批次投影片預覽',
+        webPreferences: {
+          contextIsolation: true,
+          nodeIntegration: false
+        }
+      });
+      
+      // 設置關閉時的行為
+      previewWindow.on('closed', () => {
+        // 釋放引用
+        // 由於這是一個局部變數，GC 會自動處理
+      });
+      
+      // 載入生成的HTML文件
+      await previewWindow.loadFile(tempHtmlFile);
+      
+      // 如果在開發模式中，打開開發者工具
+      if (isDev) {
+        previewWindow.webContents.openDevTools();
+      }
       
       return;
     } catch (error) {

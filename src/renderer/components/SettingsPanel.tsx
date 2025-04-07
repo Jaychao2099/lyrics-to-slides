@@ -97,7 +97,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ settings, onSave, onCance
       setIsCacheLoading(true);
       const result = await window.electronAPI.clearCache();
       if (result && result.success) {
-        setSnackbarMessage(`快取清除成功，共刪除 ${result.deletedImages + result.deletedSlides + result.deletedLyrics} 個文件`);
+        setSnackbarMessage(`快取清除成功，共刪除 ${result.deletedImages + result.deletedSlides + result.deletedLyrics + result.deletedBatchSlides} 個文件`);
         setSnackbarSeverity('success');
         setSnackbarOpen(true);
         fetchCacheInfo();
@@ -270,6 +270,13 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ settings, onSave, onCance
   // 處理保存按鈕
   const handleSave = () => {
     onSave(formData);
+  };
+  
+  // 處理取消按鈕
+  const handleCancel = () => {
+    // 重置表單數據為初始設定
+    setFormData({ ...settings });
+    onCancel();
   };
   
   // 處理選項卡變更
@@ -665,7 +672,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ settings, onSave, onCance
       </TabPanel>
       
       <Box sx={{ display: 'flex', justifyContent: 'flex-end', mt: 3 }}>
-        <Button variant="outlined" onClick={onCancel} sx={{ mr: 1 }}>
+        <Button variant="outlined" onClick={handleCancel} sx={{ mr: 1 }}>
           取消
         </Button>
         <Button variant="contained" onClick={handleSave}>

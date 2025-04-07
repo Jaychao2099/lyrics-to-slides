@@ -128,13 +128,9 @@ const SlidePreview: React.FC = () => {
         setSlideContent(slideContent);
         setEditedSlideContent(slideContent);
         
-        // 預覽投影片
-        await window.electronAPI.previewSlides(slideContent);
-        
-        // 設置預覽 URL (由 previewSlides API 生成的臨時文件)
-        const tempDir = 'lyrics-slides-preview';
         // 設置臨時 HTML 文件的路徑（需要與 main/index.ts 中的設定保持一致）
-        const previewPath = `file:///${window.electronAPI.getTempPath()}/${tempDir}/preview.html`;
+        const tempDir = 'lyrics-slides-preview';
+        const previewPath = `file:///${await window.electronAPI.getTempPath()}/${tempDir}/preview.html`;
         setPreviewUrl(previewPath);
       } else {
         setError('無法獲取投影片內容');
@@ -186,9 +182,6 @@ const SlidePreview: React.FC = () => {
       if (slideContent) {
         setSlideContent(slideContent);
         setEditedSlideContent(slideContent);
-        
-        // 預覽投影片
-        await window.electronAPI.previewSlides(slideContent);
         
         // 設置預覽 URL (由 previewSlides API 生成的臨時文件)
         const tempDir = 'lyrics-slides-preview';
@@ -301,9 +294,6 @@ const SlidePreview: React.FC = () => {
       // 更新當前顯示的源碼
       setSlideContent(editedSlideContent);
       
-      // 重新預覽
-      await window.electronAPI.previewSlides(editedSlideContent);
-      
       // 設置預覽 URL (由 previewSlides API 生成的臨時文件)
       const tempDir = 'lyrics-slides-preview';
       const previewPath = `file:///${await window.electronAPI.getTempPath()}/${tempDir}/preview.html`;
@@ -337,6 +327,18 @@ const SlidePreview: React.FC = () => {
   const handleConfirmSave = async () => {
     setConfirmDialogOpen(false);
     await handleSaveSlideContent();
+  };
+
+  // 新增：打開預覽視窗
+  const handleOpenPreview = async () => {
+    try {
+      setLoading(true);
+      await window.electronAPI.previewSlides(slideContent);
+      setLoading(false);
+    } catch (err: any) {
+      setError(`打開預覽視窗時發生錯誤: ${err.message}`);
+      setLoading(false);
+    }
   };
 
   // 處理鍵盤控制
@@ -399,73 +401,49 @@ const SlidePreview: React.FC = () => {
         ) : (
           <Box sx={{ width: '100%' }}>
             <Tabs value={tabValue} onChange={handleTabChange} sx={{ mb: 2 }}>
-              <Tab label="投影片預覽" />
+              <Tab label="投影片操作" />
               <Tab label="源代碼與設置" />
             </Tabs>
             
             {tabValue === 0 && (
-              <Box sx={{ mb: 3 }}>
-                {previewUrl ? (
-                  <Box sx={{ position: 'relative' }}>
-                    <Box
-                      sx={{
-                        width: '100%',
-                        height: '500px',
-                        border: '1px solid #ddd',
-                        overflow: 'hidden',
-                        bgcolor: '#000',
-                        mb: 2
-                      }}
-                    >
-                      <iframe
-                        ref={previewIframeRef}
-                        src={previewUrl}
-                        style={{ width: '100%', height: '100%', border: 'none' }}
-                        title="投影片預覽"
-                      />
-                    </Box>
-                    
-                    <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 2, mb: 2 }}>
-                      <Button
-                        variant="outlined"
-                        startIcon={<ArrowBackIcon />}
-                        onClick={handlePreviousSlide}
-                        disabled={currentSlide <= 1}
-                      >
-                        上一頁
-                      </Button>
-                      
-                      <Typography>
-                        {currentSlide} / {totalSlides}
-                      </Typography>
-                      
-                      <Button
-                        variant="outlined"
-                        endIcon={<ArrowForwardIcon />}
-                        onClick={handleNextSlide}
-                        disabled={currentSlide >= totalSlides}
-                      >
-                        下一頁
-                      </Button>
-                      
-                      <Button
-                        variant="contained"
-                        startIcon={<FullscreenIcon />}
-                        onClick={handleFullScreen}
-                      >
-                        全屏播放
-                      </Button>
-                    </Box>
-                    
-                    <Typography variant="body2" color="text.secondary" align="center">
-                      提示：可使用鍵盤方向鍵（←→）或 PageUp/PageDown 切換投影片，按 F 鍵全屏
-                    </Typography>
-                  </Box>
-                ) : (
-                  <Alert severity="warning">
-                    無法載入投影片預覽，請嘗試重新生成投影片。
-                  </Alert>
-                )}
+              <Box sx={{ mb: 3, display: 'flex', justifyContent: 'center', flexDirection: 'column', alignItems: 'center' }}>
+                <Typography variant="h6" gutterBottom>
+                  {song?.title || '投影片'}
+                </Typography>
+                
+                <Box sx={{ display: 'flex', gap: 2, my: 3 }}>
+                  <Button
+                    variant="contained"
+                    startIcon={<FullscreenIcon />}
+                    onClick={handleOpenPreview}
+                    color="primary"
+                  >
+                    預覽
+                  </Button>
+                  
+                  <Button
+                    variant="outlined"
+                    startIcon={<CloudDownloadIcon />}
+                    onClick={handleExport}
+                  >
+                    匯出投影片
+                  </Button>
+                  
+                  <Button
+                    variant="outlined"
+                    startIcon={<RefreshIcon />}
+                    onClick={handleRegenerateSlides}
+                    disabled={loading}
+                  >
+                    重新生成投影片
+                  </Button>
+                </Box>
+                
+                <Box sx={{ mt: 2 }}>
+                  <Typography variant="body2" color="text.secondary">
+                    投影片總頁數: {totalSlides} 頁
+                  </Typography>
+                </Box>
               </Box>
             )}
             
@@ -506,7 +484,7 @@ const SlidePreview: React.FC = () => {
                             size="small"
                             sx={{ mr: 1 }}
                           >
-                            編輯源碼
+                            編輯源代碼
                           </Button>
                         )}
                         {!isEditing && (
@@ -587,7 +565,7 @@ const SlidePreview: React.FC = () => {
                 </Card>
                 
                 <Alert severity="info" sx={{ mb: 2 }}>
-                  提示：投影片是使用 Marp 格式生成的，您可以通過「匯出」功能導出為 PDF、PPTX 或其他格式。您也可以直接編輯源碼來自定義投影片。
+                  提示：投影片是使用 Marp 格式生成的，您可以通過「匯出」功能導出為 PDF、PPTX 或其他格式。您也可以直接編輯源代碼來自定義投影片。
                 </Alert>
               </Box>
             )}

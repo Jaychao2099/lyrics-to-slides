@@ -125,6 +125,7 @@ export interface ElectronAPI {
     deletedImages: number;
     deletedSlides: number;
     deletedLyrics: number;
+    deletedBatchSlides: number;
   }>;
   clearImagesCache: () => Promise<{
     success: boolean;
