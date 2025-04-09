@@ -27,9 +27,10 @@ interface SlideEditorProps {
   imageUrl: string;
   songId?: number;
   onSlidesCreated: (slideContent: string) => void;
+  isBatchMode?: boolean;
 }
 
-const SlideEditor: React.FC<SlideEditorProps> = ({ lyrics, imageUrl, songId: propsSongId, onSlidesCreated }) => {
+const SlideEditor: React.FC<SlideEditorProps> = ({ lyrics, imageUrl, songId: propsSongId, onSlidesCreated, isBatchMode = false }) => {
   const [isGenerating, setIsGenerating] = useState<boolean>(false);
   const [error, setError] = useState<string>('');
   const [slideContent, setSlideContent] = useState<string>('');
@@ -51,8 +52,17 @@ const SlideEditor: React.FC<SlideEditorProps> = ({ lyrics, imageUrl, songId: pro
       songId,
       hasLyrics: !!lyrics,
       hasImageUrl: !!imageUrl,
-      hasSlideContent: !!slideContent
+      hasSlideContent: !!slideContent,
+      isBatchMode
     });
+    
+    // 批量模式下，直接使用傳入的 lyrics 作為投影片內容
+    if (isBatchMode && lyrics) {
+      setSlideContent(lyrics);
+      setEditingContent(lyrics);
+      // 不自動觸發預覽窗口
+      return;
+    }
     
     const loadExistingSlides = async () => {
       if (songId > 0) {
@@ -74,7 +84,7 @@ const SlideEditor: React.FC<SlideEditorProps> = ({ lyrics, imageUrl, songId: pro
     } else {
       setError('需要歌詞和背景圖片才能生成投影片');
     }
-  }, [songId, lyrics, imageUrl]);
+  }, [songId, lyrics, imageUrl, isBatchMode]);
 
   const checkRelatedSlide = async () => {
     try {

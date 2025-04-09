@@ -335,11 +335,18 @@ const BatchSlidesManager: React.FC = () => {
       
       if (!selectedSetId) return;
       
-      // 獲取投影片集的所有內容
-      // 使用 generateBatchSlides 作為臨時解決方案，因為目前沒有直接獲取批量投影片的 API
-      await window.electronAPI.generateBatchSlides(selectedSetId);
-      // 假設投影片已生成，可以進入編輯狀態
-      setCurrentLyrics(''); // 不需要歌詞，因為是整個投影片集
+      // 嘗試從快取獲取投影片集內容
+      let slideContent;
+      try {
+        slideContent = await window.electronAPI.getBatchSlideContent(selectedSetId);
+      } catch (error) {
+        console.warn('獲取已存在的投影片集內容失敗，將重新生成', error);
+        // 如果獲取失敗，則重新生成
+        slideContent = await window.electronAPI.generateBatchSlides(selectedSetId);
+      }
+      
+      // 設置編輯內容
+      setCurrentLyrics(slideContent || ''); // 存儲 md 內容用於編輯
       setSelectedSongId(null); // 不是編輯單首歌曲
       
       // 獲取第一首歌的圖片作為投影片集的背景圖片
@@ -364,21 +371,25 @@ const BatchSlidesManager: React.FC = () => {
   };
 
   // 處理投影片編輯完成
-  const handleSlidesCreated = (slideContent: string) => {
+  const handleSlidesCreated = async (slideContent: string) => {
     console.log('投影片已更新', slideContent);
     
     // 保存整個投影片集的內容
     if (selectedSetId) {
-      // 使用 updateSlides 作為臨時解決方案，更新投影片內容
-      // 由於沒有專門更新批量投影片的 API，我們可以先使用這個
-      window.electronAPI.updateSlides(selectedSetId, slideContent)
-        .then(() => {
+      try {
+        // 使用新的 API 直接更新批量投影片的內容
+        const updated = await window.electronAPI.updateBatchSlideContent(selectedSetId, slideContent);
+        
+        if (updated) {
+          // 不再自動預覽，只顯示成功消息
           alert('投影片集已更新成功！');
-        })
-        .catch((err: any) => {
-          console.error('更新投影片集失敗', err);
-          alert('更新投影片集失敗: ' + (err.message || '未知錯誤'));
-        });
+        } else {
+          throw new Error('更新投影片集失敗');
+        }
+      } catch (err: any) {
+        console.error('更新投影片集失敗', err);
+        alert('更新投影片集失敗: ' + (err.message || '未知錯誤'));
+      }
     }
   };
 
@@ -467,6 +478,27 @@ const BatchSlidesManager: React.FC = () => {
     } catch (error: any) {
       console.error('導出批次投影片失敗', error);
       alert('導出批次投影片失敗: ' + error.message);
+    }
+  };
+
+  // 切換投影片集編輯器顯示狀態
+  const handleToggleSlideEditor = async () => {
+    try {
+      if (!selectedSetId || songsInSet.length === 0) {
+        alert('投影片集中沒有歌曲，請先添加歌曲。');
+        return;
+      }
+      
+      if (showSlideEditor) {
+        // 如果編輯器已顯示，則隱藏它
+        setShowSlideEditor(false);
+      } else {
+        // 否則，顯示編輯器
+        await handleEditSlideSet();
+      }
+    } catch (error: any) {
+      console.error('切換投影片編輯器失敗', error);
+      alert('切換投影片編輯器失敗: ' + (error.message || '未知錯誤'));
     }
   };
 
@@ -584,11 +616,11 @@ const BatchSlidesManager: React.FC = () => {
                       
                       <Button
                         variant="outlined"
-                        onClick={handlePreviewSlides}
+                        onClick={handleToggleSlideEditor}
                         disabled={songsInSet.length === 0}
-                        startIcon={<Preview />}
+                        startIcon={<Edit />}
                       >
-                        編輯/預覽投影片
+                        編輯投影片集
                       </Button>
                       
                       <Button
@@ -638,6 +670,7 @@ const BatchSlidesManager: React.FC = () => {
                     imageUrl={currentImageUrl} 
                     songId={selectedSetId || 0}
                     onSlidesCreated={handleSlidesCreated} 
+                    isBatchMode={true}
                   />
                 </Paper>
               )}
@@ -645,7 +678,7 @@ const BatchSlidesManager: React.FC = () => {
                 <Paper elevation={3} sx={{ p: 3, mb: 3, display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '200px' }}>
                   <Box sx={{ textAlign: 'center' }}>
                     <Typography variant="h6" color="textSecondary" gutterBottom>
-                      點擊「編輯/預覽投影片」按鈕
+                      點擊「編輯投影片集」按鈕
                     </Typography>
                     <Typography variant="body1" color="textSecondary">
                       可以編輯整個投影片集的文本內容

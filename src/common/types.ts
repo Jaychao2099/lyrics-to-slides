@@ -174,6 +174,7 @@ export interface ElectronAPI {
   generateBatchSlides: (slideSetId: number) => Promise<string>;
   previewBatchSlides: (slideSetId: number) => Promise<void>;
   getBatchSlideContent: (slideSetId: number) => Promise<string>;
+  updateBatchSlideContent: (slideSetId: number, slidesContent: string) => Promise<boolean>;
   exportBatchSlides: (slideSetId: number, outputPath: string, format: string) => Promise<string>;
 }
 

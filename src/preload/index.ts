@@ -226,6 +226,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   generateBatchSlides: (slideSetId: number) => ipcRenderer.invoke('generate-batch-slides', slideSetId),
   previewBatchSlides: (slideSetId: number) => ipcRenderer.invoke('preview-batch-slides', slideSetId),
   getBatchSlideContent: (slideSetId: number) => ipcRenderer.invoke('get-batch-slide-content', slideSetId),
+  updateBatchSlideContent: (slideSetId: number, slidesContent: string) => ipcRenderer.invoke('update-batch-slide-content', slideSetId, slidesContent),
   exportBatchSlides: (slideSetId: number, outputPath: string, format: string) => ipcRenderer.invoke('export-batch-slides', slideSetId, outputPath, format),
   
   // 新增：獲取系統臨時目錄路徑

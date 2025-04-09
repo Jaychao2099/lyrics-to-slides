@@ -1202,6 +1202,17 @@ function setupIpcHandlers() {
     }
   });
   
+  // 更新批次投影片內容
+  ipcMain.handle('update-batch-slide-content', async (_event, slideSetId: number, slidesContent: string) => {
+    try {
+      const result = await BatchSlideService.updateBatchSlideContent(slideSetId, slidesContent);
+      return result;
+    } catch (error) {
+      console.error('更新批次投影片內容失敗:', error);
+      throw error;
+    }
+  });
+  
   // 預覽批次投影片
   ipcMain.handle('preview-batch-slides', async (_event, slideSetId: number) => {
     try {
