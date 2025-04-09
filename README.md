@@ -18,7 +18,7 @@
 
 ### Windows 系統
 
-1. 從[發布頁面](https://github.com/Jaychao2099/lyrics-to-slides/releases)下載最新的 `lyrics-to-slides-setup-1.0.4.exe` 安裝檔 或 `Lyrics to Slides-x.x.x.exe` 免安裝執行檔（可跳過2. 3.）。
+1. 從[發布頁面](https://github.com/Jaychao2099/lyrics-to-slides/releases)下載最新的 `lyrics-to-slides-setup-1.0.4.exe` 安裝檔 或 `Lyrics to Slides-1.0.4.exe` 免安裝執行檔（可跳過2. 3.）。
 2. 執行安裝檔，依照指示完成安裝。
 3. 從開始選單或桌面快捷方式啟動應用程式。
 
