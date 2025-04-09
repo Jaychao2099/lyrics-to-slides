@@ -8,7 +8,6 @@ interface ElectronAPI {
   getAppVersion: () => Promise<string>;
   searchLyrics: (songTitle: string, artist: string) => Promise<any>;
   generateImage: (songTitle: string, lyrics: string, songId?: number) => Promise<{songId: number, imagePath: string}>;
-  regenerateImage: (songId: number, songTitle: string, lyrics: string) => Promise<{songId: number, imagePath: string}>;
   generateSlides: (songId: number, songTitle: string, artist: string, lyrics: string, imagePath: string) => Promise<string>;
   updateSlides: (songId: number, slidesContent: string) => Promise<boolean>;
   getSlides: (songId: number) => Promise<string>;
@@ -76,10 +75,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // 圖片生成
   generateImage: (songTitle: string, lyrics: string, songId?: number) => 
     ipcRenderer.invoke('generate-image', songTitle, lyrics, songId),
-  
-  // 重新生成圖片
-  regenerateImage: (songId: number, songTitle: string, lyrics: string) => 
-    ipcRenderer.invoke('regenerate-image', songId, songTitle, lyrics),
   
   // 投影片生成
   generateSlides: (songId: number, songTitle: string, artist: string, lyrics: string, imagePath: string) => 

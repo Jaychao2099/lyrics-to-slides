@@ -17,12 +17,14 @@ import {
   Divider,
   Stack,
   Tooltip,
+  Alert,
 } from '@mui/material';
-import { Add, Delete, Edit, Preview, FileDownload, ArrowUpward, ArrowDownward } from '@mui/icons-material';
+import { Add, Delete, Edit, Refresh, Preview, FileDownload, ArrowUpward, ArrowDownward } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import { SlideSet, Song, SlideSetSong } from '../../common/types';
 import { DndProvider, useDrag, useDrop } from 'react-dnd';
 import { HTML5Backend } from 'react-dnd-html5-backend';
+import SlideEditor from '../components/SlideEditor';
 
 // 定義拖放項目類型
 const ItemTypes = {
@@ -39,6 +41,7 @@ interface DraggableSongItemProps {
 
 // 拖放歌曲項目組件
 const DraggableSongItem: React.FC<DraggableSongItemProps> = ({ song, index, moveItem, handleRemove, slideSetId }) => {
+  const navigate = useNavigate();
   const ref = React.useRef<HTMLDivElement>(null);
   
   const [{ isDragging }, drag] = useDrag({
@@ -92,6 +95,15 @@ const DraggableSongItem: React.FC<DraggableSongItemProps> = ({ song, index, move
         </Typography>
       </Box>
       <Box>
+        <Tooltip title="編輯歌曲">
+          <IconButton 
+            size="small" 
+            onClick={() => navigate(`/edit/${song.id}`)}
+            sx={{ mr: 1 }}
+          >
+            <Edit />
+          </IconButton>
+        </Tooltip>
         <IconButton size="small" onClick={() => handleRemove(song.id)}>
           <Delete />
         </IconButton>
@@ -116,6 +128,10 @@ const BatchSlidesManager: React.FC = () => {
   const [editNameDialogOpen, setEditNameDialogOpen] = useState(false);
   const [editName, setEditName] = useState('');
   const [exportFileName, setExportFileName] = useState('');
+  const [selectedSongId, setSelectedSongId] = useState<number | null>(null);
+  const [showSlideEditor, setShowSlideEditor] = useState(false);
+  const [currentLyrics, setCurrentLyrics] = useState('');
+  const [currentImageUrl, setCurrentImageUrl] = useState('');
 
   // 載入投影片集
   useEffect(() => {
@@ -296,20 +312,73 @@ const BatchSlidesManager: React.FC = () => {
     }
   };
 
-  // 預覽投影片
+  // 預覽投影片集
   const handlePreviewSlides = async () => {
     try {
-      if (!selectedSetId) return;
-      
-      if (songsInSet.length === 0) {
+      if (!selectedSetId || songsInSet.length === 0) {
         alert('投影片集中沒有歌曲，請先添加歌曲。');
         return;
       }
       
-      await window.electronAPI.previewBatchSlides(selectedSetId);
+      // 顯示投影片集的編輯器，而不是單首歌曲的
+      await handleEditSlideSet();
     } catch (error: any) {
-      console.error('預覽批次投影片失敗', error);
-      alert('預覽批次投影片失敗: ' + error.message);
+      console.error('預覽投影片失敗', error);
+      alert('預覽投影片失敗: ' + (error.message || '未知錯誤'));
+    }
+  };
+
+  // 編輯整個投影片集
+  const handleEditSlideSet = async () => {
+    try {
+      setShowSlideEditor(false); // 先隱藏，避免顯示舊數據
+      
+      if (!selectedSetId) return;
+      
+      // 獲取投影片集的所有內容
+      // 使用 generateBatchSlides 作為臨時解決方案，因為目前沒有直接獲取批量投影片的 API
+      await window.electronAPI.generateBatchSlides(selectedSetId);
+      // 假設投影片已生成，可以進入編輯狀態
+      setCurrentLyrics(''); // 不需要歌詞，因為是整個投影片集
+      setSelectedSongId(null); // 不是編輯單首歌曲
+      
+      // 獲取第一首歌的圖片作為投影片集的背景圖片
+      if (songsInSet.length > 0 && songsInSet[0].imageUrl) {
+        setCurrentImageUrl(songsInSet[0].imageUrl);
+      } else {
+        // 如果第一首歌沒有圖片，嘗試獲取任何有圖片的歌曲
+        const songWithImage = songsInSet.find(song => song.imageUrl);
+        if (songWithImage && songWithImage.imageUrl) {
+          setCurrentImageUrl(songWithImage.imageUrl);
+        } else {
+          alert('投影片集中沒有任何歌曲有背景圖片，請先為歌曲添加圖片。');
+          return;
+        }
+      }
+      
+      setShowSlideEditor(true);
+    } catch (error: any) {
+      console.error('獲取投影片集內容失敗', error);
+      alert('獲取投影片集內容失敗: ' + (error.message || '未知錯誤'));
+    }
+  };
+
+  // 處理投影片編輯完成
+  const handleSlidesCreated = (slideContent: string) => {
+    console.log('投影片已更新', slideContent);
+    
+    // 保存整個投影片集的內容
+    if (selectedSetId) {
+      // 使用 updateSlides 作為臨時解決方案，更新投影片內容
+      // 由於沒有專門更新批量投影片的 API，我們可以先使用這個
+      window.electronAPI.updateSlides(selectedSetId, slideContent)
+        .then(() => {
+          alert('投影片集已更新成功！');
+        })
+        .catch((err: any) => {
+          console.error('更新投影片集失敗', err);
+          alert('更新投影片集失敗: ' + (err.message || '未知錯誤'));
+        });
     }
   };
 
@@ -413,344 +482,364 @@ const BatchSlidesManager: React.FC = () => {
     : '';
 
   return (
-    <Container maxWidth="lg" sx={{ mt: 4, mb: 4 }}>
-      <Typography variant="h4" gutterBottom>
-        批次投影片管理
-      </Typography>
-      
-      <DndProvider backend={HTML5Backend}>
-        <Box sx={{ display: 'flex', flexDirection: 'row', gap: 2 }}>
-          {/* 左側投影片集列表 */}
-          <Box sx={{ flex: '0 0 33.33%' }}>
-            <Paper sx={{ p: 2, height: '70vh', display: 'flex', flexDirection: 'column' }}>
-              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-                <Typography variant="h6">投影片集</Typography>
-                <Button 
-                  startIcon={<Add />} 
-                  variant="contained" 
-                  size="small"
-                  onClick={() => setCreateDialogOpen(true)}
-                >
-                  新增
-                </Button>
-              </Box>
-              
-              <Divider sx={{ mb: 2 }} />
-              
-              <List sx={{ flexGrow: 1, overflow: 'auto' }}>
-                {slideSets.length === 0 ? (
-                  <Typography align="center" color="text.secondary" sx={{ mt: 2 }}>
-                    尚無投影片集，請點擊上方「新增」按鈕創建
-                  </Typography>
-                ) : (
-                  slideSets.map((set) => (
-                    <ListItemButton 
-                      key={set.id}
-                      selected={selectedSetId === set.id}
-                      onClick={() => setSelectedSetId(set.id)}
-                      sx={{ borderRadius: 1 }}
-                    >
-                      <ListItemText 
-                        primary={set.name} 
-                        secondary={`${set.songCount || 0} 首歌曲`} 
-                      />
-                    </ListItemButton>
-                  ))
-                )}
-              </List>
-              
-              {selectedSetId && (
-                <Box sx={{ mt: 2 }}>
+    <DndProvider backend={HTML5Backend}>
+      <Container maxWidth="lg">
+        <Box sx={{ py: 4 }}>
+          <Typography variant="h4" component="h1" gutterBottom>
+            投影片集管理
+          </Typography>
+          
+          <Box sx={{ display: 'flex', flexDirection: { xs: 'column', md: 'row' }, gap: 3 }}>
+            <Box sx={{ flex: 1, minWidth: '250px' }}>
+              <Paper elevation={3} sx={{ p: 2, mb: 3 }}>
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+                  <Typography variant="h6">投影片集</Typography>
                   <Button 
-                    startIcon={<Delete />} 
-                    variant="outlined" 
-                    color="error" 
-                    fullWidth
-                    onClick={handleDeleteSlideSet}
+                    startIcon={<Add />} 
+                    size="small" 
+                    variant="outlined"
+                    onClick={() => setCreateDialogOpen(true)}
                   >
-                    刪除此投影片集
+                    新增
                   </Button>
                 </Box>
-              )}
-            </Paper>
-          </Box>
-          
-          {/* 右側歌曲列表和操作 */}
-          <Box sx={{ flex: '1 1 66.67%' }}>
-            <Paper sx={{ p: 2, height: '70vh', display: 'flex', flexDirection: 'column' }}>
-              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-                <Typography variant="h6">
-                  {selectedSetId ? `${selectedSetName} - 歌曲列表` : '請選擇一個投影片集'}
-                </Typography>
                 
-                {selectedSetId && (
-                  <Box>
-                    <Button 
-                      startIcon={<Edit />} 
-                      variant="outlined" 
-                      size="small"
-                      onClick={handleOpenEditNameDialog}
-                      sx={{ mr: 1 }}
-                    >
-                      編輯名稱
-                    </Button>
-                    <Button 
-                      startIcon={<Add />} 
-                      variant="contained" 
-                      size="small"
-                      onClick={handleOpenSelectSongDialog}
-                    >
-                      添加歌曲
-                    </Button>
-                  </Box>
+                {slideSets.length > 0 ? (
+                  <List component="nav" sx={{ maxHeight: '300px', overflow: 'auto' }}>
+                    {slideSets.map((set) => (
+                      <ListItemButton
+                        key={set.id}
+                        selected={selectedSetId === set.id}
+                        onClick={() => setSelectedSetId(set.id)}
+                      >
+                        <ListItemText primary={set.name} />
+                      </ListItemButton>
+                    ))}
+                  </List>
+                ) : (
+                  <Typography variant="body2" color="text.secondary">
+                    目前沒有投影片集，請建立新的投影片集
+                  </Typography>
                 )}
-              </Box>
+              </Paper>
               
-              <Divider sx={{ mb: 2 }} />
-              
-              {selectedSetId ? (
+              {selectedSetId && (
                 <>
-                  <Box sx={{ flexGrow: 1, overflow: 'auto', mb: 2 }}>
-                    {songsInSet.length === 0 ? (
-                      <Typography align="center" color="text.secondary" sx={{ mt: 2 }}>
-                        此投影片集中尚無歌曲，請點擊上方「添加歌曲」按鈕
+                  <Paper elevation={3} sx={{ p: 2, mb: 3 }}>
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+                      <Typography variant="h6">
+                        歌曲列表
                       </Typography>
-                    ) : (
-                      songsInSet.map((song, index) => (
-                        <DraggableSongItem
-                          key={`${song.id}-${index}`}
-                          song={song}
-                          index={index}
-                          moveItem={moveSong}
-                          handleRemove={handleRemoveSong}
-                          slideSetId={selectedSetId}
-                        />
-                      ))
-                    )}
-                  </Box>
-                  
-                  <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: 'auto' }}>
-                    <Button 
-                      startIcon={<Preview />} 
-                      variant="outlined"
-                      onClick={handlePreviewSlides}
-                      disabled={songsInSet.length === 0}
-                    >
-                      預覽
-                    </Button>
+                      <Box>
+                        <Button
+                          startIcon={<Add />}
+                          size="small"
+                          variant="outlined"
+                          onClick={handleOpenSelectSongDialog}
+                          sx={{ mr: 1 }}
+                        >
+                          添加歌曲
+                        </Button>
+                        <IconButton
+                          size="small"
+                          onClick={() => handleOpenEditNameDialog()}
+                          title="編輯名稱"
+                        >
+                          <Edit fontSize="small" />
+                        </IconButton>
+                      </Box>
+                    </Box>
                     
-                    <Box>
-                      <Button 
-                        startIcon={<FileDownload />} 
+                    {songsInSet.length > 0 ? (
+                      <Box sx={{ maxHeight: '300px', overflow: 'auto' }}>
+                        {songsInSet.map((song, index) => (
+                          <DraggableSongItem
+                            key={song.id}
+                            song={song}
+                            index={index}
+                            moveItem={moveSong}
+                            handleRemove={handleRemoveSong}
+                            slideSetId={selectedSetId}
+                          />
+                        ))}
+                      </Box>
+                    ) : (
+                      <Typography variant="body2" color="text.secondary">
+                        目前沒有歌曲，請添加歌曲到投影片集
+                      </Typography>
+                    )}
+                  </Paper>
+                  
+                  <Paper elevation={3} sx={{ p: 2 }}>
+                    <Stack direction="column" spacing={2}>
+                      <Button
+                        variant="contained"
+                        color="primary"
+                        onClick={handleGenerateSlides}
+                        startIcon={<Refresh />}
+                        disabled={songsInSet.length === 0}
+                      >
+                        生成批次投影片
+                      </Button>
+                      
+                      <Button
+                        variant="outlined"
+                        onClick={handlePreviewSlides}
+                        disabled={songsInSet.length === 0}
+                        startIcon={<Preview />}
+                      >
+                        編輯/預覽投影片
+                      </Button>
+                      
+                      <Button
                         variant="outlined"
                         onClick={handleOpenExportDialog}
                         disabled={songsInSet.length === 0}
-                        sx={{ mr: 1 }}
+                        startIcon={<FileDownload />}
                       >
-                        導出
+                        匯出投影片集
                       </Button>
                       
-                      <Button 
-                        variant="contained"
-                        onClick={handleGenerateSlides}
-                        disabled={songsInSet.length === 0}
+                      <Button
+                        variant="outlined"
+                        color="error"
+                        onClick={handleDeleteSlideSet}
+                        startIcon={<Delete />}
                       >
-                        生成投影片
+                        刪除投影片集
                       </Button>
-                    </Box>
-                  </Box>
+                    </Stack>
+                  </Paper>
                 </>
-              ) : (
-                <Typography align="center" color="text.secondary" sx={{ mt: 4 }}>
-                  請先從左側選擇一個投影片集
-                </Typography>
               )}
-            </Paper>
-          </Box>
-        </Box>
-      </DndProvider>
-      
-      {/* 創建投影片集對話框 */}
-      <Dialog open={createDialogOpen} onClose={() => setCreateDialogOpen(false)}>
-        <DialogTitle>創建新投影片集</DialogTitle>
-        <DialogContent>
-          <TextField
-            autoFocus
-            margin="dense"
-            label="投影片集名稱"
-            fullWidth
-            variant="outlined"
-            value={newSetName}
-            onChange={(e) => setNewSetName(e.target.value)}
-          />
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setCreateDialogOpen(false)}>取消</Button>
-          <Button 
-            onClick={handleCreateSlideSet}
-            variant="contained"
-            disabled={!newSetName.trim()}
-          >
-            創建
-          </Button>
-        </DialogActions>
-      </Dialog>
-      
-      {/* 選擇歌曲對話框 */}
-      <Dialog 
-        open={selectSongDialogOpen} 
-        onClose={() => setSelectSongDialogOpen(false)}
-        fullWidth
-        maxWidth="md"
-        keepMounted
-      >
-        <DialogTitle>選擇要添加的歌曲</DialogTitle>
-        <DialogContent>
-          <TextField
-            margin="dense"
-            label="搜索歌曲"
-            fullWidth
-            variant="outlined"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            sx={{ mb: 2 }}
-          />
-          
-          <List sx={{ maxHeight: '50vh', overflow: 'auto' }}>
-            {filteredSongs.length === 0 ? (
-              <Typography align="center" color="text.secondary" sx={{ mt: 2 }}>
-                未找到符合條件的歌曲
-              </Typography>
-            ) : (
-              filteredSongs.map((song) => (
-                <Paper key={song.id} sx={{ mb: 1, p: 1 }}>
-                  <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <Box>
-                      <Typography variant="subtitle1">{song.title}</Typography>
-                      <Typography variant="body2" color="text.secondary">
-                        {song.artist}
-                      </Typography>
-                    </Box>
-                    <Box>
-                      {songsInSet.some(s => s.id === song.id) ? (
-                        <Button 
-                          variant="outlined" 
-                          size="small"
-                          disabled
-                          color="success"
-                        >
-                          已添加
-                        </Button>
-                      ) : (
-                        <Button 
-                          variant="outlined" 
-                          size="small"
-                          onClick={() => handleAddSongToSet(song)}
-                        >
-                          添加
-                        </Button>
-                      )}
-                    </Box>
+            </Box>
+
+            <Box sx={{ flex: 2 }}>
+              {/* 投影片編輯器 */}
+              {showSlideEditor && currentImageUrl && (
+                <Paper elevation={3} sx={{ p: 3, mb: 3 }}>
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+                    <Typography variant="h5">
+                      投影片集整體編輯 - {selectedSetName}
+                    </Typography>
+                    <Button 
+                      variant="outlined" 
+                      color="secondary"
+                      onClick={() => setShowSlideEditor(false)}
+                    >
+                      關閉編輯器
+                    </Button>
+                  </Box>
+                  <Alert severity="info" sx={{ mb: 2 }}>
+                    您正在編輯整個投影片集的文本。這裡的變更將套用到整個投影片集的顯示和輸出。
+                  </Alert>
+                  <SlideEditor 
+                    lyrics={currentLyrics} 
+                    imageUrl={currentImageUrl} 
+                    songId={selectedSetId || 0}
+                    onSlidesCreated={handleSlidesCreated} 
+                  />
+                </Paper>
+              )}
+              {!showSlideEditor && (
+                <Paper elevation={3} sx={{ p: 3, mb: 3, display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '200px' }}>
+                  <Box sx={{ textAlign: 'center' }}>
+                    <Typography variant="h6" color="textSecondary" gutterBottom>
+                      點擊「編輯/預覽投影片」按鈕
+                    </Typography>
+                    <Typography variant="body1" color="textSecondary">
+                      可以編輯整個投影片集的文本內容
+                    </Typography>
                   </Box>
                 </Paper>
-              ))
-            )}
-          </List>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setSelectSongDialogOpen(false)}>關閉</Button>
-        </DialogActions>
-      </Dialog>
-      
-      {/* 導出對話框 */}
-      <Dialog 
-        open={exportDialogOpen} 
-        onClose={() => setExportDialogOpen(false)}
-      >
-        <DialogTitle>導出投影片</DialogTitle>
-        <DialogContent>
-          <Box sx={{ display: 'flex', alignItems: 'center', mb: 2, mt: 1 }}>
+              )}
+            </Box>
+          </Box>
+        </Box>
+
+        {/* Dialog components... */}
+        {/* 創建投影片集對話框 */}
+        <Dialog open={createDialogOpen} onClose={() => setCreateDialogOpen(false)}>
+          <DialogTitle>創建新投影片集</DialogTitle>
+          <DialogContent>
             <TextField
+              autoFocus
               margin="dense"
-              label="導出路徑"
+              label="投影片集名稱"
               fullWidth
               variant="outlined"
-              value={exportPath}
-              InputProps={{ readOnly: true }}
-              sx={{ mr: 1 }}
+              value={newSetName}
+              onChange={(e) => setNewSetName(e.target.value)}
             />
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={() => setCreateDialogOpen(false)}>取消</Button>
             <Button 
-              variant="outlined" 
-              onClick={handleSelectExportPath}
+              onClick={handleCreateSlideSet}
+              variant="contained"
+              disabled={!newSetName.trim()}
             >
-              選擇
+              創建
             </Button>
-          </Box>
-          
-          <TextField
-            margin="dense"
-            label="檔案名稱"
-            fullWidth
-            variant="outlined"
-            value={exportFileName}
-            onChange={(e) => setExportFileName(e.target.value)}
-            sx={{ mb: 2 }}
-          />
-          
-          <TextField
-            select
-            label="格式"
-            value={exportFormat}
-            onChange={(e) => setExportFormat(e.target.value)}
-            fullWidth
-            variant="outlined"
-            SelectProps={{
-              native: true,
-            }}
-          >
-            <option value="pdf">PDF</option>
-            <option value="pptx">PowerPoint (PPTX)</option>
-            <option value="html">HTML</option>
-          </TextField>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setExportDialogOpen(false)}>取消</Button>
-          <Button 
-            onClick={handleExportSlides}
-            variant="contained"
-            disabled={!exportPath || !exportFileName.trim()}
-          >
-            導出
-          </Button>
-        </DialogActions>
-      </Dialog>
-      
-      {/* 編輯名稱對話框 */}
-      <Dialog open={editNameDialogOpen} onClose={() => setEditNameDialogOpen(false)}>
-        <DialogTitle>編輯投影片集名稱</DialogTitle>
-        <DialogContent>
-          <TextField
-            autoFocus
-            margin="dense"
-            label="投影片集名稱"
-            fullWidth
-            variant="outlined"
-            value={editName}
-            onChange={(e) => setEditName(e.target.value)}
-          />
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setEditNameDialogOpen(false)}>取消</Button>
-          <Button 
-            onClick={handleUpdateSlideName}
-            variant="contained"
-            disabled={!editName.trim()}
-          >
-            更新
-          </Button>
-        </DialogActions>
-      </Dialog>
-    </Container>
+          </DialogActions>
+        </Dialog>
+        
+        {/* 選擇歌曲對話框 */}
+        <Dialog 
+          open={selectSongDialogOpen} 
+          onClose={() => setSelectSongDialogOpen(false)}
+          fullWidth
+          maxWidth="md"
+          keepMounted
+        >
+          <DialogTitle>選擇要添加的歌曲</DialogTitle>
+          <DialogContent>
+            <TextField
+              margin="dense"
+              label="搜索歌曲"
+              fullWidth
+              variant="outlined"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              sx={{ mb: 2 }}
+            />
+            
+            <List sx={{ maxHeight: '50vh', overflow: 'auto' }}>
+              {filteredSongs.length === 0 ? (
+                <Typography align="center" color="text.secondary" sx={{ mt: 2 }}>
+                  未找到符合條件的歌曲
+                </Typography>
+              ) : (
+                filteredSongs.map((song) => (
+                  <Paper key={song.id} sx={{ mb: 1, p: 1 }}>
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <Box>
+                        <Typography variant="subtitle1">{song.title}</Typography>
+                        <Typography variant="body2" color="text.secondary">
+                          {song.artist}
+                        </Typography>
+                      </Box>
+                      <Box>
+                        {songsInSet.some(s => s.id === song.id) ? (
+                          <Button 
+                            variant="outlined" 
+                            size="small"
+                            disabled
+                            color="success"
+                          >
+                            已添加
+                          </Button>
+                        ) : (
+                          <Button 
+                            variant="outlined" 
+                            size="small"
+                            onClick={() => handleAddSongToSet(song)}
+                          >
+                            添加
+                          </Button>
+                        )}
+                      </Box>
+                    </Box>
+                  </Paper>
+                ))
+              )}
+            </List>
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={() => setSelectSongDialogOpen(false)}>關閉</Button>
+          </DialogActions>
+        </Dialog>
+        
+        {/* 導出對話框 */}
+        <Dialog 
+          open={exportDialogOpen} 
+          onClose={() => setExportDialogOpen(false)}
+        >
+          <DialogTitle>導出投影片</DialogTitle>
+          <DialogContent>
+            <Box sx={{ display: 'flex', alignItems: 'center', mb: 2, mt: 1 }}>
+              <TextField
+                margin="dense"
+                label="導出路徑"
+                fullWidth
+                variant="outlined"
+                value={exportPath}
+                InputProps={{ readOnly: true }}
+                sx={{ mr: 1 }}
+              />
+              <Button 
+                variant="outlined" 
+                onClick={handleSelectExportPath}
+              >
+                選擇
+              </Button>
+            </Box>
+
+            <TextField
+              margin="dense"
+              label="檔案名稱"
+              fullWidth
+              variant="outlined"
+              value={exportFileName}
+              onChange={(e) => setExportFileName(e.target.value)}
+              sx={{ mb: 2 }}
+            />
+            
+            <TextField
+              select
+              label="格式"
+              value={exportFormat}
+              onChange={(e) => setExportFormat(e.target.value)}
+              fullWidth
+              variant="outlined"
+              SelectProps={{
+                native: true,
+              }}
+            >
+              <option value="pdf">PDF</option>
+              <option value="pptx">PowerPoint (PPTX)</option>
+              <option value="html">HTML</option>
+            </TextField>
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={() => setExportDialogOpen(false)}>取消</Button>
+            <Button 
+              onClick={handleExportSlides}
+              variant="contained"
+              disabled={!exportPath || !exportFileName.trim()}
+            >
+              導出
+            </Button>
+          </DialogActions>
+        </Dialog>
+        
+        {/* 編輯名稱對話框 */}
+        <Dialog open={editNameDialogOpen} onClose={() => setEditNameDialogOpen(false)}>
+          <DialogTitle>編輯投影片集名稱</DialogTitle>
+          <DialogContent>
+            <TextField
+              autoFocus
+              margin="dense"
+              label="投影片集名稱"
+              fullWidth
+              variant="outlined"
+              value={editName}
+              onChange={(e) => setEditName(e.target.value)}
+            />
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={() => setEditNameDialogOpen(false)}>取消</Button>
+            <Button 
+              onClick={handleUpdateSlideName}
+              variant="contained"
+              disabled={!editName.trim()}
+            >
+              更新
+            </Button>
+          </DialogActions>
+        </Dialog>
+      </Container>
+    </DndProvider>
   );
 };
 

@@ -87,7 +87,6 @@ export interface ElectronAPI {
   getAppVersion: () => Promise<string>;
   searchLyrics: (songTitle: string, artist: string) => Promise<LyricsSearchResult[]>;
   generateImage: (songTitle: string, lyrics: string, songId?: number) => Promise<{songId: number, imagePath: string}>;
-  regenerateImage: (songId: number, songTitle: string, lyrics: string) => Promise<{songId: number, imagePath: string}>;
   generateSlides: (songId: number, songTitle: string, artist: string, lyrics: string, imagePath: string) => Promise<string>;
   updateSlides: (songId: number, slidesContent: string) => Promise<boolean>;
   getSlides: (songId: number) => Promise<string>;

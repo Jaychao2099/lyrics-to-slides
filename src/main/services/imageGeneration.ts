@@ -538,45 +538,4 @@ export class ImageGenerationService {
       return null;
     }
   }
-
-  /**
-   * 重新生成圖片
-   * @param songId 歌曲ID
-   * @param songTitle 歌曲標題
-   * @param lyrics 歌詞內容
-   * @returns 新的圖片路徑
-   */
-  public static async regenerateImage(songId: number, songTitle: string, lyrics: string): Promise<string> {
-    const startTime = LoggerService.apiStart('ImageGenerationService', 'regenerateImage', { songId, songTitle });
-    
-    try {
-      // 刪除現有的圖片記錄
-      const db = DatabaseService.init();
-      const deleteQuery = 'DELETE FROM images WHERE song_id = ?';
-      
-      await LoggerService.logDatabaseOperation('刪除', deleteQuery, [songId]);
-      
-      db.prepare(deleteQuery).run(songId);
-      await LoggerService.info(`已刪除歌曲ID ${songId} 的所有圖片記錄`);
-      
-      // 重新生成圖片
-      const imagePath = await this.generateImage(songId, songTitle, lyrics);
-      
-      await LoggerService.apiSuccess('ImageGenerationService', 'regenerateImage', 
-        { songId, songTitle }, 
-        { imagePath }, 
-        startTime
-      );
-      
-      return imagePath;
-    } catch (error) {
-      console.error('重新生成圖片失敗:', error);
-      await LoggerService.apiError('ImageGenerationService', 'regenerateImage', 
-        { songId, songTitle }, 
-        error, 
-        startTime
-      );
-      throw error;
-    }
-  }
 } 

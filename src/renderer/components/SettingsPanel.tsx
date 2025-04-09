@@ -119,6 +119,10 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ settings, onSave, onCance
   // 清除圖片快取
   const handleClearImagesCache = async () => {
     try {
+      // 確認對話框
+      const confirmed = window.confirm('提醒：這將刪除所有圖片紀錄，所有投影片文本也將需要重新製作。\n確定要繼續嗎？');
+      if (!confirmed) return;
+
       setIsCacheLoading(true);
       const result = await window.electronAPI.clearImagesCache();
       if (result && result.success) {
@@ -141,24 +145,24 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ settings, onSave, onCance
     }
   };
   
-  // 清除投影片快取
+  // 清除投影片文本快取
   const handleClearSlidesCache = async () => {
     try {
       setIsCacheLoading(true);
       const result = await window.electronAPI.clearSlidesCache();
       if (result && result.success) {
-        setSnackbarMessage(`投影片快取清除成功，共刪除 ${result.deletedCount} 個檔案`);
+        setSnackbarMessage(`投影片文本快取清除成功，共刪除 ${result.deletedCount} 個檔案`);
         setSnackbarSeverity('success');
         setSnackbarOpen(true);
         fetchCacheInfo();
       } else {
-        setSnackbarMessage('投影片快取清除失敗');
+        setSnackbarMessage('投影片文本快取清除失敗');
         setSnackbarSeverity('error');
         setSnackbarOpen(true);
       }
     } catch (err) {
-      console.error('清除投影片快取失敗:', err);
-      setSnackbarMessage('清除投影片快取失敗');
+      console.error('清除投影片文本快取失敗:', err);
+      setSnackbarMessage('清除投影片文本快取失敗');
       setSnackbarSeverity('error');
       setSnackbarOpen(true);
     } finally {
@@ -170,7 +174,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ settings, onSave, onCance
   const handleClearLyricsCache = async () => {
     try {
       // 確認對話框
-      const confirmed = window.confirm('提醒：這將刪除所有歌詞紀錄，即便之後搜尋相同歌曲，其相關圖片與投影片也不會存在。\n確定要繼續嗎？');
+      const confirmed = window.confirm('提醒：這將刪除所有歌詞紀錄，之後搜尋的歌曲皆需要重新製作。\n確定要繼續嗎？');
       if (!confirmed) return;
 
       setIsCacheLoading(true);
@@ -578,7 +582,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ settings, onSave, onCance
                 
                 <Paper elevation={1} sx={{ p: 2, flex: 1 }}>
                   <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-                    <Typography variant="subtitle1">投影片快取</Typography>
+                    <Typography variant="subtitle1">投影片文本快取</Typography>
                     <Typography variant="body2">
                       {cacheInfo.slides.fileCount} 個檔案 ({cacheInfo.slides.totalSizeMB})
                     </Typography>
@@ -590,7 +594,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ settings, onSave, onCance
                       size="small"
                       startIcon={<Delete />}
                     >
-                      清除投影片快取
+                      清除投影片文本快取
                     </Button>
                   </Box>
                 </Paper>

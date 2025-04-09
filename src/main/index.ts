@@ -355,26 +355,6 @@ function setupIpcHandlers() {
     }
   });
   
-  // 重新生成背景圖片
-  ipcMain.handle('regenerate-image', async (_event, songId, songTitle, lyrics) => {
-    const startTime = LoggerService.apiStart('IPC', 'regenerate-image', { songId, songTitle });
-    try {
-      mainWindow?.webContents.send('progress-update', 10, '正在重新生成背景圖片...');
-      const imagePath = await ImageGenerationService.regenerateImage(songId, songTitle, lyrics);
-      mainWindow?.webContents.send('progress-update', 100, '背景圖片生成完成');
-      
-      const response = { songId, imagePath };
-      await LoggerService.apiSuccess('IPC', 'regenerate-image', { songId, songTitle }, response, startTime);
-      
-      return response;
-    } catch (error) {
-      console.error('重新生成背景圖片失敗:', error);
-      mainWindow?.webContents.send('progress-update', 0, '重新生成背景圖片失敗');
-      await LoggerService.apiError('IPC', 'regenerate-image', { songId, songTitle }, error, startTime);
-      throw error;
-    }
-  });
-  
   // 生成投影片
   ipcMain.handle('generate-slides', async (_event, songId, songTitle, artist, lyrics, imagePath) => {
     try {
