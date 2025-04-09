@@ -110,12 +110,12 @@ export class ImageGenerationService {
       await this.initCacheDir();
 
       // 檢查快取中是否已有此歌曲的圖片
-      const cachedImage = await this.getImageFromCache(songId);
-      if (cachedImage) {
-        await LoggerService.info(`使用快取的圖片: ${cachedImage}`);
-        await LoggerService.apiSuccess('ImageGenerationService', 'generateImage', { songId, songTitle }, { imagePath: cachedImage }, startTime);
-        return cachedImage;
-      }
+      // const cachedImage = await this.getImageFromCache(songId);
+      // if (cachedImage) {
+      //   await LoggerService.info(`使用快取的圖片: ${cachedImage}`);
+      //   await LoggerService.apiSuccess('ImageGenerationService', 'generateImage', { songId, songTitle }, { imagePath: cachedImage }, startTime);
+      //   return cachedImage;
+      // }
 
       // 初始化 OpenAI API
       if (!this.openai) {
