@@ -355,26 +355,6 @@ function setupIpcHandlers() {
     }
   });
   
-  // 重新生成背景圖片
-  ipcMain.handle('regenerate-image', async (_event, songId, songTitle, lyrics) => {
-    const startTime = LoggerService.apiStart('IPC', 'regenerate-image', { songId, songTitle });
-    try {
-      mainWindow?.webContents.send('progress-update', 10, '正在重新生成背景圖片...');
-      const imagePath = await ImageGenerationService.regenerateImage(songId, songTitle, lyrics);
-      mainWindow?.webContents.send('progress-update', 100, '背景圖片生成完成');
-      
-      const response = { songId, imagePath };
-      await LoggerService.apiSuccess('IPC', 'regenerate-image', { songId, songTitle }, response, startTime);
-      
-      return response;
-    } catch (error) {
-      console.error('重新生成背景圖片失敗:', error);
-      mainWindow?.webContents.send('progress-update', 0, '重新生成背景圖片失敗');
-      await LoggerService.apiError('IPC', 'regenerate-image', { songId, songTitle }, error, startTime);
-      throw error;
-    }
-  });
-  
   // 生成投影片
   ipcMain.handle('generate-slides', async (_event, songId, songTitle, artist, lyrics, imagePath) => {
     try {
@@ -1222,6 +1202,17 @@ function setupIpcHandlers() {
     }
   });
   
+  // 更新批次投影片內容
+  ipcMain.handle('update-batch-slide-content', async (_event, slideSetId: number, slidesContent: string) => {
+    try {
+      const result = await BatchSlideService.updateBatchSlideContent(slideSetId, slidesContent);
+      return result;
+    } catch (error) {
+      console.error('更新批次投影片內容失敗:', error);
+      throw error;
+    }
+  });
+  
   // 預覽批次投影片
   ipcMain.handle('preview-batch-slides', async (_event, slideSetId: number) => {
     try {
@@ -1366,7 +1357,15 @@ function setupIpcHandlers() {
   });
 
   // 保存歌曲詳情
-  ipcMain.handle('save-song-details', async (_event, songId: number, songDetails: { title: string, artist?: string, lyrics?: string, imageUrl?: string }) => {
+  ipcMain.handle('save-song-details', async (_event, songId: number, songDetails: { 
+    title: string, 
+    artist?: string, 
+    lyrics?: string, 
+    imageUrl?: string,
+    textColor?: string,
+    strokeColor?: string,
+    strokeSize?: number 
+  }) => {
     const startTime = LoggerService.apiStart('IPC', 'save-song-details', { songId, songDetails });
     try {
       await LoggerService.info(`保存歌曲詳情請求: songId=${songId}, Details: ${JSON.stringify(songDetails)}`);
@@ -1380,6 +1379,9 @@ function setupIpcHandlers() {
         artist: songDetails.artist,
         lyrics: cleanedLyrics,
         imageUrl: songDetails.imageUrl,
+        textColor: songDetails.textColor,
+        strokeColor: songDetails.strokeColor,
+        strokeSize: songDetails.strokeSize
       };
       
       // 過濾掉 undefined 的值，避免覆蓋資料庫中的現有值
@@ -1400,7 +1402,7 @@ function setupIpcHandlers() {
     } catch (error) {
       console.error('保存歌曲詳情失敗:', error);
       await LoggerService.apiError('IPC', 'save-song-details', { songId, songDetails }, error, startTime);
-      throw error;
+      return { success: false };
     }
   });
 }

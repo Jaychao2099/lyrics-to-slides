@@ -8,7 +8,6 @@ interface ElectronAPI {
   getAppVersion: () => Promise<string>;
   searchLyrics: (songTitle: string, artist: string) => Promise<any>;
   generateImage: (songTitle: string, lyrics: string, songId?: number) => Promise<{songId: number, imagePath: string}>;
-  regenerateImage: (songId: number, songTitle: string, lyrics: string) => Promise<{songId: number, imagePath: string}>;
   generateSlides: (songId: number, songTitle: string, artist: string, lyrics: string, imagePath: string) => Promise<string>;
   updateSlides: (songId: number, slidesContent: string) => Promise<boolean>;
   getSlides: (songId: number) => Promise<string>;
@@ -40,7 +39,15 @@ interface ElectronAPI {
   checkRelatedSlide: (songId: number) => Promise<RelatedSlideResult>;
   saveSongImageAssociation: (songId: number, imagePath: string) => Promise<{success: boolean, message: string}>;
   saveSongSlideAssociation: (songId: number, slideContent: string) => Promise<{success: boolean, message: string}>;
-  saveSongDetails: (songId: number, songDetails: { title: string, artist?: string, lyrics?: string, imageUrl?: string }) => Promise<boolean>;
+  saveSongDetails: (songId: number, songDetails: { 
+    title: string, 
+    artist?: string, 
+    lyrics?: string, 
+    imageUrl?: string,
+    textColor?: string,
+    strokeColor?: string,
+    strokeSize?: number 
+  }) => Promise<{success: boolean}>;
   getSongById: (songId: number) => Promise<any>;
   getTempPath: () => Promise<string>;
 }
@@ -68,10 +75,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // 圖片生成
   generateImage: (songTitle: string, lyrics: string, songId?: number) => 
     ipcRenderer.invoke('generate-image', songTitle, lyrics, songId),
-  
-  // 重新生成圖片
-  regenerateImage: (songId: number, songTitle: string, lyrics: string) => 
-    ipcRenderer.invoke('regenerate-image', songId, songTitle, lyrics),
   
   // 投影片生成
   generateSlides: (songId: number, songTitle: string, artist: string, lyrics: string, imagePath: string) => 
@@ -145,8 +148,15 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.invoke('import-local-image', songId, localImagePath),
   
   // 新增：保存歌曲詳情
-  saveSongDetails: (songId: number, songDetails: { title: string, artist?: string, lyrics?: string, imageUrl?: string }) => 
-    ipcRenderer.invoke('save-song-details', songId, songDetails),
+  saveSongDetails: (songId: number, songDetails: { 
+    title: string, 
+    artist?: string, 
+    lyrics?: string, 
+    imageUrl?: string,
+    textColor?: string,
+    strokeColor?: string,
+    strokeSize?: number 
+  }) => ipcRenderer.invoke('save-song-details', songId, songDetails),
   
   // 獲取快取大小
   getCacheSize: () => ipcRenderer.invoke('get-cache-size'),
@@ -216,6 +226,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   generateBatchSlides: (slideSetId: number) => ipcRenderer.invoke('generate-batch-slides', slideSetId),
   previewBatchSlides: (slideSetId: number) => ipcRenderer.invoke('preview-batch-slides', slideSetId),
   getBatchSlideContent: (slideSetId: number) => ipcRenderer.invoke('get-batch-slide-content', slideSetId),
+  updateBatchSlideContent: (slideSetId: number, slidesContent: string) => ipcRenderer.invoke('update-batch-slide-content', slideSetId, slidesContent),
   exportBatchSlides: (slideSetId: number, outputPath: string, format: string) => ipcRenderer.invoke('export-batch-slides', slideSetId, outputPath, format),
   
   // 新增：獲取系統臨時目錄路徑

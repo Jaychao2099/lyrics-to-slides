@@ -43,6 +43,9 @@ function initDatabase() {
       lyrics TEXT,
       image_url TEXT,
       slide_content TEXT,
+      text_color TEXT DEFAULT 'black',
+      stroke_color TEXT DEFAULT 'white',
+      stroke_size INTEGER DEFAULT 5,
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL
     )
@@ -115,8 +118,42 @@ export const DatabaseService = {
   init(): Database.Database {
     if (!db) {
       db = initDatabase();
+      this.migrateDatabase(); // 確保數據庫結構是最新的
     }
     return db;
+  },
+
+  // 遷移數據庫結構
+  migrateDatabase(): void {
+    try {
+      console.log('檢查數據庫結構，進行必要的遷移...');
+      
+      // 檢查songs表是否有text_color列
+      const tableInfo = db.prepare("PRAGMA table_info(songs)").all() as {name: string}[];
+      const columnNames = tableInfo.map(col => col.name);
+      
+      // 檢查並添加text_color列
+      if (!columnNames.includes('text_color')) {
+        console.log('添加text_color列到songs表...');
+        db.exec('ALTER TABLE songs ADD COLUMN text_color TEXT DEFAULT "black"');
+      }
+      
+      // 檢查並添加stroke_color列
+      if (!columnNames.includes('stroke_color')) {
+        console.log('添加stroke_color列到songs表...');
+        db.exec('ALTER TABLE songs ADD COLUMN stroke_color TEXT DEFAULT "white"');
+      }
+      
+      // 檢查並添加stroke_size列
+      if (!columnNames.includes('stroke_size')) {
+        console.log('添加stroke_size列到songs表...');
+        db.exec('ALTER TABLE songs ADD COLUMN stroke_size INTEGER DEFAULT 5');
+      }
+      
+      console.log('數據庫結構遷移完成');
+    } catch (error) {
+      console.error('數據庫遷移失敗:', error);
+    }
   },
 
   // 關閉數據庫
@@ -141,7 +178,10 @@ export const DatabaseService = {
           artist, 
           lyrics, 
           image_url as imageUrl, 
-          slide_content as slideContent, 
+          slide_content as slideContent,
+          text_color as textColor,
+          stroke_color as strokeColor,
+          stroke_size as strokeSize,
           created_at as createdAt, 
           updated_at as updatedAt 
         FROM songs 
@@ -169,7 +209,10 @@ export const DatabaseService = {
           artist, 
           lyrics, 
           image_url as imageUrl, 
-          slide_content as slideContent, 
+          slide_content as slideContent,
+          text_color as textColor,
+          stroke_color as strokeColor,
+          stroke_size as strokeSize,
           created_at as createdAt, 
           updated_at as updatedAt 
         FROM songs 
@@ -177,7 +220,7 @@ export const DatabaseService = {
       `);
       return stmt.get(id) as Song | null;
     } catch (error) {
-      console.error('獲取單首歌曲失敗:', error);
+      console.error('獲取歌曲失敗:', error);
       return null;
     }
   },
@@ -260,10 +303,13 @@ export const DatabaseService = {
           artist, 
           lyrics, 
           image_url, 
-          slide_content, 
+          slide_content,
+          text_color,
+          stroke_color,
+          stroke_size,
           created_at, 
           updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `);
       
       // 直接傳遞參數，讓 better-sqlite3 處理特殊字符和換行符
@@ -273,6 +319,9 @@ export const DatabaseService = {
         lyrics,
         song.imageUrl || '',
         song.slideContent || '',
+        song.textColor || 'black',
+        song.strokeColor || 'white',
+        song.strokeSize || 5,
         now,
         now
       );
@@ -292,10 +341,16 @@ export const DatabaseService = {
     }
     
     try {
+      console.log(`開始更新歌曲，ID: ${id}，更新資料:`, JSON.stringify(song));
+      
       const existingSong = this.getSongById(id);
-      if (!existingSong) return false;
+      if (!existingSong) {
+        console.error(`找不到ID為 ${id} 的歌曲，無法更新`);
+        return false;
+      }
   
       const now = new Date().toISOString();
+      console.log(`更新時間設置為: ${now}`);
       
       // 使用參數化查詢避免 SQL 注入
       const stmt = db.prepare(`
@@ -305,6 +360,9 @@ export const DatabaseService = {
           lyrics = ?,
           image_url = ?,
           slide_content = ?,
+          text_color = ?,
+          stroke_color = ?,
+          stroke_size = ?,
           updated_at = ?
         WHERE id = ?
       `);
@@ -312,25 +370,44 @@ export const DatabaseService = {
       // --- 修改：更精確地處理傳入值和現有值 ---
       const finalTitle = song.title !== undefined ? song.title : existingSong.title;
       const finalArtist = song.artist !== undefined ? song.artist : existingSong.artist;
-      // 如果傳入的 lyrics 是 undefined，保留舊值；否則使用傳入的值（允許 '' 或 null，寫入資料庫時統一為空字串）
       const finalLyrics = song.lyrics !== undefined ? (song.lyrics || '') : existingSong.lyrics;
-      // 如果傳入的 imageUrl 是 undefined，保留舊值；否則使用傳入的值（允許 '' 或 null，寫入資料庫時統一為空字串）
       const finalImageUrl = song.imageUrl !== undefined ? (song.imageUrl || '') : (existingSong.imageUrl || '');
-      // slideContent 同理
       const finalSlideContent = song.slideContent !== undefined ? (song.slideContent || '') : (existingSong.slideContent || '');
+      const finalTextColor = song.textColor !== undefined ? song.textColor : (existingSong.textColor || 'black');
+      const finalStrokeColor = song.strokeColor !== undefined ? song.strokeColor : (existingSong.strokeColor || 'white');
+      const finalStrokeSize = song.strokeSize !== undefined ? song.strokeSize : (existingSong.strokeSize || 5);
       
-      const result = stmt.run(
-        finalTitle,
-        finalArtist,
-        finalLyrics,
-        finalImageUrl,
-        finalSlideContent,
-        now,
-        id
-      );
-      // --- 結束修改 ---
+      console.log('最終更新的歌曲資料:');
+      console.log('- 標題:', finalTitle);
+      console.log('- 歌手:', finalArtist);
+      console.log('- 歌詞長度:', finalLyrics ? finalLyrics.length : 0);
+      console.log('- 圖片URL:', finalImageUrl);
+      console.log('- 文字顏色:', finalTextColor);
+      console.log('- 邊框顏色:', finalStrokeColor);
+      console.log('- 邊框粗細:', finalStrokeSize);
       
-      return result.changes > 0;
+      try {
+        const result = stmt.run(
+          finalTitle,
+          finalArtist,
+          finalLyrics,
+          finalImageUrl,
+          finalSlideContent,
+          finalTextColor,
+          finalStrokeColor,
+          finalStrokeSize,
+          now,
+          id
+        );
+        
+        console.log(`SQL執行結果:`, result);
+        console.log(`已更新的行數: ${result.changes}`);
+        return result.changes > 0;
+      } catch (sqlError: any) {
+        console.error('SQL執行失敗:', sqlError);
+        console.error('SQL錯誤詳情:', sqlError.message);
+        return false;
+      }
     } catch (error) {
       console.error('更新歌曲失敗:', error);
       return false;
@@ -547,6 +624,9 @@ export const DatabaseService = {
           s.lyrics,
           s.image_url as imageUrl,
           s.slide_content as slideContent,
+          s.text_color as textColor,
+          s.stroke_color as strokeColor,
+          s.stroke_size as strokeSize,
           s.created_at as createdAt,
           s.updated_at as updatedAt,
           sss.display_order as displayOrder,

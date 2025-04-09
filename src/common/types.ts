@@ -26,6 +26,9 @@ export interface Song {
   lyrics: string;
   imageUrl?: string;
   slideContent?: string;
+  textColor?: string;
+  strokeColor?: string;
+  strokeSize?: number;
   createdAt: string;
   updatedAt: string;
 }
@@ -84,7 +87,6 @@ export interface ElectronAPI {
   getAppVersion: () => Promise<string>;
   searchLyrics: (songTitle: string, artist: string) => Promise<LyricsSearchResult[]>;
   generateImage: (songTitle: string, lyrics: string, songId?: number) => Promise<{songId: number, imagePath: string}>;
-  regenerateImage: (songId: number, songTitle: string, lyrics: string) => Promise<{songId: number, imagePath: string}>;
   generateSlides: (songId: number, songTitle: string, artist: string, lyrics: string, imagePath: string) => Promise<string>;
   updateSlides: (songId: number, slidesContent: string) => Promise<boolean>;
   getSlides: (songId: number) => Promise<string>;
@@ -110,7 +112,15 @@ export interface ElectronAPI {
   selectLocalImage: () => Promise<string>;
   importLocalImage: (songId: number, localImagePath: string) => Promise<{songId: number, imagePath: string}>;
   // 新增：保存歌曲詳情
-  saveSongDetails: (songId: number, songDetails: { title: string, artist?: string, lyrics?: string, imageUrl?: string }) => Promise<{success: boolean}>;
+  saveSongDetails: (songId: number, songDetails: { 
+    title: string, 
+    artist?: string, 
+    lyrics?: string, 
+    imageUrl?: string,
+    textColor?: string,
+    strokeColor?: string,
+    strokeSize?: number 
+  }) => Promise<{success: boolean}>;
   // 新增：獲取臨時目錄路徑
   getTempPath: () => Promise<string>;
   // 新增的功能 - 快取管理
@@ -164,6 +174,7 @@ export interface ElectronAPI {
   generateBatchSlides: (slideSetId: number) => Promise<string>;
   previewBatchSlides: (slideSetId: number) => Promise<void>;
   getBatchSlideContent: (slideSetId: number) => Promise<string>;
+  updateBatchSlideContent: (slideSetId: number, slidesContent: string) => Promise<boolean>;
   exportBatchSlides: (slideSetId: number, outputPath: string, format: string) => Promise<string>;
 }
 

@@ -623,8 +623,8 @@ const LyricsSearch: React.FC<LyricsSearchProps> = ({ onSearchComplete }) => {
         <Box sx={{ mt: 3 }}>
           <Alert severity="info" sx={{ mb: 2 }}>
             {selectedResult.isEdited 
-              ? '您已編輯過此歌詞。您可以繼續編輯或直接使用。請確保「換行」正確。' 
-              : '您可以直接使用此歌詞，或點擊「編輯歌詞」進行修改。請確保「換行」正確。'}
+              ? '您已編輯過此歌詞。您可以繼續編輯或直接使用。' 
+              : '您可以直接使用此歌詞，或點擊「編輯歌詞」進行修改。'}
           </Alert>
           <Box sx={{ display: 'flex', justifyContent: 'flex-end' }}>
             <Button

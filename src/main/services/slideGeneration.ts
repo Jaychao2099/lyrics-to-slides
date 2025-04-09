@@ -75,8 +75,21 @@ export class SlideGenerationService {
       // 導入 SlideFormatter 服務
       const { SlideFormatter } = require('./slideFormatter');
       
+      // 獲取歌曲的文字格式設定
+      const song = DatabaseService.getSongById(songId);
+      if (!song) {
+        throw new Error(`找不到歌曲 ${songId}`);
+      }
+      
       // 生成投影片內容
-      const slidesContent = SlideFormatter.formatSong(lyrics, imagePath, songTitle);
+      const slidesContent = SlideFormatter.formatSong(
+        lyrics, 
+        imagePath, 
+        songTitle,
+        song.textColor,
+        song.strokeColor,
+        song.strokeSize
+      );
       
       // 組合完整內容，加上自定義標頭
       const fullSlidesContent = SlideFormatter.generateMarpHeader(customHeader as string) + slidesContent;

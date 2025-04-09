@@ -1,6 +1,6 @@
 {
   "name": "lyrics-to-slides",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "description": "將歌曲名稱轉換為精美投影片的桌面應用程式",
   "main": "dist/main/index.js",
   "scripts": {
@@ -80,12 +80,18 @@
       "package.json"
     ],
     "win": {
-      "target": ["nsis", "portable"],
+      "target": [
+        "nsis",
+        "portable"
+      ],
       "icon": "assets/icon.ico"
     },
     "mac": {
       "category": "public.app-category.productivity",
-      "target": ["dmg", "zip"],
+      "target": [
+        "dmg",
+        "zip"
+      ],
       "icon": "assets/icon.icns",
       "identity": null
     },

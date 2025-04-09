@@ -11,6 +11,9 @@ interface SongInfo {
   imagePath: string;
   title: string;
   artist?: string;
+  textColor?: string;
+  strokeColor?: string;
+  strokeSize?: number;
 }
 
 /**
@@ -26,35 +29,12 @@ export class SlideFormatter {
   public static generateMarpHeader(customHeader?: string): string {
     const defaultHeader = `---
 marp: true
-color: "black"
+
 style: |
   section {
     text-align: center;
     font-size:80px;
     font-weight:900;
-    text-shadow: 
-      -5px -5px 0 white, -5px -4px 0 white, -5px -3px 0 white, -5px -2px 0 white, -5px -1px 0 white,
-      -5px 0px 0 white, -5px 1px 0 white, -5px 2px 0 white, -5px 3px 0 white, -5px 4px 0 white, -5px 5px 0 white,
-      -4px -5px 0 white, -4px -4px 0 white, -4px -3px 0 white, -4px -2px 0 white, -4px -1px 0 white,
-      -4px 0px 0 white, -4px 1px 0 white, -4px 2px 0 white, -4px 3px 0 white, -4px 4px 0 white, -4px 5px 0 white,
-      -3px -5px 0 white, -3px -4px 0 white, -3px -3px 0 white, -3px -2px 0 white, -3px -1px 0 white,
-      -3px 0px 0 white, -3px 1px 0 white, -3px 2px 0 white, -3px 3px 0 white, -3px 4px 0 white, -3px 5px 0 white,
-      -2px -5px 0 white, -2px -4px 0 white, -2px -3px 0 white, -2px -2px 0 white, -2px -1px 0 white,
-      -2px 0px 0 white, -2px 1px 0 white, -2px 2px 0 white, -2px 3px 0 white, -2px 4px 0 white, -2px 5px 0 white,
-      -1px -5px 0 white, -1px -4px 0 white, -1px -3px 0 white, -1px -2px 0 white, -1px -1px 0 white,
-      -1px 0px 0 white, -1px 1px 0 white, -1px 2px 0 white, -1px 3px 0 white, -1px 4px 0 white, -1px 5px 0 white,
-      0px -5px 0 white, 0px -4px 0 white, 0px -3px 0 white, 0px -2px 0 white, 0px -1px 0 white,
-      0px 0px 0 white, 0px 1px 0 white, 0px 2px 0 white, 0px 3px 0 white, 0px 4px 0 white, 0px 5px 0 white,
-      1px -5px 0 white, 1px -4px 0 white, 1px -3px 0 white, 1px -2px 0 white, 1px -1px 0 white,
-      1px 0px 0 white, 1px 1px 0 white, 1px 2px 0 white, 1px 3px 0 white, 1px 4px 0 white, 1px 5px 0 white,
-      2px -5px 0 white, 2px -4px 0 white, 2px -3px 0 white, 2px -2px 0 white, 2px -1px 0 white,
-      2px 0px 0 white, 2px 1px 0 white, 2px 2px 0 white, 2px 3px 0 white, 2px 4px 0 white, 2px 5px 0 white,
-      3px -5px 0 white, 3px -4px 0 white, 3px -3px 0 white, 3px -2px 0 white, 3px -1px 0 white,
-      3px 0px 0 white, 3px 1px 0 white, 3px 2px 0 white, 3px 3px 0 white, 3px 4px 0 white, 3px 5px 0 white,
-      4px -5px 0 white, 4px -4px 0 white, 4px -3px 0 white, 4px -2px 0 white, 4px -1px 0 white,
-      4px 0px 0 white, 4px 1px 0 white, 4px 2px 0 white, 4px 3px 0 white, 4px 4px 0 white, 4px 5px 0 white,
-      5px -5px 0 white, 5px -4px 0 white, 5px -3px 0 white, 5px -2px 0 white, 5px -1px 0 white,
-      5px 0px 0 white, 5px 1px 0 white, 5px 2px 0 white, 5px 3px 0 white, 5px 4px 0 white, 5px 5px 0 white;
   }
   h1 {
     position:absolute;
@@ -68,19 +48,65 @@ style: |
   }
 
   /**
+   * 生成文字邊框樣式
+   * @param textColor 文字顏色
+   * @param strokeColor 邊框顏色
+   * @param strokeSize 邊框粗細
+   * @returns 文字邊框樣式
+   */
+  private static generateTextStrokeStyle(textColor: string, strokeColor: string, strokeSize: number): string {
+    let shadowStyle = '';
+    for (let x = -strokeSize; x <= strokeSize; x++) {
+      for (let y = -strokeSize; y <= strokeSize; y++) {
+        shadowStyle += `${x}px ${y}px 0 ${strokeColor}, `;
+      }
+    }
+    // 移除最後的逗號和空格
+    shadowStyle = shadowStyle.slice(0, -2);
+    
+    return `color: ${textColor}; text-shadow: ${shadowStyle};`;
+  }
+
+  /**
    * 將一首歌的歌詞轉換為投影片 (新版本，根據指定格式)
    * @param lyrics 歌詞內容
    * @param imagePath 背景圖片路徑
    * @param title 歌曲標題 (可選)
+   * @param textColor 文字顏色 (可選)
+   * @param strokeColor 邊框顏色 (可選)
+   * @param strokeSize 邊框粗細 (可選)
+   * @param skipStyleGeneration 是否跳過樣式生成 (用於批量處理)
    * @returns 格式化後的 Marp 投影片內容
    */
-  public static formatSong(lyrics: string, imagePath: string, title?: string): string {
+  public static formatSong(
+    lyrics: string, 
+    imagePath: string, 
+    title?: string,
+    textColor: string = 'black',
+    strokeColor: string = 'white',
+    strokeSize: number = 5,
+    skipStyleGeneration: boolean = false
+  ): string {
     try {
-      // 初始化投影片內容（移除之前的首頁空白頁）
+      // 初始化投影片內容
       let slides = "";
 
       // 修復圖片路徑，將反斜線替換為正斜線
       const fixedImagePath = imagePath.replace(/\\/g, '/');
+
+      // 生成文字樣式，只有在不跳過樣式生成時才添加
+      const songId = title?.replace(/\s+/g, '_');
+      if (!skipStyleGeneration) {
+        slides += `
+  section.song${songId} p {
+    ${this.generateTextStrokeStyle(textColor, strokeColor, strokeSize)}
+  }
+  section.song${songId} h1 {
+    color: ${textColor};
+  }
+
+`;
+      }
 
       // 按照雙換行分段 (\n\n)
       const paragraphs = lyrics.split('\n\n').filter(p => p.trim());
@@ -90,6 +116,7 @@ style: |
         slides += `
 ---
 
+<!-- _class: song${songId} -->
 ![bg](${fixedImagePath})
 # ${title}
 ${paragraph}
@@ -100,6 +127,7 @@ ${paragraph}
       slides += `
 ---
 
+<!-- _class: song${songId} -->
 ![bg](${fixedImagePath})
 # ${title}
 `;
@@ -128,10 +156,40 @@ ${paragraph}
       // 生成 Marp 標頭
       let marpContent = this.generateMarpHeader(customHeader);
       
+      // === 重要：集中處理所有歌曲的樣式，避免重複 ===
+      LoggerService.info('集中生成所有歌曲的樣式');
+      
+      // 為每首歌添加樣式，這些樣式會統一放在標頭部分
+      for (const songInfo of songInfoList) {
+        const songId = songInfo.title?.replace(/\s+/g, '_');
+        const textColor = songInfo.textColor || 'black';
+        const strokeColor = songInfo.strokeColor || 'white';
+        const strokeSize = songInfo.strokeSize || 5;
+        
+        LoggerService.info(`為歌曲 "${songInfo.title}" 添加樣式 (ID: song${songId})`);
+        
+        marpContent += `
+  section.song${songId} p {
+    ${this.generateTextStrokeStyle(textColor, strokeColor, strokeSize)}
+  }
+  section.song${songId} h1 {
+    color: ${textColor};
+  }
+`;
+      }
+      
       // 為每首歌添加投影片
       for (const songInfo of songInfoList) {
         // 添加該首歌的投影片
-        const songSlides = this.formatSong(songInfo.lyrics, songInfo.imagePath, songInfo.title);
+        const songSlides = this.formatSong(
+          songInfo.lyrics, 
+          songInfo.imagePath, 
+          songInfo.title,
+          songInfo.textColor,
+          songInfo.strokeColor,
+          songInfo.strokeSize,
+          true // 跳過樣式生成，因為已經在合併標頭中添加了
+        );
         marpContent += songSlides;
       }
       

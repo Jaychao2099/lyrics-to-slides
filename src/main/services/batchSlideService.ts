@@ -70,7 +70,10 @@ export class BatchSlideService {
           lyrics: song.lyrics,
           imagePath,
           title: song.title,
-          artist: song.artist
+          artist: song.artist,
+          textColor: song.textColor,
+          strokeColor: song.strokeColor,
+          strokeSize: song.strokeSize
         });
       }
 
@@ -103,7 +106,7 @@ export class BatchSlideService {
 
       return slidesContent;
     } catch (error) {
-      console.error('生成批次投影片失敗:', error);
+      // 記錄錯誤
       await LoggerService.apiError('BatchSlideService', 'generateBatchSlides', { slideSetId }, error, startTime);
       throw error;
     }
@@ -268,6 +271,36 @@ export class BatchSlideService {
       console.error('獲取快取大小失敗:', error);
       await LoggerService.apiError('BatchSlideService', 'getCacheSize', {}, error, startTime);
       throw error;
+    }
+  }
+
+  /**
+   * 更新批次投影片內容
+   * @param slideSetId 投影片集ID
+   * @param slidesContent 新的Marp格式投影片內容
+   * @returns 是否成功更新
+   */
+  public static async updateBatchSlideContent(slideSetId: number, slidesContent: string): Promise<boolean> {
+    try {
+      // 確保快取目錄存在
+      await this.initCacheDir();
+
+      // 修復圖片路徑
+      const fixedSlidesContent = this.fixImagePathsInSlides(slidesContent);
+
+      // 保存到快取
+      const filePath = path.join(this.batchSlidesCacheDir, `set_${slideSetId}.md`);
+      await fs.writeFile(filePath, fixedSlidesContent, 'utf-8');
+
+      // 更新投影片集的更新時間
+      const db = DatabaseService.init();
+      const now = new Date().toISOString();
+      db.prepare('UPDATE slide_sets SET updated_at = ? WHERE id = ?').run(now, slideSetId);
+
+      return true;
+    } catch (error) {
+      console.error('更新批次投影片內容失敗:', error);
+      return false;
     }
   }
 } 
