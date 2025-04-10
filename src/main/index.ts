@@ -392,16 +392,26 @@ function setupIpcHandlers() {
   });
   
   // 更新投影片內容
-  ipcMain.handle('update-slides', async (_event, songId, slidesContent) => {
+  ipcMain.handle('update-slides', async (_event, songId: number, slidesContent: string) => {
     try {
-      mainWindow?.webContents.send('progress-update', 10, '正在更新投影片...');
+      console.log(`[IPC] 收到更新投影片內容請求，歌曲ID: ${songId}, 內容長度: ${slidesContent?.length || 0}`);
+      
+      if (!songId || songId <= 0) {
+        console.error('[IPC] 更新投影片內容失敗: 無效的歌曲ID');
+        return false;
+      }
+      
+      if (!slidesContent) {
+        console.error('[IPC] 更新投影片內容失敗: 沒有提供內容');
+        return false;
+      }
+      
       await SlideGenerationService.updateSlides(songId, slidesContent);
-      mainWindow?.webContents.send('progress-update', 100, '投影片更新完成');
+      console.log(`[IPC] 成功更新歌曲ID ${songId} 的投影片內容`);
       return true;
     } catch (error) {
-      console.error('更新投影片失敗:', error);
-      mainWindow?.webContents.send('progress-update', 0, '更新投影片失敗');
-      throw error;
+      console.error('[IPC] 更新投影片內容失敗:', error);
+      return false;
     }
   });
   
@@ -1008,11 +1018,12 @@ function setupIpcHandlers() {
   // 儲存投影片關聯
   ipcMain.handle('save-song-slide-association', async (_event, songId: number, slideContent: string) => {
     try {
+      console.log(`[IPC] 收到儲存投影片關聯請求，歌曲ID: ${songId}, 內容長度: ${slideContent?.length || 0}`);
+      
       if (!songId || songId < 0 || !slideContent) {
+        console.error('[IPC] 儲存投影片關聯失敗: 無效的參數');
         return { success: false, message: '無效的參數' };
       }
-      
-      console.log(`儲存歌曲ID ${songId} 與投影片的關聯`);
       
       // 將投影片內容儲存到檔案
       const slidesDir = path.join(app.getPath('userData'), 'app_cache', 'slides');
@@ -1027,19 +1038,20 @@ function setupIpcHandlers() {
       // 儲存檔案
       const slideFilePath = path.join(slidesDir, `${songId}.md`);
       await fsPromises.writeFile(slideFilePath, slideContent, 'utf-8');
+      console.log(`[IPC] 已將投影片內容寫入檔案: ${slideFilePath}`);
       
       // 儲存關聯
       const result = DatabaseService.saveSongResource(songId, 'slide', slideFilePath);
       
       if (result) {
-        console.log(`歌曲ID ${songId} 的投影片關聯儲存成功`);
+        console.log(`[IPC] 歌曲ID ${songId} 的投影片關聯儲存成功`);
         return { success: true, message: '投影片關聯儲存成功' };
       } else {
-        console.log(`歌曲ID ${songId} 的投影片關聯儲存失敗`);
+        console.error(`[IPC] 歌曲ID ${songId} 的投影片關聯儲存失敗`);
         return { success: false, message: '投影片關聯儲存失敗' };
       }
     } catch (error) {
-      console.error('儲存投影片關聯失敗:', error);
+      console.error('[IPC] 儲存投影片關聯失敗:', error);
       return { success: false, message: '儲存投影片關聯時發生錯誤' };
     }
   });
@@ -1365,7 +1377,7 @@ function setupIpcHandlers() {
     textColor?: string,
     strokeColor?: string,
     strokeSize?: number,
-    fontWeight?: number
+    fontWeight?: string
   }) => {
     const startTime = LoggerService.apiStart('IPC', 'save-song-details', { songId, songDetails });
     try {

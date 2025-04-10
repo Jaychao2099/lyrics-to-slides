@@ -313,20 +313,20 @@ const BatchSlidesManager: React.FC = () => {
   };
 
   // 預覽投影片集
-  const handlePreviewSlides = async () => {
-    try {
-      if (!selectedSetId || songsInSet.length === 0) {
-        alert('投影片集中沒有歌曲，請先添加歌曲。');
-        return;
-      }
+  // const handlePreviewSlides = async () => {
+  //   try {
+  //     if (!selectedSetId || songsInSet.length === 0) {
+  //       alert('投影片集中沒有歌曲，請先添加歌曲。');
+  //       return;
+  //     }
       
-      // 顯示投影片集的編輯器，而不是單首歌曲的
-      await handleEditSlideSet();
-    } catch (error: any) {
-      console.error('預覽投影片失敗', error);
-      alert('預覽投影片失敗: ' + (error.message || '未知錯誤'));
-    }
-  };
+  //     // 顯示投影片集的編輯器，而不是單首歌曲的
+  //     await handleEditSlideSet();
+  //   } catch (error: any) {
+  //     console.error('預覽投影片失敗', error);
+  //     alert('預覽投影片失敗: ' + (error.message || '未知錯誤'));
+  //   }
+  // };
 
   // 編輯整個投影片集
   const handleEditSlideSet = async () => {

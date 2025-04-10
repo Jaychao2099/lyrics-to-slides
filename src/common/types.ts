@@ -29,7 +29,7 @@ export interface Song {
   textColor?: string;
   strokeColor?: string;
   strokeSize?: number;
-  fontWeight?: number;
+  fontWeight?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -121,7 +121,7 @@ export interface ElectronAPI {
     textColor?: string,
     strokeColor?: string,
     strokeSize?: number,
-    fontWeight?: number 
+    fontWeight?: string 
   }) => Promise<{success: boolean}>;
   // 新增：獲取臨時目錄路徑
   getTempPath: () => Promise<string>;

@@ -43,10 +43,10 @@ function initDatabase() {
       lyrics TEXT,
       image_url TEXT,
       slide_content TEXT,
-      text_color TEXT DEFAULT 'black',
-      stroke_color TEXT DEFAULT 'white',
+      text_color TEXT DEFAULT '#000000',
+      stroke_color TEXT DEFAULT '#ffffff',
       stroke_size INTEGER DEFAULT 5,
-      font_weight INTEGER DEFAULT 400,
+      font_weight TEXT DEFAULT '400',
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL
     )
@@ -130,19 +130,19 @@ export const DatabaseService = {
       console.log('檢查數據庫結構，進行必要的遷移...');
       
       // 檢查songs表是否有text_color列
-      const tableInfo = db.prepare("PRAGMA table_info(songs)").all() as {name: string}[];
+      const tableInfo = db.prepare("PRAGMA table_info(songs)").all() as {name: string, type: string}[];
       const columnNames = tableInfo.map(col => col.name);
       
       // 檢查並添加text_color列
       if (!columnNames.includes('text_color')) {
         console.log('添加text_color列到songs表...');
-        db.exec('ALTER TABLE songs ADD COLUMN text_color TEXT DEFAULT "black"');
+        db.exec('ALTER TABLE songs ADD COLUMN text_color TEXT DEFAULT "#000000"');
       }
       
       // 檢查並添加stroke_color列
       if (!columnNames.includes('stroke_color')) {
         console.log('添加stroke_color列到songs表...');
-        db.exec('ALTER TABLE songs ADD COLUMN stroke_color TEXT DEFAULT "white"');
+        db.exec('ALTER TABLE songs ADD COLUMN stroke_color TEXT DEFAULT "#ffffff"');
       }
       
       // 檢查並添加stroke_size列
@@ -154,7 +154,60 @@ export const DatabaseService = {
       // 檢查並添加font_weight列
       if (!columnNames.includes('font_weight')) {
         console.log('添加font_weight列到songs表...');
-        db.exec('ALTER TABLE songs ADD COLUMN font_weight INTEGER DEFAULT 400');
+        db.exec('ALTER TABLE songs ADD COLUMN font_weight TEXT DEFAULT "400"');
+      }
+      
+      // 檢查font_weight列的類型，如果是INTEGER則執行遷移
+      const fontWeightCol = tableInfo.find(col => col.name === 'font_weight');
+      if (fontWeightCol && fontWeightCol.type === 'INTEGER') {
+        console.log('遷移font_weight列從INTEGER類型到TEXT類型...');
+        
+        // 創建一個臨時表來保存數據
+        db.exec(`
+          CREATE TEMPORARY TABLE songs_backup(
+            id INTEGER PRIMARY KEY,
+            title TEXT,
+            artist TEXT,
+            lyrics TEXT,
+            image_url TEXT,
+            slide_content TEXT,
+            text_color TEXT,
+            stroke_color TEXT,
+            stroke_size INTEGER,
+            font_weight TEXT,
+            created_at TEXT,
+            updated_at TEXT
+          );
+          
+          INSERT INTO songs_backup 
+          SELECT id, title, artist, lyrics, image_url, slide_content, 
+                 text_color, stroke_color, stroke_size, 
+                 CAST(font_weight AS TEXT), created_at, updated_at
+          FROM songs;
+          
+          DROP TABLE songs;
+          
+          CREATE TABLE songs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            title TEXT NOT NULL,
+            artist TEXT,
+            lyrics TEXT,
+            image_url TEXT,
+            slide_content TEXT,
+            text_color TEXT DEFAULT '#000000',
+            stroke_color TEXT DEFAULT '#ffffff',
+            stroke_size INTEGER DEFAULT 5,
+            font_weight TEXT DEFAULT '400',
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL
+          );
+          
+          INSERT INTO songs SELECT * FROM songs_backup;
+          
+          DROP TABLE songs_backup;
+        `);
+        
+        console.log('font_weight列類型遷移完成');
       }
       
       console.log('數據庫結構遷移完成');
@@ -316,9 +369,10 @@ export const DatabaseService = {
           text_color,
           stroke_color,
           stroke_size,
+          font_weight,
           created_at, 
           updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `);
       
       // 直接傳遞參數，讓 better-sqlite3 處理特殊字符和換行符
@@ -328,9 +382,10 @@ export const DatabaseService = {
         lyrics,
         song.imageUrl || '',
         song.slideContent || '',
-        song.textColor || 'black',
-        song.strokeColor || 'white',
+        song.textColor || '#000000',
+        song.strokeColor || '#ffffff',
         song.strokeSize || 5,
+        song.fontWeight || '400',
         now,
         now
       );
@@ -361,30 +416,16 @@ export const DatabaseService = {
       const now = new Date().toISOString();
       console.log(`更新時間設置為: ${now}`);
       
-      // 使用參數化查詢避免 SQL 注入
-      const stmt = db.prepare(`
-        UPDATE songs SET
-          title = ?,
-          artist = ?,
-          lyrics = ?,
-          image_url = ?,
-          slide_content = ?,
-          text_color = ?,
-          stroke_color = ?,
-          stroke_size = ?,
-          updated_at = ?
-        WHERE id = ?
-      `);
-      
       // --- 修改：更精確地處理傳入值和現有值 ---
       const finalTitle = song.title !== undefined ? song.title : existingSong.title;
       const finalArtist = song.artist !== undefined ? song.artist : existingSong.artist;
       const finalLyrics = song.lyrics !== undefined ? (song.lyrics || '') : existingSong.lyrics;
       const finalImageUrl = song.imageUrl !== undefined ? (song.imageUrl || '') : (existingSong.imageUrl || '');
       const finalSlideContent = song.slideContent !== undefined ? (song.slideContent || '') : (existingSong.slideContent || '');
-      const finalTextColor = song.textColor !== undefined ? song.textColor : (existingSong.textColor || 'black');
-      const finalStrokeColor = song.strokeColor !== undefined ? song.strokeColor : (existingSong.strokeColor || 'white');
+      const finalTextColor = song.textColor !== undefined ? song.textColor : (existingSong.textColor || '#000000');
+      const finalStrokeColor = song.strokeColor !== undefined ? song.strokeColor : (existingSong.strokeColor || '#ffffff');
       const finalStrokeSize = song.strokeSize !== undefined ? song.strokeSize : (existingSong.strokeSize || 5);
+      const finalFontWeight = song.fontWeight !== undefined ? song.fontWeight : (existingSong.fontWeight || '400');
       
       console.log('最終更新的歌曲資料:');
       console.log('- 標題:', finalTitle);
@@ -394,9 +435,23 @@ export const DatabaseService = {
       console.log('- 文字顏色:', finalTextColor);
       console.log('- 邊框顏色:', finalStrokeColor);
       console.log('- 邊框粗細:', finalStrokeSize);
+      console.log('- 文字粗細:', finalFontWeight, typeof finalFontWeight);
       
       try {
-        const result = stmt.run(
+        const result = db.prepare(`
+          UPDATE songs SET
+            title = ?,
+            artist = ?,
+            lyrics = ?,
+            image_url = ?,
+            slide_content = ?,
+            text_color = ?,
+            stroke_color = ?,
+            stroke_size = ?,
+            font_weight = ?,
+            updated_at = ?
+          WHERE id = ?
+        `).run(
           finalTitle,
           finalArtist,
           finalLyrics,
@@ -405,6 +460,7 @@ export const DatabaseService = {
           finalTextColor,
           finalStrokeColor,
           finalStrokeSize,
+          finalFontWeight,
           now,
           id
         );
@@ -636,6 +692,7 @@ export const DatabaseService = {
           s.text_color as textColor,
           s.stroke_color as strokeColor,
           s.stroke_size as strokeSize,
+          s.font_weight as fontWeight,
           s.created_at as createdAt,
           s.updated_at as updatedAt,
           sss.display_order as displayOrder,

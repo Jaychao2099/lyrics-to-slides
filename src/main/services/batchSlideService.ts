@@ -73,7 +73,8 @@ export class BatchSlideService {
           artist: song.artist,
           textColor: song.textColor,
           strokeColor: song.strokeColor,
-          strokeSize: song.strokeSize
+          strokeSize: song.strokeSize,
+          fontWeight: song.fontWeight
         });
       }
 

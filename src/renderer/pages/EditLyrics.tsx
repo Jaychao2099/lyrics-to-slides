@@ -48,7 +48,7 @@ const EditLyrics: React.FC = () => {
   const [textColor, setTextColor] = useState('#000000');
   const [strokeColor, setStrokeColor] = useState('#ffffff');
   const [strokeSize, setStrokeSize] = useState(5);
-  const [fontWeight, setFontWeight] = useState(400);
+  const [fontWeight, setFontWeight] = useState('400');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -74,10 +74,10 @@ const EditLyrics: React.FC = () => {
           setArtist(songData.artist || '');
           setLyrics(songData.lyrics || '');
           setImageUrl(songData.imageUrl || null);
-          setTextColor(songData.textColor || 'black');
+          setTextColor(songData.textColor || '#000000');
           setStrokeColor(songData.strokeColor || '#ffffff');
           setStrokeSize(songData.strokeSize || 5);
-          setFontWeight(songData.fontWeight || 400);
+          setFontWeight(songData.fontWeight || '400');
           
           console.log('歌曲資料載入成功，imageUrl:', songData.imageUrl);
           
@@ -120,6 +120,9 @@ const EditLyrics: React.FC = () => {
   const handleSave = async () => {
     setSaving(true);
     try {
+      // 記錄當前保存的值
+      console.log('正在保存歌曲資料，文字粗細值為:', fontWeight, typeof fontWeight);
+      
       // 先儲存歌曲基本資料
       const result = await window.electronAPI.saveSongDetails(songId, {
         title,
@@ -146,6 +149,17 @@ const EditLyrics: React.FC = () => {
         } else {
           setSnackbarMessage('儲存成功');
         }
+        
+        // 儲存成功後重新生成投影片以應用新設定
+        // if (hasImage && imageUrl) {
+        //   try {
+        //     console.log('正在重新生成投影片以應用新設定...');
+        //     await handleRegenerateSlides();
+        //   } catch (regenerateError) {
+        //     console.error('儲存後重新生成投影片失敗:', regenerateError);
+        //   }
+        // }
+        
         setSnackbarOpen(true);
       } else {
         setError('儲存失敗');
@@ -389,41 +403,41 @@ const EditLyrics: React.FC = () => {
   };
 
   // 選擇本地圖片
-  const handleSelectLocalImage = async () => {
-    try {
-      const imagePath = await window.electronAPI.selectLocalImage();
-      if (imagePath) {
-        const result = await window.electronAPI.importLocalImage(songId, imagePath);
-        if (result) {
-          setImageUrl(result.imagePath);
-          setHasImage(true);
+  // const handleSelectLocalImage = async () => {
+  //   try {
+  //     const imagePath = await window.electronAPI.selectLocalImage();
+  //     if (imagePath) {
+  //       const result = await window.electronAPI.importLocalImage(songId, imagePath);
+  //       if (result) {
+  //         setImageUrl(result.imagePath);
+  //         setHasImage(true);
           
-          // 確保儲存圖片關聯
-          await window.electronAPI.saveSongImageAssociation(songId, result.imagePath);
+  //         // 確保儲存圖片關聯
+  //         await window.electronAPI.saveSongImageAssociation(songId, result.imagePath);
           
-          // 更新歌曲詳情中的imageUrl
-          await window.electronAPI.saveSongDetails(songId, {
-            title,
-            artist,
-            lyrics,
-            imageUrl: result.imagePath,
-            textColor,
-            strokeColor,
-            strokeSize
-          });
+  //         // 更新歌曲詳情中的imageUrl
+  //         await window.electronAPI.saveSongDetails(songId, {
+  //           title,
+  //           artist,
+  //           lyrics,
+  //           imageUrl: result.imagePath,
+  //           textColor,
+  //           strokeColor,
+  //           strokeSize
+  //         });
           
-          setSnackbarMessage('圖片匯入成功並已關聯');
-          setSnackbarOpen(true);
+  //         setSnackbarMessage('圖片匯入成功並已關聯');
+  //         setSnackbarOpen(true);
           
-          // 確保顯示投影片編輯器
-          setShowSlideEditor(true);
-        }
-      }
-    } catch (error) {
-      setError('匯入圖片失敗');
-      console.error('匯入圖片失敗:', error);
-    }
-  };
+  //         // 確保顯示投影片編輯器
+  //         setShowSlideEditor(true);
+  //       }
+  //     }
+  //   } catch (error) {
+  //     setError('匯入圖片失敗');
+  //     console.error('匯入圖片失敗:', error);
+  //   }
+  // };
 
   // 返回上一頁
   const handleBack = () => {
@@ -578,17 +592,17 @@ const EditLyrics: React.FC = () => {
                         labelId="font-weight-label"
                         value={fontWeight}
                         label="文字粗細"
-                        onChange={(e) => setFontWeight(Number(e.target.value))}
+                        onChange={(e) => setFontWeight(e.target.value)}
                       >
-                        <MenuItem value={100}>100 = 淡</MenuItem>
-                        <MenuItem value={200}>200 = 特細</MenuItem>
-                        <MenuItem value={300}>300 = 細</MenuItem>
-                        <MenuItem value={400}>400 = 標準</MenuItem>
-                        <MenuItem value={500}>500 = 適中</MenuItem>
-                        <MenuItem value={600}>600 = 次粗體</MenuItem>
-                        <MenuItem value={700}>700 = 粗體</MenuItem>
-                        <MenuItem value={800}>800 = 黑體</MenuItem>
-                        <MenuItem value={900}>900 = 特黑體</MenuItem>
+                        <MenuItem value="100">100 = 淡</MenuItem>
+                        <MenuItem value="200">200 = 特細</MenuItem>
+                        <MenuItem value="300">300 = 細</MenuItem>
+                        <MenuItem value="400">400 = 標準</MenuItem>
+                        <MenuItem value="500">500 = 適中</MenuItem>
+                        <MenuItem value="600">600 = 次粗體</MenuItem>
+                        <MenuItem value="700">700 = 粗體</MenuItem>
+                        <MenuItem value="800">800 = 黑體</MenuItem>
+                        <MenuItem value="900">900 = 特黑體</MenuItem>
                       </Select>
                     </FormControl>
                     <TextField

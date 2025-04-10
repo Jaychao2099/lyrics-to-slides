@@ -82,7 +82,8 @@ export class SlideGenerationService {
       }
       
       // 調試輸出，確認字體粗細設定
-      await LoggerService.info(`用於生成投影片的格式設定 - 歌曲ID: ${songId}, 文字顏色: ${song.textColor}, 邊框顏色: ${song.strokeColor}, 邊框粗細: ${song.strokeSize}, 文字粗細: ${song.fontWeight}`);
+      console.log(`用於生成投影片的格式設定 - 歌曲ID: ${songId}, 文字粗細: ${song.fontWeight}(${typeof song.fontWeight}), 文字顏色: ${song.textColor}`);
+      await LoggerService.info(`用於生成投影片的格式設定 - 歌曲ID: ${songId}, 文字粗細: ${song.fontWeight}(${typeof song.fontWeight}), 文字顏色: ${song.textColor}, 邊框顏色: ${song.strokeColor}, 邊框粗細: ${song.strokeSize}`);
       
       // 生成投影片內容
       const slidesContent = SlideFormatter.formatSong(
@@ -214,18 +215,30 @@ export class SlideGenerationService {
    * @param songId 歌曲ID
    * @param slidesContent 新的Marp格式投影片內容
    */
-  public static async updateSlides(songId: number, slidesContent: string): Promise<void> {
+  public static async updateSlides(songId: number, slidesContent: string): Promise<boolean> {
     try {
+      console.log(`開始更新歌曲 ${songId} 的投影片內容`);
+      
       // 修復圖片路徑
       const fixedSlidesContent = this.fixImagePathsInSlides(slidesContent);
       
       // 更新快取中的投影片內容
       await this.saveSlidesToCache(songId, fixedSlidesContent);
+      console.log(`歌曲 ${songId} 的投影片已保存到快取`);
+      
+      // 獲取歌曲的當前格式設定
+      const song = DatabaseService.getSongById(songId);
+      if (song) {
+        console.log(`歌曲 ${songId} 的格式設定: 文字粗細=${song.fontWeight}, 文字顏色=${song.textColor}`);
+      }
       
       // 更新歌曲記錄
       const db = DatabaseService.init();
       const updateStmt = db.prepare('UPDATE songs SET slide_content = ?, updated_at = ? WHERE id = ?');
       updateStmt.run(fixedSlidesContent, new Date().toISOString(), songId);
+      console.log(`歌曲 ${songId} 的投影片內容已更新到數據庫`);
+      
+      return true;
     } catch (error) {
       console.error('更新投影片失敗:', error);
       throw error;

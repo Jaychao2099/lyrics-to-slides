@@ -47,7 +47,7 @@ interface ElectronAPI {
     textColor?: string,
     strokeColor?: string,
     strokeSize?: number,
-    fontWeight?: number 
+    fontWeight?: string 
   }) => Promise<{success: boolean}>;
   getSongById: (songId: number) => Promise<any>;
   getTempPath: () => Promise<string>;
@@ -157,7 +157,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     textColor?: string,
     strokeColor?: string,
     strokeSize?: number,
-    fontWeight?: number 
+    fontWeight?: string 
   }) => ipcRenderer.invoke('save-song-details', songId, songDetails),
   
   // 獲取快取大小
