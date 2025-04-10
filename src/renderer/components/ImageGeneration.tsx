@@ -135,7 +135,7 @@ const ImageGeneration: React.FC<ImageGenerationProps> = ({
           console.log('已有關聯圖片，將被新生成的圖片替換');
         }
         
-        // 自動保存圖片關聯並調用onImageGenerated
+        // 自動儲存圖片關聯並調用onImageGenerated
         try {
           // 使用AI生成的新圖片替代之前的
           await window.electronAPI.saveSongImageAssociation(result.songId, result.imagePath);
@@ -148,8 +148,8 @@ const ImageGeneration: React.FC<ImageGenerationProps> = ({
           setSnackbarMessage('已更新背景圖片');
           setSnackbarOpen(true);
         } catch (err) {
-          console.error('保存圖片關聯失敗:', err);
-          // 即使關聯保存失敗，也繼續流程
+          console.error('儲存圖片關聯失敗:', err);
+          // 即使關聯儲存失敗，也繼續流程
           onImageGenerated(result.imagePath, result.songId);
         }
       } else {
@@ -186,7 +186,7 @@ const ImageGeneration: React.FC<ImageGenerationProps> = ({
         setImageUrl(result.imagePath);
         setSongId(result.songId);
         
-        // 自動保存圖片關聯並調用onImageGenerated
+        // 自動儲存圖片關聯並調用onImageGenerated
         try {
           await window.electronAPI.saveSongImageAssociation(result.songId, result.imagePath);
           onImageGenerated(result.imagePath, result.songId);
@@ -194,8 +194,8 @@ const ImageGeneration: React.FC<ImageGenerationProps> = ({
           setSnackbarMessage('已設定背景圖片');
           setSnackbarOpen(true);
         } catch (err) {
-          console.error('保存圖片關聯失敗:', err);
-          // 即使關聯保存失敗，也繼續流程
+          console.error('儲存圖片關聯失敗:', err);
+          // 即使關聯儲存失敗，也繼續流程
           onImageGenerated(result.imagePath, result.songId);
         }
       } else {

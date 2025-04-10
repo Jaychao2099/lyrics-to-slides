@@ -374,7 +374,7 @@ const BatchSlidesManager: React.FC = () => {
   const handleSlidesCreated = async (slideContent: string) => {
     console.log('投影片已更新', slideContent);
     
-    // 保存整個投影片集的內容
+    // 儲存整個投影片集的內容
     if (selectedSetId) {
       try {
         // 使用新的 API 直接更新批量投影片的內容

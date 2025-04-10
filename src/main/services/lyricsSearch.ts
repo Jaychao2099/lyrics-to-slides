@@ -581,7 +581,7 @@ export class LyricsSearchService {
     this.log(`清理歌詞原始內容前100字符: ${lyrics.substring(0, 100)}`);
     this.log(`原始歌詞中連續換行符數量: ${(lyrics.match(/\n\n/g) || []).length}`);
     
-    // 步驟1: 保存原始換行格式 - 替換連續的兩個換行符為特殊標記
+    // 步驟1: 儲存原始換行格式 - 替換連續的兩個換行符為特殊標記
     let cleaned = lyrics.replace(/\n\n/g, '\uE000'); // 使用 Unicode 私有區域字符作為臨時替代
     
     // 步驟2: 清除所有方括號包圍的內容
@@ -660,7 +660,7 @@ export class LyricsSearchService {
     try {
       this.log(`開始更新歌詞快取: ${title} - ${artist}`);
       
-      // 確保保存前對歌詞進行清理
+      // 確保儲存前對歌詞進行清理
       const cleanedLyrics = this.cleanLyrics(lyrics);
       
       // 先查詢是否有匹配的歌曲

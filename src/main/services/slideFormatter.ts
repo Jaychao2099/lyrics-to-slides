@@ -14,6 +14,7 @@ interface SongInfo {
   textColor?: string;
   strokeColor?: string;
   strokeSize?: number;
+  fontWeight?: number;
 }
 
 /**
@@ -34,7 +35,6 @@ style: |
   section {
     text-align: center;
     font-size:80px;
-    font-weight:900;
   }
   h1 {
     position:absolute;
@@ -75,6 +75,7 @@ style: |
    * @param textColor 文字顏色 (可選)
    * @param strokeColor 邊框顏色 (可選)
    * @param strokeSize 邊框粗細 (可選)
+   * @param fontWeight 文字粗細 (可選)
    * @param skipStyleGeneration 是否跳過樣式生成 (用於批量處理)
    * @returns 格式化後的 Marp 投影片內容
    */
@@ -85,9 +86,10 @@ style: |
     textColor: string = 'black',
     strokeColor: string = 'white',
     strokeSize: number = 5,
+    fontWeight: number = 400,
     skipStyleGeneration: boolean = false
   ): string {
-    try {
+    try {      
       // 初始化投影片內容
       let slides = "";
 
@@ -99,6 +101,7 @@ style: |
       if (!skipStyleGeneration) {
         slides += `
   section.song${songId} p {
+    font-weight: ${fontWeight};
     ${this.generateTextStrokeStyle(textColor, strokeColor, strokeSize)}
   }
   section.song${songId} h1 {
@@ -170,6 +173,7 @@ ${paragraph}
         
         marpContent += `
   section.song${songId} p {
+    font-weight: ${songInfo.fontWeight || 400};
     ${this.generateTextStrokeStyle(textColor, strokeColor, strokeSize)}
   }
   section.song${songId} h1 {
@@ -188,6 +192,7 @@ ${paragraph}
           songInfo.textColor,
           songInfo.strokeColor,
           songInfo.strokeSize,
+          songInfo.fontWeight,
           true // 跳過樣式生成，因為已經在合併標頭中添加了
         );
         marpContent += songSlides;

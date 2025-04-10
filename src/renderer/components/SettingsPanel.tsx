@@ -271,7 +271,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ settings, onSave, onCance
     }
   };
   
-  // 處理保存按鈕
+  // 處理儲存按鈕
   const handleSave = () => {
     onSave(formData);
   };
@@ -680,7 +680,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ settings, onSave, onCance
           取消
         </Button>
         <Button variant="contained" onClick={handleSave}>
-          保存設定
+          儲存設定
         </Button>
       </Box>
     </Paper>

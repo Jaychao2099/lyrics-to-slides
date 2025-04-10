@@ -46,7 +46,8 @@ interface ElectronAPI {
     imageUrl?: string,
     textColor?: string,
     strokeColor?: string,
-    strokeSize?: number 
+    strokeSize?: number,
+    fontWeight?: number 
   }) => Promise<{success: boolean}>;
   getSongById: (songId: number) => Promise<any>;
   getTempPath: () => Promise<string>;
@@ -147,7 +148,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   importLocalImage: (songId: number, localImagePath: string) => 
     ipcRenderer.invoke('import-local-image', songId, localImagePath),
   
-  // 新增：保存歌曲詳情
+  // 新增：儲存歌曲詳情
   saveSongDetails: (songId: number, songDetails: { 
     title: string, 
     artist?: string, 
@@ -155,7 +156,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
     imageUrl?: string,
     textColor?: string,
     strokeColor?: string,
-    strokeSize?: number 
+    strokeSize?: number,
+    fontWeight?: number 
   }) => ipcRenderer.invoke('save-song-details', songId, songDetails),
   
   // 獲取快取大小
@@ -204,11 +206,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // 檢查歌曲是否有關聯投影片  
   checkRelatedSlide: (songId: number) => ipcRenderer.invoke('check-related-slide', songId),
   
-  // 保存歌曲與圖片的關聯
+  // 儲存歌曲與圖片的關聯
   saveSongImageAssociation: (songId: number, imagePath: string) => 
     ipcRenderer.invoke('save-song-image-association', songId, imagePath),
     
-  // 保存歌曲與投影片的關聯
+  // 儲存歌曲與投影片的關聯
   saveSongSlideAssociation: (songId: number, slideContent: string) => 
     ipcRenderer.invoke('save-song-slide-association', songId, slideContent),
   

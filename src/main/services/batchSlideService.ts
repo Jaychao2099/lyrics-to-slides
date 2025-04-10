@@ -86,7 +86,7 @@ export class BatchSlideService {
       // 修復圖片路徑
       slidesContent = this.fixImagePathsInSlides(slidesContent);
 
-      // 保存到快取
+      // 儲存到快取
       const filePath = path.join(this.batchSlidesCacheDir, `set_${slideSetId}.md`);
       await fs.writeFile(filePath, slidesContent, 'utf-8');
 
@@ -288,7 +288,7 @@ export class BatchSlideService {
       // 修復圖片路徑
       const fixedSlidesContent = this.fixImagePathsInSlides(slidesContent);
 
-      // 保存到快取
+      // 儲存到快取
       const filePath = path.join(this.batchSlidesCacheDir, `set_${slideSetId}.md`);
       await fs.writeFile(filePath, fixedSlidesContent, 'utf-8');
 

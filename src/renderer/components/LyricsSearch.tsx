@@ -164,7 +164,7 @@ const LyricsSearch: React.FC<LyricsSearchProps> = ({ onSearchComplete }) => {
       
       try {
         // 更新快取中的歌詞，確保原始換行符被保留
-        console.log(`歌詞保存前內容預覽: ${editedLyrics.substring(0, 100)}...`);
+        console.log(`歌詞儲存前內容預覽: ${editedLyrics.substring(0, 100)}...`);
         console.log(`歌詞中連續換行符數量: ${(editedLyrics.match(/\n\n/g) || []).length}`);
         
         const result = await window.electronAPI.updateLyricsCache(
@@ -271,8 +271,8 @@ const LyricsSearch: React.FC<LyricsSearchProps> = ({ onSearchComplete }) => {
       // 重新載入現有歌曲列表
       loadExistingSongs();
     } catch (err: any) {
-      setError(err.message || '保存新歌曲時發生錯誤');
-      console.error('保存新歌曲失敗', err);
+      setError(err.message || '儲存新歌曲時發生錯誤');
+      console.error('儲存新歌曲失敗', err);
     } finally {
       setLoading(false);
     }
@@ -412,7 +412,7 @@ const LyricsSearch: React.FC<LyricsSearchProps> = ({ onSearchComplete }) => {
                   onClick={handleSaveEdit}
                   disabled={!editedLyrics.trim()}
                 >
-                  保存編輯
+                  儲存編輯
                 </Button>
               </>
             ) : (
@@ -423,7 +423,7 @@ const LyricsSearch: React.FC<LyricsSearchProps> = ({ onSearchComplete }) => {
                 onClick={handleSaveAsNew}
                 disabled={!editedLyrics.trim() || !editedTitle.trim()}
               >
-                保存新歌詞
+                儲存新歌詞
               </Button>
             )}
           </Box>
@@ -650,7 +650,7 @@ const LyricsSearch: React.FC<LyricsSearchProps> = ({ onSearchComplete }) => {
         open={editSuccessOpen}
         autoHideDuration={4000}
         onClose={handleCloseSnackbar}
-        message="歌詞編輯已保存成功！"
+        message="歌詞編輯已儲存成功！"
       />
     </Box>
   );

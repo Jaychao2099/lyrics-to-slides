@@ -19,7 +19,11 @@ import {
   Dialog,
   DialogActions,
   DialogContent,
-  DialogTitle
+  DialogTitle,
+  Select,
+  MenuItem,
+  FormControl,
+  InputLabel
 } from '@mui/material';
 import SaveIcon from '@mui/icons-material/Save';
 import PreviewIcon from '@mui/icons-material/Preview';
@@ -44,6 +48,7 @@ const EditLyrics: React.FC = () => {
   const [textColor, setTextColor] = useState('#000000');
   const [strokeColor, setStrokeColor] = useState('#ffffff');
   const [strokeSize, setStrokeSize] = useState(5);
+  const [fontWeight, setFontWeight] = useState(400);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -72,6 +77,7 @@ const EditLyrics: React.FC = () => {
           setTextColor(songData.textColor || 'black');
           setStrokeColor(songData.strokeColor || '#ffffff');
           setStrokeSize(songData.strokeSize || 5);
+          setFontWeight(songData.fontWeight || 400);
           
           console.log('歌曲資料載入成功，imageUrl:', songData.imageUrl);
           
@@ -122,7 +128,8 @@ const EditLyrics: React.FC = () => {
         imageUrl: imageUrl || undefined,
         textColor,
         strokeColor,
-        strokeSize
+        strokeSize,
+        fontWeight
       });
 
       if (result.success) {
@@ -168,7 +175,7 @@ const EditLyrics: React.FC = () => {
     setHasImage(true);
     setShowSlideEditor(true);
     
-    // 確保保存歌曲詳情，使用新圖片覆蓋舊圖片
+    // 確保儲存歌曲詳情，使用新圖片覆蓋舊圖片
     window.electronAPI.saveSongDetails(targetSongId, {
       title,
       artist,
@@ -176,7 +183,8 @@ const EditLyrics: React.FC = () => {
       imageUrl: imagePath,
       textColor,
       strokeColor,
-      strokeSize
+      strokeSize,
+      fontWeight
     }).then(() => {
       console.log('已使用新生成的圖片更新歌曲詳情');
       // 同時更新圖片關聯
@@ -186,7 +194,7 @@ const EditLyrics: React.FC = () => {
       setSnackbarMessage('已更新背景圖片');
       setSnackbarOpen(true);
     }).catch(error => {
-      console.error('保存生成圖片後的歌曲詳情或關聯失敗:', error);
+      console.error('儲存生成圖片後的歌曲詳情或關聯失敗:', error);
       setError('更新歌曲圖片失敗');
     });
   };
@@ -204,7 +212,7 @@ const EditLyrics: React.FC = () => {
         return;
       }
 
-      // 確保保存歌曲詳情和圖片關聯
+      // 確保儲存歌曲詳情和圖片關聯
       await window.electronAPI.saveSongDetails(songId, {
         title,
         artist,
@@ -212,7 +220,8 @@ const EditLyrics: React.FC = () => {
         imageUrl,
         textColor,
         strokeColor,
-        strokeSize
+        strokeSize,
+        fontWeight
       });
       
       // 確保圖片關聯
@@ -245,7 +254,7 @@ const EditLyrics: React.FC = () => {
         return;
       }
 
-      // 確保保存歌曲詳情和圖片關聯
+      // 確保儲存歌曲詳情和圖片關聯
       await window.electronAPI.saveSongDetails(songId, {
         title,
         artist,
@@ -253,7 +262,8 @@ const EditLyrics: React.FC = () => {
         imageUrl,
         textColor,
         strokeColor,
-        strokeSize
+        strokeSize,
+        fontWeight
       });
       
       // 確保圖片關聯
@@ -388,7 +398,7 @@ const EditLyrics: React.FC = () => {
           setImageUrl(result.imagePath);
           setHasImage(true);
           
-          // 確保保存圖片關聯
+          // 確保儲存圖片關聯
           await window.electronAPI.saveSongImageAssociation(songId, result.imagePath);
           
           // 更新歌曲詳情中的imageUrl
@@ -545,14 +555,14 @@ const EditLyrics: React.FC = () => {
                   <Typography variant="h6" gutterBottom>
                     文字格式設定
                   </Typography>
-                  <Box sx={{ display: 'flex', gap: 2 }}>
+                  <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
                     <TextField
                       label="文字顏色"
                       value={textColor}
                       onChange={(e) => setTextColor(e.target.value)}
                       margin="normal"
                       type="color"
-                      sx={{ flex: 1 }}
+                      sx={{ flex: 1, minWidth: '120px' }}
                     />
                     <TextField
                       label="邊框顏色"
@@ -560,8 +570,27 @@ const EditLyrics: React.FC = () => {
                       onChange={(e) => setStrokeColor(e.target.value)}
                       margin="normal"
                       type="color"
-                      sx={{ flex: 1 }}
+                      sx={{ flex: 1, minWidth: '120px' }}
                     />
+                    <FormControl sx={{ flex: 1, minWidth: '180px', margin: '16px 0 8px 0' }}>
+                      <InputLabel id="font-weight-label">文字粗細</InputLabel>
+                      <Select
+                        labelId="font-weight-label"
+                        value={fontWeight}
+                        label="文字粗細"
+                        onChange={(e) => setFontWeight(Number(e.target.value))}
+                      >
+                        <MenuItem value={100}>100 = 淡</MenuItem>
+                        <MenuItem value={200}>200 = 特細</MenuItem>
+                        <MenuItem value={300}>300 = 細</MenuItem>
+                        <MenuItem value={400}>400 = 標準</MenuItem>
+                        <MenuItem value={500}>500 = 適中</MenuItem>
+                        <MenuItem value={600}>600 = 次粗體</MenuItem>
+                        <MenuItem value={700}>700 = 粗體</MenuItem>
+                        <MenuItem value={800}>800 = 黑體</MenuItem>
+                        <MenuItem value={900}>900 = 特黑體</MenuItem>
+                      </Select>
+                    </FormControl>
                     <TextField
                       label="邊框粗細"
                       value={strokeSize}
@@ -569,7 +598,7 @@ const EditLyrics: React.FC = () => {
                       margin="normal"
                       type="number"
                       inputProps={{ min: 0, max: 20 }}
-                      sx={{ flex: 1 }}
+                      sx={{ flex: 1, minWidth: '120px' }}
                     />
                   </Box>
                 </Paper>

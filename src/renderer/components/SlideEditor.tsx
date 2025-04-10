@@ -172,29 +172,31 @@ const SlideEditor: React.FC<SlideEditorProps> = ({ lyrics, imageUrl, songId: pro
 
   const saveChanges = async () => {
     try {
-      setSnackbarMessage('保存中...');
+      setSnackbarMessage('儲存中...');
       setSnackbarOpen(true);
       
+      // 設置本地狀態
       setSlideContent(editingContent);
       
       if (songId > 0) {
+        // 確保使用 updateSlides 更新投影片內容（這會更新數據庫和快取文件）
         const saved = await window.electronAPI.updateSlides(songId, editingContent);
-        if (saved) {
-          setSnackbarMessage('已保存變更到數據庫');
-        } else {
-          throw new Error('保存到數據庫失敗');
+        if (!saved) {
+          throw new Error('儲存到數據庫失敗');
         }
         
-        // 整合handleNext功能 - 確保保存資源關聯
+        // 確保儲存資源關聯
         console.log('確認使用投影片，歌曲ID:', songId);
         const saveResult = await window.electronAPI.saveSongSlideAssociation(songId, editingContent);
-        console.log('保存投影片關聯結果:', saveResult);
+        console.log('儲存投影片關聯結果:', saveResult);
+        
+        setSnackbarMessage('已儲存變更到數據庫');
         
         // 繼續流程
         onSlidesCreated(editingContent);
       } else {
-        setSnackbarMessage('已保存變更（本地）');
-        console.warn('songId不正確，無法保存到數據庫，僅保存到本地。songId:', songId);
+        setSnackbarMessage('已儲存變更（本地）');
+        console.warn('songId不正確，無法儲存到數據庫，僅儲存到本地。songId:', songId);
         
         // 即使沒有songId，也仍然通知上層組件投影片已創建
         onSlidesCreated(editingContent);
@@ -202,8 +204,8 @@ const SlideEditor: React.FC<SlideEditorProps> = ({ lyrics, imageUrl, songId: pro
       
       setSnackbarOpen(true);
     } catch (err: any) {
-      setError(err.message || '保存投影片內容時發生錯誤');
-      console.error('保存投影片錯誤:', err);
+      setError(err.message || '儲存投影片內容時發生錯誤');
+      console.error('儲存投影片錯誤:', err);
     }
   };
 
@@ -258,15 +260,15 @@ const SlideEditor: React.FC<SlideEditorProps> = ({ lyrics, imageUrl, songId: pro
       try {
         console.log('確認使用投影片，歌曲ID:', songId);
         
-        // 確保保存資源關聯
+        // 確保儲存資源關聯
         const saveResult = await window.electronAPI.saveSongSlideAssociation(songId, slideContent);
-        console.log('保存投影片關聯結果:', saveResult);
+        console.log('儲存投影片關聯結果:', saveResult);
         
         // 繼續流程
         onSlidesCreated(slideContent);
       } catch (err) {
-        console.error('保存投影片關聯失敗:', err);
-        // 即使關聯保存失敗，也繼續流程
+        console.error('儲存投影片關聯失敗:', err);
+        // 即使關聯儲存失敗，也繼續流程
         onSlidesCreated(slideContent);
       }
     }
@@ -275,7 +277,7 @@ const SlideEditor: React.FC<SlideEditorProps> = ({ lyrics, imageUrl, songId: pro
   // 打開預覽窗口
   const openPreviewWindow = async () => {
     try {
-      // 先保存當前編輯的內容
+      // 先儲存當前編輯的內容
       setSlideContent(editingContent);
       
       // 使用 previewSlides API 來打開預覽窗口
@@ -364,7 +366,7 @@ const SlideEditor: React.FC<SlideEditorProps> = ({ lyrics, imageUrl, songId: pro
               
               <Stack direction="row" spacing={2} sx={{ mt: 2 }}>
                 <Button variant="contained" color="primary" onClick={saveChanges} sx={{ fontWeight: 'bold' }}>
-                  保存變更
+                  儲存變更
                 </Button>
               </Stack>
             </Box>

@@ -262,7 +262,7 @@ function setupIpcHandlers() {
     return SettingsService.getDefaultSettings();
   });
   
-  // 保存設定
+  // 儲存設定
   ipcMain.handle('save-settings', (_event, settings) => {
     SettingsService.saveSettings(settings);
     return true;
@@ -980,41 +980,41 @@ function setupIpcHandlers() {
     }
   });
 
-  // 保存圖片關聯
+  // 儲存圖片關聯
   ipcMain.handle('save-song-image-association', async (_event, songId: number, imagePath: string) => {
     try {
       if (!songId || songId < 0 || !imagePath) {
         return { success: false, message: '無效的參數' };
       }
       
-      console.log(`保存歌曲ID ${songId} 與圖片的關聯: ${imagePath}`);
+      console.log(`儲存歌曲ID ${songId} 與圖片的關聯: ${imagePath}`);
       
-      // 保存關聯
+      // 儲存關聯
       const result = DatabaseService.saveSongResource(songId, 'image', imagePath);
       
       if (result) {
-        console.log(`歌曲ID ${songId} 的圖片關聯保存成功`);
-        return { success: true, message: '圖片關聯保存成功' };
+        console.log(`歌曲ID ${songId} 的圖片關聯儲存成功`);
+        return { success: true, message: '圖片關聯儲存成功' };
       } else {
-        console.log(`歌曲ID ${songId} 的圖片關聯保存失敗`);
-        return { success: false, message: '圖片關聯保存失敗' };
+        console.log(`歌曲ID ${songId} 的圖片關聯儲存失敗`);
+        return { success: false, message: '圖片關聯儲存失敗' };
       }
     } catch (error) {
-      console.error('保存圖片關聯失敗:', error);
-      return { success: false, message: '保存圖片關聯時發生錯誤' };
+      console.error('儲存圖片關聯失敗:', error);
+      return { success: false, message: '儲存圖片關聯時發生錯誤' };
     }
   });
   
-  // 保存投影片關聯
+  // 儲存投影片關聯
   ipcMain.handle('save-song-slide-association', async (_event, songId: number, slideContent: string) => {
     try {
       if (!songId || songId < 0 || !slideContent) {
         return { success: false, message: '無效的參數' };
       }
       
-      console.log(`保存歌曲ID ${songId} 與投影片的關聯`);
+      console.log(`儲存歌曲ID ${songId} 與投影片的關聯`);
       
-      // 將投影片內容保存到檔案
+      // 將投影片內容儲存到檔案
       const slidesDir = path.join(app.getPath('userData'), 'app_cache', 'slides');
       
       // 確保目錄存在
@@ -1024,23 +1024,23 @@ function setupIpcHandlers() {
         await fsPromises.mkdir(slidesDir, { recursive: true });
       }
       
-      // 保存檔案
+      // 儲存檔案
       const slideFilePath = path.join(slidesDir, `${songId}.md`);
       await fsPromises.writeFile(slideFilePath, slideContent, 'utf-8');
       
-      // 保存關聯
+      // 儲存關聯
       const result = DatabaseService.saveSongResource(songId, 'slide', slideFilePath);
       
       if (result) {
-        console.log(`歌曲ID ${songId} 的投影片關聯保存成功`);
-        return { success: true, message: '投影片關聯保存成功' };
+        console.log(`歌曲ID ${songId} 的投影片關聯儲存成功`);
+        return { success: true, message: '投影片關聯儲存成功' };
       } else {
-        console.log(`歌曲ID ${songId} 的投影片關聯保存失敗`);
-        return { success: false, message: '投影片關聯保存失敗' };
+        console.log(`歌曲ID ${songId} 的投影片關聯儲存失敗`);
+        return { success: false, message: '投影片關聯儲存失敗' };
       }
     } catch (error) {
-      console.error('保存投影片關聯失敗:', error);
-      return { success: false, message: '保存投影片關聯時發生錯誤' };
+      console.error('儲存投影片關聯失敗:', error);
+      return { success: false, message: '儲存投影片關聯時發生錯誤' };
     }
   });
   
@@ -1356,7 +1356,7 @@ function setupIpcHandlers() {
     }
   });
 
-  // 保存歌曲詳情
+  // 儲存歌曲詳情
   ipcMain.handle('save-song-details', async (_event, songId: number, songDetails: { 
     title: string, 
     artist?: string, 
@@ -1364,11 +1364,12 @@ function setupIpcHandlers() {
     imageUrl?: string,
     textColor?: string,
     strokeColor?: string,
-    strokeSize?: number 
+    strokeSize?: number,
+    fontWeight?: number
   }) => {
     const startTime = LoggerService.apiStart('IPC', 'save-song-details', { songId, songDetails });
     try {
-      await LoggerService.info(`保存歌曲詳情請求: songId=${songId}, Details: ${JSON.stringify(songDetails)}`);
+      await LoggerService.info(`儲存歌曲詳情請求: songId=${songId}, Details: ${JSON.stringify(songDetails)}`);
       
       // 清理歌詞（如果存在）
       const cleanedLyrics = songDetails.lyrics ? LyricsSearchService.cleanLyrics(songDetails.lyrics) : undefined;
@@ -1381,7 +1382,8 @@ function setupIpcHandlers() {
         imageUrl: songDetails.imageUrl,
         textColor: songDetails.textColor,
         strokeColor: songDetails.strokeColor,
-        strokeSize: songDetails.strokeSize
+        strokeSize: songDetails.strokeSize,
+        fontWeight: songDetails.fontWeight
       };
       
       // 過濾掉 undefined 的值，避免覆蓋資料庫中的現有值
@@ -1400,7 +1402,7 @@ function setupIpcHandlers() {
         throw new Error('更新歌曲到資料庫失敗');
       }
     } catch (error) {
-      console.error('保存歌曲詳情失敗:', error);
+      console.error('儲存歌曲詳情失敗:', error);
       await LoggerService.apiError('IPC', 'save-song-details', { songId, songDetails }, error, startTime);
       return { success: false };
     }
@@ -1417,7 +1419,7 @@ async function initAppDirectories() {
     console.error('記錄初始化開始訊息失敗:', error);
   }
   
-  // 需要確保存在的目錄列表
+  // 需要確儲存在的目錄列表
   const directories = [
     // 快取目錄 - 使用 app_cache 而非 cache 以避免與 Electron 內部快取機制衝突
     path.join(userDataPath, 'app_cache'),

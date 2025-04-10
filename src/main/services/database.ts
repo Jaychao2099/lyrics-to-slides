@@ -46,6 +46,7 @@ function initDatabase() {
       text_color TEXT DEFAULT 'black',
       stroke_color TEXT DEFAULT 'white',
       stroke_size INTEGER DEFAULT 5,
+      font_weight INTEGER DEFAULT 400,
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL
     )
@@ -150,6 +151,12 @@ export const DatabaseService = {
         db.exec('ALTER TABLE songs ADD COLUMN stroke_size INTEGER DEFAULT 5');
       }
       
+      // 檢查並添加font_weight列
+      if (!columnNames.includes('font_weight')) {
+        console.log('添加font_weight列到songs表...');
+        db.exec('ALTER TABLE songs ADD COLUMN font_weight INTEGER DEFAULT 400');
+      }
+      
       console.log('數據庫結構遷移完成');
     } catch (error) {
       console.error('數據庫遷移失敗:', error);
@@ -182,6 +189,7 @@ export const DatabaseService = {
           text_color as textColor,
           stroke_color as strokeColor,
           stroke_size as strokeSize,
+          font_weight as fontWeight,
           created_at as createdAt, 
           updated_at as updatedAt 
         FROM songs 
@@ -213,14 +221,15 @@ export const DatabaseService = {
           text_color as textColor,
           stroke_color as strokeColor,
           stroke_size as strokeSize,
+          font_weight as fontWeight,
           created_at as createdAt, 
           updated_at as updatedAt 
         FROM songs 
         WHERE id = ?
       `);
-      return stmt.get(id) as Song | null;
+      return stmt.get(id) as Song;
     } catch (error) {
-      console.error('獲取歌曲失敗:', error);
+      console.error(`獲取歌曲ID ${id} 失敗:`, error);
       return null;
     }
   },
@@ -431,7 +440,7 @@ export const DatabaseService = {
     }
   },
 
-  // 保存歌曲與資源的關聯
+  // 儲存歌曲與資源的關聯
   saveSongResource(songId: number, resourceType: 'image' | 'slide', resourcePath: string): boolean {
     // 確保數據庫已初始化
     if (!db) {
@@ -473,7 +482,7 @@ export const DatabaseService = {
       
       return true;
     } catch (error) {
-      console.error('保存歌曲資源關聯失敗:', error);
+      console.error('儲存歌曲資源關聯失敗:', error);
       return false;
     }
   },

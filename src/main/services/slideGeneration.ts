@@ -81,6 +81,9 @@ export class SlideGenerationService {
         throw new Error(`找不到歌曲 ${songId}`);
       }
       
+      // 調試輸出，確認字體粗細設定
+      await LoggerService.info(`用於生成投影片的格式設定 - 歌曲ID: ${songId}, 文字顏色: ${song.textColor}, 邊框顏色: ${song.strokeColor}, 邊框粗細: ${song.strokeSize}, 文字粗細: ${song.fontWeight}`);
+      
       // 生成投影片內容
       const slidesContent = SlideFormatter.formatSong(
         lyrics, 
@@ -88,7 +91,8 @@ export class SlideGenerationService {
         songTitle,
         song.textColor,
         song.strokeColor,
-        song.strokeSize
+        song.strokeSize,
+        song.fontWeight
       );
       
       // 組合完整內容，加上自定義標頭
@@ -122,7 +126,7 @@ export class SlideGenerationService {
   }
 
   /**
-   * 將投影片內容保存到快取
+   * 將投影片內容儲存到快取
    * @param songId 歌曲ID
    * @param slidesContent Marp格式的投影片內容
    */
@@ -131,10 +135,10 @@ export class SlideGenerationService {
       const filePath = path.join(this.slidesCacheDir, `${songId}.md`);
       await fs.writeFile(filePath, slidesContent, 'utf-8');
       
-      // 保存投影片與歌曲的關聯
+      // 儲存投影片與歌曲的關聯
       DatabaseService.saveSongResource(songId, 'slide', filePath);
     } catch (error) {
-      console.error('保存投影片到快取失敗:', error);
+      console.error('儲存投影片到快取失敗:', error);
       throw error;
     }
   }

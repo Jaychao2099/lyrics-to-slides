@@ -172,7 +172,7 @@ export class ImageGenerationService {
         throw new Error('圖片生成失敗');
       }
 
-      // 保存圖片到本地快取
+      // 儲存圖片到本地快取
       const localImagePath = await this.saveImageToCache(songId, imageUrl, finalPrompt);
       
       // 記錄成功
@@ -195,11 +195,11 @@ export class ImageGenerationService {
   }
 
   /**
-   * 保存圖片到快取目錄
+   * 儲存圖片到快取目錄
    * @param songId 歌曲ID
    * @param imageUrl 圖片URL
    * @param prompt 生成提示詞
-   * @returns 保存後的本地圖片路徑
+   * @returns 儲存後的本地圖片路徑
    */
   private static async saveImageToCache(songId: number, imageUrl: string, prompt?: string): Promise<string> {
     try {
@@ -216,10 +216,10 @@ export class ImageGenerationService {
       const arrayBuffer = await imageResponse.arrayBuffer();
       const buffer = Buffer.from(arrayBuffer);
       
-      // 保存到本地
+      // 儲存到本地
       await fs.writeFile(localImagePath, buffer);
       
-      // 保存圖片記錄到資料庫
+      // 儲存圖片記錄到資料庫
       const db = DatabaseService.init();
       const now = new Date().toISOString();
       
@@ -233,12 +233,12 @@ export class ImageGenerationService {
         console.error('儲存圖片記錄到資料庫失敗:', dbError);
       }
       
-      // 保存圖片與歌曲的關聯
+      // 儲存圖片與歌曲的關聯
       DatabaseService.saveSongResource(songId, 'image', localImagePath);
       
       return localImagePath;
     } catch (error) {
-      console.error('保存圖片到快取失敗:', error);
+      console.error('儲存圖片到快取失敗:', error);
       throw error;
     }
   }
@@ -319,7 +319,7 @@ export class ImageGenerationService {
       // 建立檔案名稱和路徑
       const fileName = `${songId}_${Date.now()}.png`;
       const filePath = path.join(this.imageCacheDir, fileName);
-      await LoggerService.info(`圖片將保存到: ${filePath}`);
+      await LoggerService.info(`圖片將儲存到: ${filePath}`);
 
       // 寫入檔案
       await fs.writeFile(filePath, buffer);
