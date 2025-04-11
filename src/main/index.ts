@@ -808,6 +808,10 @@ function setupIpcHandlers() {
       
       mainWindow?.webContents.send('progress-update', 100, '快取清除完成');
       
+      // 重設焦點以解決文本輸入框問題
+      mainWindow?.blur();
+      setTimeout(() => mainWindow?.focus(), 100);
+      
       // 組合結果
       return {
         success: imgCacheResult.success && slidesCacheResult.success && lyricsCacheResult.success && batchSlidesCacheResult.success,
@@ -833,6 +837,10 @@ function setupIpcHandlers() {
       
       mainWindow?.webContents.send('progress-update', 100, '圖片快取清除完成');
       
+      // 重設焦點以解決文本輸入框問題
+      mainWindow?.blur();
+      setTimeout(() => mainWindow?.focus(), 100);
+      
       // 返回結果
       return {
         success: imgCacheResult.success,
@@ -855,6 +863,10 @@ function setupIpcHandlers() {
       
       mainWindow?.webContents.send('progress-update', 100, '投影片快取清除完成');
       
+      // 重設焦點以解決文本輸入框問題
+      mainWindow?.blur();
+      setTimeout(() => mainWindow?.focus(), 100);
+      
       // 返回結果
       return {
         success: slidesCacheResult.success,
@@ -876,6 +888,10 @@ function setupIpcHandlers() {
       const lyricsCacheResult = await LyricsSearchService.clearCache();
       
       mainWindow?.webContents.send('progress-update', 100, '歌詞快取清除完成');
+      
+      // 重設焦點以解決文本輸入框問題
+      mainWindow?.blur();
+      setTimeout(() => mainWindow?.focus(), 100);
       
       // 返回結果
       return {
@@ -907,6 +923,10 @@ function setupIpcHandlers() {
       }
       
       mainWindow?.webContents.send('progress-update', 100, '投影片集快取清除完成');
+      
+      // 重設焦點以解決文本輸入框問題
+      mainWindow?.blur();
+      setTimeout(() => mainWindow?.focus(), 100);
       
       // 返回結果
       return {
