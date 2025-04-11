@@ -37,7 +37,7 @@ const Settings: React.FC = () => {
         console.log('主題已從', settings.theme, '變更為', newSettings.theme);
       }
     } catch (error) {
-      console.error('保存設定失敗', error);
+      console.error('儲存設定失敗', error);
     }
   };
   

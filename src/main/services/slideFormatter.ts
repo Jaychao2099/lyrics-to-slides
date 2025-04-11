@@ -14,6 +14,7 @@ interface SongInfo {
   textColor?: string;
   strokeColor?: string;
   strokeSize?: number;
+  fontWeight?: string;
 }
 
 /**
@@ -34,7 +35,6 @@ style: |
   section {
     text-align: center;
     font-size:80px;
-    font-weight:900;
   }
   h1 {
     position:absolute;
@@ -75,6 +75,7 @@ style: |
    * @param textColor 文字顏色 (可選)
    * @param strokeColor 邊框顏色 (可選)
    * @param strokeSize 邊框粗細 (可選)
+   * @param fontWeight 文字粗細 (可選)
    * @param skipStyleGeneration 是否跳過樣式生成 (用於批量處理)
    * @returns 格式化後的 Marp 投影片內容
    */
@@ -82,12 +83,28 @@ style: |
     lyrics: string, 
     imagePath: string, 
     title?: string,
-    textColor: string = 'black',
-    strokeColor: string = 'white',
+    textColor: string = '#000000',
+    strokeColor: string = '#ffffff',
     strokeSize: number = 5,
+    fontWeight: string = '400',
     skipStyleGeneration: boolean = false
   ): string {
     try {
+      // 確保參數都有效
+      // 確保fontWeight始終是字符串類型
+      fontWeight = String(fontWeight);
+      
+      console.log(`SlideFormatter.formatSong - 參數檢查:`, {
+        title,
+        textColor,
+        strokeColor,
+        strokeSize,
+        fontWeight: `${fontWeight} (${typeof fontWeight})`,
+        skipStyleGeneration
+      });
+      
+      console.log(`SlideFormatter.formatSong - 最終使用的文字粗細值: ${fontWeight}`);
+      
       // 初始化投影片內容
       let slides = "";
 
@@ -99,6 +116,7 @@ style: |
       if (!skipStyleGeneration) {
         slides += `
   section.song${songId} p {
+    font-weight: ${fontWeight};
     ${this.generateTextStrokeStyle(textColor, strokeColor, strokeSize)}
   }
   section.song${songId} h1 {
@@ -162,14 +180,16 @@ ${paragraph}
       // 為每首歌添加樣式，這些樣式會統一放在標頭部分
       for (const songInfo of songInfoList) {
         const songId = songInfo.title?.replace(/\s+/g, '_');
-        const textColor = songInfo.textColor || 'black';
-        const strokeColor = songInfo.strokeColor || 'white';
+        const textColor = songInfo.textColor || '#000000';
+        const strokeColor = songInfo.strokeColor || '#ffffff';
         const strokeSize = songInfo.strokeSize || 5;
+        const fontWeight = songInfo.fontWeight || '400';
         
-        LoggerService.info(`為歌曲 "${songInfo.title}" 添加樣式 (ID: song${songId})`);
+        LoggerService.info(`為歌曲 "${songInfo.title}" 添加樣式 (ID: song${songId}), fontWeight = "${fontWeight} (${typeof fontWeight})"`);
         
         marpContent += `
   section.song${songId} p {
+    font-weight: ${fontWeight};
     ${this.generateTextStrokeStyle(textColor, strokeColor, strokeSize)}
   }
   section.song${songId} h1 {
@@ -188,6 +208,7 @@ ${paragraph}
           songInfo.textColor,
           songInfo.strokeColor,
           songInfo.strokeSize,
+          songInfo.fontWeight,
           true // 跳過樣式生成，因為已經在合併標頭中添加了
         );
         marpContent += songSlides;

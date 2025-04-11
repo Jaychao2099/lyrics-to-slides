@@ -21,7 +21,7 @@ import { spawn } from 'child_process';
 // 開發模式標誌
 const isDev = process.env.NODE_ENV === 'development';
 
-// 保持對 window 對象的全局引用，避免被 JavaScript 垃圾回收機制回收
+// 保持對 window 對象的全域引用，避免被 JavaScript 垃圾回收機制回收
 let mainWindow: BrowserWindow | null = null;
 
 // 發送日誌到渲染進程
@@ -102,41 +102,41 @@ function createWindow() {
 }
 
 // 清理現有歌詞數據
-async function cleanAllExistingLyrics() {
-  try {
-    console.log('開始清理所有現有歌詞數據...');
+// async function cleanAllExistingLyrics() {
+//   try {
+//     console.log('開始清理所有現有歌詞數據...');
     
-    // 獲取所有歌曲
-    const songs = DatabaseService.getSongs();
+//     // 獲取所有歌曲
+//     const songs = DatabaseService.getSongs();
     
-    // 對每首歌曲的歌詞進行清理
-    let updatedCount = 0;
+//     // 對每首歌曲的歌詞進行清理
+//     let updatedCount = 0;
     
-    for (const song of songs) {
-      if (song.lyrics) {
-        // 清理歌詞
-        const cleanedLyrics = LyricsSearchService.cleanLyrics(song.lyrics);
+//     for (const song of songs) {
+//       if (song.lyrics) {
+//         // 清理歌詞
+//         const cleanedLyrics = LyricsSearchService.cleanLyrics(song.lyrics);
         
-        // 如果清理後的歌詞與原歌詞不同，則更新數據庫
-        if (cleanedLyrics !== song.lyrics) {
-          const updated = DatabaseService.updateSong(song.id, {
-            lyrics: cleanedLyrics
-          });
+//         // 如果清理後的歌詞與原歌詞不同，則更新數據庫
+//         if (cleanedLyrics !== song.lyrics) {
+//           const updated = DatabaseService.updateSong(song.id, {
+//             lyrics: cleanedLyrics
+//           });
           
-          if (updated) {
-            updatedCount++;
-          }
-        }
-      }
-    }
+//           if (updated) {
+//             updatedCount++;
+//           }
+//         }
+//       }
+//     }
     
-    console.log(`完成歌詞清理，已更新 ${updatedCount} 首歌曲的歌詞`);
-    await LoggerService.info(`完成歌詞清理，已更新 ${updatedCount} 首歌曲的歌詞`);
-  } catch (error) {
-    console.error('清理歌詞數據時發生錯誤:', error);
-    await LoggerService.error('清理歌詞數據失敗', error);
-  }
-}
+//     console.log(`完成歌詞清理，已更新 ${updatedCount} 首歌曲的歌詞`);
+//     await LoggerService.info(`完成歌詞清理，已更新 ${updatedCount} 首歌曲的歌詞`);
+//   } catch (error) {
+//     console.error('清理歌詞數據時發生錯誤:', error);
+//     await LoggerService.error('清理歌詞數據失敗', error);
+//   }
+// }
 
 // 應用程序準備就緒時創建窗口
 app.whenReady().then(async () => {
@@ -170,13 +170,15 @@ app.whenReady().then(async () => {
     createWindow();
     await LoggerService.info('主窗口創建完成');
     
-    // 清理所有現有歌詞數據
-    try {
-      await cleanAllExistingLyrics();
-    } catch (error: any) {
-      console.error('清理歌詞數據失敗:', error);
-      await LoggerService.error('清理歌詞數據失敗', error);
-    }
+    // 不再每次應用啟動時清理所有歌詞
+    // 如果有必要，可以通過設置一個標記，只在應用更新或用戶主動要求時執行
+    // 或者改為只在添加新歌詞時進行清理
+    // try {
+    //   await cleanAllExistingLyrics();
+    // } catch (error: any) {
+    //   console.error('清理歌詞數據失敗:', error);
+    //   await LoggerService.error('清理歌詞數據失敗', error);
+    // }
 
     // 在 macOS 中，當點擊 dock 圖標且沒有其他窗口打開時，通常會重新創建一個窗口
     app.on('activate', () => {
@@ -262,7 +264,7 @@ function setupIpcHandlers() {
     return SettingsService.getDefaultSettings();
   });
   
-  // 保存設定
+  // 儲存設定
   ipcMain.handle('save-settings', (_event, settings) => {
     SettingsService.saveSettings(settings);
     return true;
@@ -392,16 +394,26 @@ function setupIpcHandlers() {
   });
   
   // 更新投影片內容
-  ipcMain.handle('update-slides', async (_event, songId, slidesContent) => {
+  ipcMain.handle('update-slides', async (_event, songId: number, slidesContent: string) => {
     try {
-      mainWindow?.webContents.send('progress-update', 10, '正在更新投影片...');
+      console.log(`[IPC] 收到更新投影片內容請求，歌曲ID: ${songId}, 內容長度: ${slidesContent?.length || 0}`);
+      
+      if (!songId || songId <= 0) {
+        console.error('[IPC] 更新投影片內容失敗: 無效的歌曲ID');
+        return false;
+      }
+      
+      if (!slidesContent) {
+        console.error('[IPC] 更新投影片內容失敗: 沒有提供內容');
+        return false;
+      }
+      
       await SlideGenerationService.updateSlides(songId, slidesContent);
-      mainWindow?.webContents.send('progress-update', 100, '投影片更新完成');
+      console.log(`[IPC] 成功更新歌曲ID ${songId} 的投影片內容`);
       return true;
     } catch (error) {
-      console.error('更新投影片失敗:', error);
-      mainWindow?.webContents.send('progress-update', 0, '更新投影片失敗');
-      throw error;
+      console.error('[IPC] 更新投影片內容失敗:', error);
+      return false;
     }
   });
   
@@ -796,6 +808,10 @@ function setupIpcHandlers() {
       
       mainWindow?.webContents.send('progress-update', 100, '快取清除完成');
       
+      // 重設焦點以解決文本輸入框問題
+      mainWindow?.blur();
+      setTimeout(() => mainWindow?.focus(), 100);
+      
       // 組合結果
       return {
         success: imgCacheResult.success && slidesCacheResult.success && lyricsCacheResult.success && batchSlidesCacheResult.success,
@@ -821,6 +837,10 @@ function setupIpcHandlers() {
       
       mainWindow?.webContents.send('progress-update', 100, '圖片快取清除完成');
       
+      // 重設焦點以解決文本輸入框問題
+      mainWindow?.blur();
+      setTimeout(() => mainWindow?.focus(), 100);
+      
       // 返回結果
       return {
         success: imgCacheResult.success,
@@ -843,6 +863,10 @@ function setupIpcHandlers() {
       
       mainWindow?.webContents.send('progress-update', 100, '投影片快取清除完成');
       
+      // 重設焦點以解決文本輸入框問題
+      mainWindow?.blur();
+      setTimeout(() => mainWindow?.focus(), 100);
+      
       // 返回結果
       return {
         success: slidesCacheResult.success,
@@ -864,6 +888,10 @@ function setupIpcHandlers() {
       const lyricsCacheResult = await LyricsSearchService.clearCache();
       
       mainWindow?.webContents.send('progress-update', 100, '歌詞快取清除完成');
+      
+      // 重設焦點以解決文本輸入框問題
+      mainWindow?.blur();
+      setTimeout(() => mainWindow?.focus(), 100);
       
       // 返回結果
       return {
@@ -895,6 +923,10 @@ function setupIpcHandlers() {
       }
       
       mainWindow?.webContents.send('progress-update', 100, '投影片集快取清除完成');
+      
+      // 重設焦點以解決文本輸入框問題
+      mainWindow?.blur();
+      setTimeout(() => mainWindow?.focus(), 100);
       
       // 返回結果
       return {
@@ -980,41 +1012,42 @@ function setupIpcHandlers() {
     }
   });
 
-  // 保存圖片關聯
+  // 儲存圖片關聯
   ipcMain.handle('save-song-image-association', async (_event, songId: number, imagePath: string) => {
     try {
       if (!songId || songId < 0 || !imagePath) {
         return { success: false, message: '無效的參數' };
       }
       
-      console.log(`保存歌曲ID ${songId} 與圖片的關聯: ${imagePath}`);
+      console.log(`儲存歌曲ID ${songId} 與圖片的關聯: ${imagePath}`);
       
-      // 保存關聯
+      // 儲存關聯
       const result = DatabaseService.saveSongResource(songId, 'image', imagePath);
       
       if (result) {
-        console.log(`歌曲ID ${songId} 的圖片關聯保存成功`);
-        return { success: true, message: '圖片關聯保存成功' };
+        console.log(`歌曲ID ${songId} 的圖片關聯儲存成功`);
+        return { success: true, message: '圖片關聯儲存成功' };
       } else {
-        console.log(`歌曲ID ${songId} 的圖片關聯保存失敗`);
-        return { success: false, message: '圖片關聯保存失敗' };
+        console.log(`歌曲ID ${songId} 的圖片關聯儲存失敗`);
+        return { success: false, message: '圖片關聯儲存失敗' };
       }
     } catch (error) {
-      console.error('保存圖片關聯失敗:', error);
-      return { success: false, message: '保存圖片關聯時發生錯誤' };
+      console.error('儲存圖片關聯失敗:', error);
+      return { success: false, message: '儲存圖片關聯時發生錯誤' };
     }
   });
   
-  // 保存投影片關聯
+  // 儲存投影片關聯
   ipcMain.handle('save-song-slide-association', async (_event, songId: number, slideContent: string) => {
     try {
+      console.log(`[IPC] 收到儲存投影片關聯請求，歌曲ID: ${songId}, 內容長度: ${slideContent?.length || 0}`);
+      
       if (!songId || songId < 0 || !slideContent) {
+        console.error('[IPC] 儲存投影片關聯失敗: 無效的參數');
         return { success: false, message: '無效的參數' };
       }
       
-      console.log(`保存歌曲ID ${songId} 與投影片的關聯`);
-      
-      // 將投影片內容保存到檔案
+      // 將投影片內容儲存到檔案
       const slidesDir = path.join(app.getPath('userData'), 'app_cache', 'slides');
       
       // 確保目錄存在
@@ -1024,23 +1057,24 @@ function setupIpcHandlers() {
         await fsPromises.mkdir(slidesDir, { recursive: true });
       }
       
-      // 保存檔案
+      // 儲存檔案
       const slideFilePath = path.join(slidesDir, `${songId}.md`);
       await fsPromises.writeFile(slideFilePath, slideContent, 'utf-8');
+      console.log(`[IPC] 已將投影片內容寫入檔案: ${slideFilePath}`);
       
-      // 保存關聯
+      // 儲存關聯
       const result = DatabaseService.saveSongResource(songId, 'slide', slideFilePath);
       
       if (result) {
-        console.log(`歌曲ID ${songId} 的投影片關聯保存成功`);
-        return { success: true, message: '投影片關聯保存成功' };
+        console.log(`[IPC] 歌曲ID ${songId} 的投影片關聯儲存成功`);
+        return { success: true, message: '投影片關聯儲存成功' };
       } else {
-        console.log(`歌曲ID ${songId} 的投影片關聯保存失敗`);
-        return { success: false, message: '投影片關聯保存失敗' };
+        console.error(`[IPC] 歌曲ID ${songId} 的投影片關聯儲存失敗`);
+        return { success: false, message: '投影片關聯儲存失敗' };
       }
     } catch (error) {
-      console.error('保存投影片關聯失敗:', error);
-      return { success: false, message: '保存投影片關聯時發生錯誤' };
+      console.error('[IPC] 儲存投影片關聯失敗:', error);
+      return { success: false, message: '儲存投影片關聯時發生錯誤' };
     }
   });
   
@@ -1356,7 +1390,7 @@ function setupIpcHandlers() {
     }
   });
 
-  // 保存歌曲詳情
+  // 儲存歌曲詳情
   ipcMain.handle('save-song-details', async (_event, songId: number, songDetails: { 
     title: string, 
     artist?: string, 
@@ -1364,11 +1398,12 @@ function setupIpcHandlers() {
     imageUrl?: string,
     textColor?: string,
     strokeColor?: string,
-    strokeSize?: number 
+    strokeSize?: number,
+    fontWeight?: string
   }) => {
     const startTime = LoggerService.apiStart('IPC', 'save-song-details', { songId, songDetails });
     try {
-      await LoggerService.info(`保存歌曲詳情請求: songId=${songId}, Details: ${JSON.stringify(songDetails)}`);
+      await LoggerService.info(`儲存歌曲詳情請求: songId=${songId}, Details: ${JSON.stringify(songDetails)}`);
       
       // 清理歌詞（如果存在）
       const cleanedLyrics = songDetails.lyrics ? LyricsSearchService.cleanLyrics(songDetails.lyrics) : undefined;
@@ -1381,7 +1416,8 @@ function setupIpcHandlers() {
         imageUrl: songDetails.imageUrl,
         textColor: songDetails.textColor,
         strokeColor: songDetails.strokeColor,
-        strokeSize: songDetails.strokeSize
+        strokeSize: songDetails.strokeSize,
+        fontWeight: songDetails.fontWeight
       };
       
       // 過濾掉 undefined 的值，避免覆蓋資料庫中的現有值
@@ -1400,11 +1436,23 @@ function setupIpcHandlers() {
         throw new Error('更新歌曲到資料庫失敗');
       }
     } catch (error) {
-      console.error('保存歌曲詳情失敗:', error);
+      console.error('儲存歌曲詳情失敗:', error);
       await LoggerService.apiError('IPC', 'save-song-details', { songId, songDetails }, error, startTime);
       return { success: false };
     }
   });
+
+  // 新增：手動清理所有歌詞
+  // ipcMain.handle('clean-all-lyrics', async () => {
+  //   try {
+  //     await cleanAllExistingLyrics();
+  //     return { success: true };
+  //   } catch (error) {
+  //     console.error('手動清理歌詞數據失敗:', error);
+  //     await LoggerService.error('手動清理歌詞數據失敗', error);
+  //     return { success: false, error: String(error) };
+  //   }
+  // });
 }
 
 // 初始化應用所需的所有目錄結構
@@ -1417,7 +1465,7 @@ async function initAppDirectories() {
     console.error('記錄初始化開始訊息失敗:', error);
   }
   
-  // 需要確保存在的目錄列表
+  // 需要確儲存在的目錄列表
   const directories = [
     // 快取目錄 - 使用 app_cache 而非 cache 以避免與 Electron 內部快取機制衝突
     path.join(userDataPath, 'app_cache'),

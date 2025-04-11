@@ -8,7 +8,7 @@ import { Settings } from '../../common/types';
 
 // 默認設定
 const defaultSettings: Settings = {
-  // API 密鑰
+  // API 金鑰
   googleApiKey: '',
   googleSearchEngineId: '',
   openaiApiKey: '',
@@ -26,7 +26,6 @@ style: |
   section {
     text-align: center;
     font-size:80px;
-    font-weight:900;
   }
   h1 {
     position:absolute;
@@ -57,12 +56,12 @@ function loadSettings(): Settings {
   return defaultSettings;
 }
 
-// 保存設定
+// 儲存設定
 function saveSettings(settings: Settings): void {
   try {
     fs.writeFileSync(SETTINGS_PATH, JSON.stringify(settings, null, 2), 'utf8');
   } catch (error) {
-    console.error('保存設定檔案失敗:', error);
+    console.error('儲存設定檔案失敗:', error);
   }
 }
 

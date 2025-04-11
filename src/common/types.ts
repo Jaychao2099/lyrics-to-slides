@@ -1,6 +1,6 @@
 // 設定類型
 export interface Settings {
-  // API 密鑰
+  // API 金鑰
   googleApiKey: string;
   googleSearchEngineId: string;
   openaiApiKey: string;
@@ -29,6 +29,7 @@ export interface Song {
   textColor?: string;
   strokeColor?: string;
   strokeSize?: number;
+  fontWeight?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -111,7 +112,7 @@ export interface ElectronAPI {
   // 新增的功能 - 本地圖片匯入
   selectLocalImage: () => Promise<string>;
   importLocalImage: (songId: number, localImagePath: string) => Promise<{songId: number, imagePath: string}>;
-  // 新增：保存歌曲詳情
+  // 新增：儲存歌曲詳情
   saveSongDetails: (songId: number, songDetails: { 
     title: string, 
     artist?: string, 
@@ -119,7 +120,8 @@ export interface ElectronAPI {
     imageUrl?: string,
     textColor?: string,
     strokeColor?: string,
-    strokeSize?: number 
+    strokeSize?: number,
+    fontWeight?: string 
   }) => Promise<{success: boolean}>;
   // 新增：獲取臨時目錄路徑
   getTempPath: () => Promise<string>;
@@ -156,7 +158,7 @@ export interface ElectronAPI {
   // 檢查關聯資源
   checkRelatedImage: (songId: number) => Promise<RelatedImageResult>;
   checkRelatedSlide: (songId: number) => Promise<RelatedSlideResult>;
-  // 保存關聯資源
+  // 儲存關聯資源
   saveSongImageAssociation: (songId: number, imagePath: string) => Promise<{success: boolean, message: string}>;
   saveSongSlideAssociation: (songId: number, slideContent: string) => Promise<{success: boolean, message: string}>;
   

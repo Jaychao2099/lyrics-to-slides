@@ -264,7 +264,7 @@ const SlidePreview: React.FC = () => {
   // 新增：切換編輯模式
   const handleToggleEdit = () => {
     if (isEditing) {
-      // 如果當前是編輯模式，則詢問是否保存
+      // 如果當前是編輯模式，則詢問是否儲存
       if (editedSlideContent !== slideContent) {
         setConfirmDialogOpen(true);
       } else {
@@ -288,8 +288,21 @@ const SlidePreview: React.FC = () => {
     try {
       setLoading(true);
       
-      // 更新源碼，使用 saveSongSlideAssociation 而不是 saveSlideContent
-      await window.electronAPI.saveSongSlideAssociation(songId, editedSlideContent);
+      if (songId <= 0) {
+        throw new Error('無效的歌曲ID，無法保存投影片');
+      }
+      
+      // 先使用 updateSlides API 更新數據庫和快取
+      const updateResult = await window.electronAPI.updateSlides(songId, editedSlideContent);
+      if (!updateResult) {
+        throw new Error('更新投影片內容失敗');
+      }
+      
+      // 然後再使用 saveSongSlideAssociation 確保資源關聯
+      const associationResult = await window.electronAPI.saveSongSlideAssociation(songId, editedSlideContent);
+      if (!associationResult.success) {
+        console.warn('儲存投影片關聯失敗，但內容已更新:', associationResult.message);
+      }
       
       // 更新當前顯示的源碼
       setSlideContent(editedSlideContent);
@@ -311,7 +324,7 @@ const SlidePreview: React.FC = () => {
       setIsEditing(false);
       setLoading(false);
     } catch (err: any) {
-      setError(`保存投影片源碼時發生錯誤: ${err.message}`);
+      setError(`儲存投影片源碼時發生錯誤: ${err.message}`);
       setLoading(false);
     }
   };
@@ -466,7 +479,7 @@ const SlidePreview: React.FC = () => {
                               size="small"
                               sx={{ mr: 1 }}
                             >
-                              保存
+                              儲存
                             </Button>
                             <Button
                               variant="outlined"
@@ -581,11 +594,11 @@ const SlidePreview: React.FC = () => {
         aria-describedby="alert-dialog-description"
       >
         <DialogTitle id="alert-dialog-title">
-          確認保存修改
+          確認儲存修改
         </DialogTitle>
         <DialogContent>
           <DialogContentText id="alert-dialog-description">
-            您已編輯投影片源碼，是否要保存這些更改？
+            您已編輯投影片源碼，是否要儲存這些更改？
           </DialogContentText>
         </DialogContent>
         <DialogActions>
@@ -593,7 +606,7 @@ const SlidePreview: React.FC = () => {
             取消
           </Button>
           <Button onClick={handleConfirmSave} color="primary" autoFocus>
-            保存
+            儲存
           </Button>
         </DialogActions>
       </Dialog>

@@ -172,29 +172,44 @@ const SlideEditor: React.FC<SlideEditorProps> = ({ lyrics, imageUrl, songId: pro
 
   const saveChanges = async () => {
     try {
-      setSnackbarMessage('保存中...');
+      setSnackbarMessage('儲存中...');
       setSnackbarOpen(true);
       
+      console.log('開始保存投影片編輯，檢查參數:', {
+        songId,
+        contentLength: editingContent?.length || 0,
+        hasContent: !!editingContent
+      });
+      
+      // 設置本地狀態
       setSlideContent(editingContent);
       
       if (songId > 0) {
+        // 確保使用 updateSlides 更新投影片內容（這會更新數據庫和快取文件）
+        console.log('正在調用 updateSlides API...');
         const saved = await window.electronAPI.updateSlides(songId, editingContent);
-        if (saved) {
-          setSnackbarMessage('已保存變更到數據庫');
-        } else {
-          throw new Error('保存到數據庫失敗');
+        console.log('updateSlides API 返回結果:', saved);
+        
+        if (!saved) {
+          throw new Error('儲存到數據庫失敗');
         }
         
-        // 整合handleNext功能 - 確保保存資源關聯
-        console.log('確認使用投影片，歌曲ID:', songId);
+        // 確保儲存資源關聯
+        console.log('正在調用 saveSongSlideAssociation API...');
         const saveResult = await window.electronAPI.saveSongSlideAssociation(songId, editingContent);
-        console.log('保存投影片關聯結果:', saveResult);
+        console.log('saveSongSlideAssociation API 返回結果:', saveResult);
+        
+        // 更新預覽顯示 (透過 previewSlides API)
+        console.log('更新預覽顯示...');
+        await window.electronAPI.previewSlides(editingContent);
+        
+        setSnackbarMessage('已儲存變更到數據庫');
         
         // 繼續流程
         onSlidesCreated(editingContent);
       } else {
-        setSnackbarMessage('已保存變更（本地）');
-        console.warn('songId不正確，無法保存到數據庫，僅保存到本地。songId:', songId);
+        setSnackbarMessage('已儲存變更（本地）');
+        console.warn('songId不正確，無法儲存到數據庫，僅儲存到本地。songId:', songId);
         
         // 即使沒有songId，也仍然通知上層組件投影片已創建
         onSlidesCreated(editingContent);
@@ -202,8 +217,8 @@ const SlideEditor: React.FC<SlideEditorProps> = ({ lyrics, imageUrl, songId: pro
       
       setSnackbarOpen(true);
     } catch (err: any) {
-      setError(err.message || '保存投影片內容時發生錯誤');
-      console.error('保存投影片錯誤:', err);
+      setError(err.message || '儲存投影片內容時發生錯誤');
+      console.error('儲存投影片錯誤:', err);
     }
   };
 
@@ -258,15 +273,15 @@ const SlideEditor: React.FC<SlideEditorProps> = ({ lyrics, imageUrl, songId: pro
       try {
         console.log('確認使用投影片，歌曲ID:', songId);
         
-        // 確保保存資源關聯
+        // 確保儲存資源關聯
         const saveResult = await window.electronAPI.saveSongSlideAssociation(songId, slideContent);
-        console.log('保存投影片關聯結果:', saveResult);
+        console.log('儲存投影片關聯結果:', saveResult);
         
         // 繼續流程
         onSlidesCreated(slideContent);
       } catch (err) {
-        console.error('保存投影片關聯失敗:', err);
-        // 即使關聯保存失敗，也繼續流程
+        console.error('儲存投影片關聯失敗:', err);
+        // 即使關聯儲存失敗，也繼續流程
         onSlidesCreated(slideContent);
       }
     }
@@ -275,11 +290,21 @@ const SlideEditor: React.FC<SlideEditorProps> = ({ lyrics, imageUrl, songId: pro
   // 打開預覽窗口
   const openPreviewWindow = async () => {
     try {
-      // 先保存當前編輯的內容
+      console.log('準備開啟預覽窗口...');
+      
+      // 先儲存當前編輯內容到本地狀態
       setSlideContent(editingContent);
       
-      // 使用 previewSlides API 來打開預覽窗口
+      // 使用當前編輯的內容生成預覽
+      console.log('正在調用 previewSlides API...');
       await window.electronAPI.previewSlides(editingContent);
+      
+      // 也自動保存內容
+      if (songId > 0) {
+        console.log('自動保存編輯內容...');
+        await window.electronAPI.updateSlides(songId, editingContent);
+        await window.electronAPI.saveSongSlideAssociation(songId, editingContent);
+      }
       
       // 顯示成功訊息
       setSnackbarMessage('預覽窗口已打開');
@@ -364,7 +389,7 @@ const SlideEditor: React.FC<SlideEditorProps> = ({ lyrics, imageUrl, songId: pro
               
               <Stack direction="row" spacing={2} sx={{ mt: 2 }}>
                 <Button variant="contained" color="primary" onClick={saveChanges} sx={{ fontWeight: 'bold' }}>
-                  保存變更
+                  儲存變更
                 </Button>
               </Stack>
             </Box>
