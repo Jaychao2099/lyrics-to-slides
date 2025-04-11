@@ -339,7 +339,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ settings, onSave, onCance
       <Box sx={{ borderBottom: 1, borderColor: 'divider' }}>
         <Tabs value={tabIndex} onChange={handleTabChange} aria-label="settings tabs">
           <Tab label="基本設定" />
-          <Tab label="API 密鑰" />
+          <Tab label="API 金鑰" />
           <Tab label="文件模板" />
           <Tab label="快取管理" />
         </Tabs>
@@ -428,7 +428,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ settings, onSave, onCance
         </Box>
       </TabPanel>
       
-      {/* API 密鑰選項卡 */}
+      {/* API 金鑰選項卡 */}
       <TabPanel value={tabIndex} index={1}>
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
           <Box>
@@ -437,7 +437,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ settings, onSave, onCance
             </Typography>
             <TextField
               fullWidth
-              label="Google API 密鑰"
+              label="Google API 金鑰"
               value={formData.googleApiKey}
               onChange={(e) => handleChange('googleApiKey', e.target.value)}
               margin="normal"
@@ -472,7 +472,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ settings, onSave, onCance
             </Typography>
             <TextField
               fullWidth
-              label="OpenAI API 密鑰"
+              label="OpenAI API 金鑰"
               value={formData.openaiApiKey}
               onChange={(e) => handleChange('openaiApiKey', e.target.value)}
               margin="normal"
@@ -491,7 +491,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ settings, onSave, onCance
               }}
             />
             <FormHelperText>
-              請從 OpenAI 官網獲取 API 密鑰以啟用圖片生成功能
+              請從 OpenAI 官網獲取 API 金鑰以啟用圖片生成功能
             </FormHelperText>
           </Box>
         </Box>
@@ -528,7 +528,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ settings, onSave, onCance
               margin="normal"
               multiline
               rows={8}
-              helperText="自定義Marp投影片格式的標頭文本，影響全局投影片樣式"
+              helperText="自定義Marp投影片格式的標頭文本，影響全域投影片樣式"
             />
           </Box>
           

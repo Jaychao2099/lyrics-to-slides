@@ -1,6 +1,6 @@
 // 設定類型
 export interface Settings {
-  // API 密鑰
+  // API 金鑰
   googleApiKey: string;
   googleSearchEngineId: string;
   openaiApiKey: string;

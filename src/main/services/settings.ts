@@ -8,7 +8,7 @@ import { Settings } from '../../common/types';
 
 // 默認設定
 const defaultSettings: Settings = {
-  // API 密鑰
+  // API 金鑰
   googleApiKey: '',
   googleSearchEngineId: '',
   openaiApiKey: '',

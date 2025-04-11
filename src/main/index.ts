@@ -21,7 +21,7 @@ import { spawn } from 'child_process';
 // 開發模式標誌
 const isDev = process.env.NODE_ENV === 'development';
 
-// 保持對 window 對象的全局引用，避免被 JavaScript 垃圾回收機制回收
+// 保持對 window 對象的全域引用，避免被 JavaScript 垃圾回收機制回收
 let mainWindow: BrowserWindow | null = null;
 
 // 發送日誌到渲染進程
@@ -102,41 +102,41 @@ function createWindow() {
 }
 
 // 清理現有歌詞數據
-async function cleanAllExistingLyrics() {
-  try {
-    console.log('開始清理所有現有歌詞數據...');
+// async function cleanAllExistingLyrics() {
+//   try {
+//     console.log('開始清理所有現有歌詞數據...');
     
-    // 獲取所有歌曲
-    const songs = DatabaseService.getSongs();
+//     // 獲取所有歌曲
+//     const songs = DatabaseService.getSongs();
     
-    // 對每首歌曲的歌詞進行清理
-    let updatedCount = 0;
+//     // 對每首歌曲的歌詞進行清理
+//     let updatedCount = 0;
     
-    for (const song of songs) {
-      if (song.lyrics) {
-        // 清理歌詞
-        const cleanedLyrics = LyricsSearchService.cleanLyrics(song.lyrics);
+//     for (const song of songs) {
+//       if (song.lyrics) {
+//         // 清理歌詞
+//         const cleanedLyrics = LyricsSearchService.cleanLyrics(song.lyrics);
         
-        // 如果清理後的歌詞與原歌詞不同，則更新數據庫
-        if (cleanedLyrics !== song.lyrics) {
-          const updated = DatabaseService.updateSong(song.id, {
-            lyrics: cleanedLyrics
-          });
+//         // 如果清理後的歌詞與原歌詞不同，則更新數據庫
+//         if (cleanedLyrics !== song.lyrics) {
+//           const updated = DatabaseService.updateSong(song.id, {
+//             lyrics: cleanedLyrics
+//           });
           
-          if (updated) {
-            updatedCount++;
-          }
-        }
-      }
-    }
+//           if (updated) {
+//             updatedCount++;
+//           }
+//         }
+//       }
+//     }
     
-    console.log(`完成歌詞清理，已更新 ${updatedCount} 首歌曲的歌詞`);
-    await LoggerService.info(`完成歌詞清理，已更新 ${updatedCount} 首歌曲的歌詞`);
-  } catch (error) {
-    console.error('清理歌詞數據時發生錯誤:', error);
-    await LoggerService.error('清理歌詞數據失敗', error);
-  }
-}
+//     console.log(`完成歌詞清理，已更新 ${updatedCount} 首歌曲的歌詞`);
+//     await LoggerService.info(`完成歌詞清理，已更新 ${updatedCount} 首歌曲的歌詞`);
+//   } catch (error) {
+//     console.error('清理歌詞數據時發生錯誤:', error);
+//     await LoggerService.error('清理歌詞數據失敗', error);
+//   }
+// }
 
 // 應用程序準備就緒時創建窗口
 app.whenReady().then(async () => {
@@ -170,13 +170,15 @@ app.whenReady().then(async () => {
     createWindow();
     await LoggerService.info('主窗口創建完成');
     
-    // 清理所有現有歌詞數據
-    try {
-      await cleanAllExistingLyrics();
-    } catch (error: any) {
-      console.error('清理歌詞數據失敗:', error);
-      await LoggerService.error('清理歌詞數據失敗', error);
-    }
+    // 不再每次應用啟動時清理所有歌詞
+    // 如果有必要，可以通過設置一個標記，只在應用更新或用戶主動要求時執行
+    // 或者改為只在添加新歌詞時進行清理
+    // try {
+    //   await cleanAllExistingLyrics();
+    // } catch (error: any) {
+    //   console.error('清理歌詞數據失敗:', error);
+    //   await LoggerService.error('清理歌詞數據失敗', error);
+    // }
 
     // 在 macOS 中，當點擊 dock 圖標且沒有其他窗口打開時，通常會重新創建一個窗口
     app.on('activate', () => {
@@ -1419,6 +1421,18 @@ function setupIpcHandlers() {
       return { success: false };
     }
   });
+
+  // 新增：手動清理所有歌詞
+  // ipcMain.handle('clean-all-lyrics', async () => {
+  //   try {
+  //     await cleanAllExistingLyrics();
+  //     return { success: true };
+  //   } catch (error) {
+  //     console.error('手動清理歌詞數據失敗:', error);
+  //     await LoggerService.error('手動清理歌詞數據失敗', error);
+  //     return { success: false, error: String(error) };
+  //   }
+  // });
 }
 
 // 初始化應用所需的所有目錄結構

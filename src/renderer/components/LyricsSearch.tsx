@@ -485,62 +485,6 @@ const LyricsSearch: React.FC<LyricsSearchProps> = ({ onSearchComplete }) => {
         </Typography>
       </Box>
 
-      {/* 已存在的歌曲列表 */}
-      <Box sx={{ mb: 3 }}>
-        <Typography variant="h6" gutterBottom>
-          已存在的歌曲
-        </Typography>
-        <Box sx={{ mb: 2 }}>
-          <TextField
-            fullWidth
-            label="篩選歌曲"
-            value={existingSongsFilter}
-            onChange={(e) => setExistingSongsFilter(e.target.value)}
-            margin="normal"
-            variant="outlined"
-            placeholder="輸入歌曲名稱或歌手篩選"
-          />
-        </Box>
-        
-        {existingSongsLoading ? (
-          <Box sx={{ display: 'flex', justifyContent: 'center', my: 2 }}>
-            <CircularProgress />
-          </Box>
-        ) : filteredExistingSongs.length > 0 ? (
-          <List sx={{ maxHeight: '300px', overflow: 'auto', border: '1px solid #e0e0e0', borderRadius: '4px' }}>
-            {filteredExistingSongs.map((song) => (
-              <Paper key={song.id} sx={{ mb: 1, p: 1, mx: 1 }}>
-                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <Box>
-                    <Typography variant="subtitle1">{song.title}</Typography>
-                    <Typography variant="body2" color="text.secondary">
-                      {song.artist}
-                    </Typography>
-                  </Box>
-                  <Button 
-                    variant="outlined" 
-                    size="small"
-                    onClick={() => handleSelectExistingSong(song)}
-                  >
-                    編輯
-                  </Button>
-                </Box>
-              </Paper>
-            ))}
-          </List>
-        ) : (
-          <Typography variant="body2" color="text.secondary" sx={{ textAlign: 'center', my: 2 }}>
-            {existingSongsFilter ? '沒有符合篩選條件的歌曲' : '目前沒有已存在的歌曲'}
-          </Typography>
-        )}
-      </Box>
-
-      {error && (
-        <Alert severity="error" sx={{ mb: 3 }}>
-          {error}
-        </Alert>
-      )}
-
       {searchResults.length > 0 && (
         <Box sx={{ mt: 3 }}>
           <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
@@ -611,14 +555,6 @@ const LyricsSearch: React.FC<LyricsSearchProps> = ({ onSearchComplete }) => {
         </Box>
       )}
 
-      {searchResults.length === 0 && !loading && !error && (
-        <Box sx={{ mt: 3, textAlign: 'center' }}>
-          <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
-            請搜尋或從已存在的歌曲中選擇
-          </Typography>
-        </Box>
-      )}
-
       {selectedResult && (
         <Box sx={{ mt: 3 }}>
           <Alert severity="info" sx={{ mb: 2 }}>
@@ -652,6 +588,70 @@ const LyricsSearch: React.FC<LyricsSearchProps> = ({ onSearchComplete }) => {
         onClose={handleCloseSnackbar}
         message="歌詞編輯已儲存成功！"
       />
+
+      {/* 已存在的歌曲列表 */}
+      <Box sx={{ mb: 3 }}>
+        <Typography variant="h6" gutterBottom>
+          已存在的歌曲
+        </Typography>
+        <Box sx={{ mb: 2 }}>
+          <TextField
+            fullWidth
+            label="篩選歌曲"
+            value={existingSongsFilter}
+            onChange={(e) => setExistingSongsFilter(e.target.value)}
+            margin="normal"
+            variant="outlined"
+            placeholder="輸入歌曲名稱或歌手篩選"
+          />
+        </Box>
+        
+        {existingSongsLoading ? (
+          <Box sx={{ display: 'flex', justifyContent: 'center', my: 2 }}>
+            <CircularProgress />
+          </Box>
+        ) : filteredExistingSongs.length > 0 ? (
+          <List sx={{ maxHeight: '300px', overflow: 'auto', border: '1px solid #e0e0e0', borderRadius: '4px' }}>
+            {filteredExistingSongs.map((song) => (
+              <Paper key={song.id} sx={{ mb: 1, p: 1, mx: 1 }}>
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <Box>
+                    <Typography variant="subtitle1">{song.title}</Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      {song.artist}
+                    </Typography>
+                  </Box>
+                  <Button 
+                    variant="outlined" 
+                    size="small"
+                    onClick={() => handleSelectExistingSong(song)}
+                  >
+                    編輯
+                  </Button>
+                </Box>
+              </Paper>
+            ))}
+          </List>
+        ) : (
+          <Typography variant="body2" color="text.secondary" sx={{ textAlign: 'center', my: 2 }}>
+            {existingSongsFilter ? '沒有符合篩選條件的歌曲' : '目前沒有已存在的歌曲'}
+          </Typography>
+        )}
+      </Box>
+
+      {error && (
+        <Alert severity="error" sx={{ mb: 3 }}>
+          {error}
+        </Alert>
+      )}
+
+      {searchResults.length === 0 && !loading && !error && (
+        <Box sx={{ mt: 3, textAlign: 'center' }}>
+          <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+            請搜尋或從已存在的歌曲中選擇
+          </Typography>
+        </Box>
+      )}
     </Box>
   );
 };

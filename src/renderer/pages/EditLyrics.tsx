@@ -552,6 +552,9 @@ const EditLyrics: React.FC = () => {
                     variant="outlined"
                     placeholder="輸入歌詞..."
                   />
+                  <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
+                    提示：使用連續兩行空行（按兩次Enter）來分隔不同頁面的歌詞
+                  </Typography>
                 </Paper>
 
                 {/* 圖片生成組件 */}
