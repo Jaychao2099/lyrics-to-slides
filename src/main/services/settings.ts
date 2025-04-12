@@ -6,20 +6,54 @@ import * as path from 'path';
 import { app } from 'electron';
 import { Settings } from '../../common/types';
 
-// 默認設定
-const defaultSettings: Settings = {
-  // API 金鑰
-  googleApiKey: '',
-  googleSearchEngineId: '',
-  openaiApiKey: '',
+// 設定檔案路徑
+const SETTINGS_PATH = path.join(app.getPath('userData'), 'settings.json');
 
-  // 輸出設定
-  defaultOutputDirectory: '',
-  defaultExportFormat: 'pdf',
-
-  // 文件模板
-  imagePromptTemplate: 'Positive Prompt: "minimalist design, abstract shapes, monochrome illustration: slide background image inspired by the atmosphere of the song " {{songTitle}}", designed for church worship slides. Low contrast:1.2, can have normal church elements or some elements of the lyrics: " {{lyrics}}". "\nNegative Prompt: "no text:2, no letters:2, no People:2, no faces:2, no human figures:2, no silhouettes:2, no body parts:2, no hands:2, no eyes:2, no symbols, no icons, no complex patterns, no intricate details, no cluttered compositions, no surreal elements, no excessive textures, no multiple colors, no harsh gradients, low sharpness."',
-  customMarpHeader: `---
+// 設定服務
+export class SettingsService {
+  // 更新默認設定以反映新的模型結構
+  private static readonly defaultSettings: Settings = {
+    // API 金鑰
+    googleApiKey: '',
+    googleSearchEngineId: '',
+    openaiApiKey: '',
+    geminiApiKey: '',
+    grokApiKey: '',
+    anthropicApiKey: '',
+    
+    // AI功能選擇
+    lyricsSearchProvider: 'none',
+    promptGenerationProvider: 'none',
+    imageGenerationProvider: 'none',
+    
+    // 各功能對應的模型選擇
+    lyricsSearchModel: {
+      openai: 'gpt-4o',
+      gemini: 'gemini-2.5-pro-exp-03-25',
+      grok: 'grok-3-beta',
+      anthropic: 'claude-3-7-sonnet-20250219'
+    },
+    
+    promptGenerationModel: {
+      openai: 'gpt-4o',
+      gemini: 'gemini-2.5-pro-exp-03-25',
+      grok: 'grok-3-beta',
+      anthropic: 'claude-3-7-sonnet-20250219'
+    },
+    
+    imageGenerationModel: {
+      openai: 'dall-e-3',
+      gemini: 'gemini-2.0-flash-exp-image-generation',
+      grok: 'grok-2-image-1212'
+    },
+    
+    // 輸出設定
+    defaultOutputDirectory: '',
+    defaultExportFormat: 'pdf',
+    
+    // 文件模板
+    imagePromptTemplate: '根據歌曲"{{songTitle}}"的歌詞"{{lyrics}}"創建一個唯美、抽象的背景圖，可以包含歌詞中提到的元素，但不要包含任何文字或人物。請使用溫暖的顏色和流暢的線條',
+    customMarpHeader: `---
 marp: true
 
 style: |
@@ -34,69 +68,64 @@ style: |
     font-size:20px;
   }
 `,
+    
+    // 界面設定
+    language: 'zh-TW',
+    theme: 'system'
+  };
 
-  // 界面設定
-  language: 'zh-TW',
-  theme: 'system',
-};
-
-// 設定檔案路徑
-const SETTINGS_PATH = path.join(app.getPath('userData'), 'settings.json');
-
-// 讀取設定
-function loadSettings(): Settings {
-  try {
-    if (fs.existsSync(SETTINGS_PATH)) {
-      const data = fs.readFileSync(SETTINGS_PATH, 'utf8');
-      return { ...defaultSettings, ...JSON.parse(data) };
+  // 讀取設定
+  private static loadSettings(): Settings {
+    try {
+      if (fs.existsSync(SETTINGS_PATH)) {
+        const data = fs.readFileSync(SETTINGS_PATH, 'utf8');
+        return { ...this.defaultSettings, ...JSON.parse(data) };
+      }
+    } catch (error) {
+      console.error('讀取設定檔案失敗:', error);
     }
-  } catch (error) {
-    console.error('讀取設定檔案失敗:', error);
+    return this.defaultSettings;
   }
-  return defaultSettings;
-}
 
-// 儲存設定
-function saveSettings(settings: Settings): void {
-  try {
-    fs.writeFileSync(SETTINGS_PATH, JSON.stringify(settings, null, 2), 'utf8');
-  } catch (error) {
-    console.error('儲存設定檔案失敗:', error);
+  // 儲存設定
+  private static saveSettingsToFile(settings: Settings): void {
+    try {
+      fs.writeFileSync(SETTINGS_PATH, JSON.stringify(settings, null, 2), 'utf8');
+    } catch (error) {
+      console.error('儲存設定檔案失敗:', error);
+    }
   }
-}
 
-// 設定服務
-export const SettingsService = {
   // 獲取所有設定
-  getSettings(): Settings {
-    return loadSettings();
-  },
+  public static getSettings(): Settings {
+    return this.loadSettings();
+  }
 
   // 更新設定
-  saveSettings(settings: Settings): void {
-    saveSettings(settings);
-  },
+  public static saveSettings(settings: Settings): void {
+    this.saveSettingsToFile(settings);
+  }
 
   // 獲取單個設定項
-  getSetting<K extends keyof Settings>(key: K): Settings[K] {
-    const settings = loadSettings();
+  public static getSetting<K extends keyof Settings>(key: K): Settings[K] {
+    const settings = this.loadSettings();
     return settings[key];
-  },
+  }
 
   // 設置單個設定項
-  setSetting<K extends keyof Settings>(key: K, value: Settings[K]): void {
-    const settings = loadSettings();
+  public static setSetting<K extends keyof Settings>(key: K, value: Settings[K]): void {
+    const settings = this.loadSettings();
     settings[key] = value;
-    saveSettings(settings);
-  },
+    this.saveSettingsToFile(settings);
+  }
 
   // 重置為默認設定
-  resetSettings(): void {
-    saveSettings(defaultSettings);
-  },
+  public static resetSettings(): void {
+    this.saveSettingsToFile(this.defaultSettings);
+  }
   
   // 獲取默認設定
-  getDefaultSettings(): Settings {
-    return { ...defaultSettings };
-  },
-}; 
+  public static getDefaultSettings(): Settings {
+    return { ...this.defaultSettings };
+  }
+} 

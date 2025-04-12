@@ -28,6 +28,9 @@ const Settings: React.FC = () => {
       await window.electronAPI.saveSettings(newSettings);
       setSettings(newSettings);
       
+      // 清除AI服務緩存以確保設定變更即時生效
+      await window.electronAPI.clearAIServicesCache();
+      
       // 觸發自定義事件通知其他組件設定已變更
       const event = new CustomEvent('settings-changed');
       window.dispatchEvent(event);

@@ -1,6 +1,6 @@
 {
   "name": "lyrics-to-slides",
-  "version": "1.0.4",
+  "version": "1.1.0",
   "description": "將歌曲名稱轉換為精美投影片的桌面應用程式",
   "main": "dist/main/index.js",
   "scripts": {
@@ -21,13 +21,21 @@
     "lyrics",
     "slides",
     "presentation",
-    "marp"
+    "marp",
+    "ai",
+    "openai",
+    "gemini",
+    "claude",
+    "grok"
   ],
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.23.0",
     "@emotion/react": "^11.14.0",
     "@emotion/styled": "^11.14.0",
+    "@google/genai": "^0.8.0",
+    "@google/generative-ai": "^0.2.1",
     "@marp-team/marp-cli": "^4.1.2",
     "@marp-team/marp-core": "^4.0.1",
     "@mui/icons-material": "^7.0.1",

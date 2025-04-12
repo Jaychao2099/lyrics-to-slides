@@ -4,6 +4,36 @@ export interface Settings {
   googleApiKey: string;
   googleSearchEngineId: string;
   openaiApiKey: string;
+  geminiApiKey: string;
+  grokApiKey: string;
+  anthropicApiKey: string;
+  // 其他可能的API金鑰...
+
+  // AI功能選擇
+  lyricsSearchProvider: AIProvider | 'none'; // 依據歌名搜尋歌詞
+  promptGenerationProvider: AIProvider | 'none'; // 依據歌詞給出生產圖片的prompt
+  imageGenerationProvider: ImageGenerationProvider | 'none'; // 生產圖片
+
+  // 各功能對應的模型選擇
+  lyricsSearchModel: {
+    openai: OpenAITextModel;
+    gemini: GeminiTextModel;
+    grok: GrokTextModel;
+    anthropic: AnthropicModel;
+  };
+  
+  promptGenerationModel: {
+    openai: OpenAITextModel;
+    gemini: GeminiTextModel;
+    grok: GrokTextModel;
+    anthropic: AnthropicModel;
+  };
+  
+  imageGenerationModel: {
+    openai: OpenAIImageModel;
+    gemini: GeminiImageModel;
+    grok: GrokImageModel;
+  };
 
   // 輸出設定
   defaultOutputDirectory: string;
@@ -17,6 +47,33 @@ export interface Settings {
   language: 'zh-TW' | 'zh-CN' | 'en';
   theme: 'light' | 'dark' | 'system';
 }
+
+// AI服務提供商
+export type AIProvider = 'openai' | 'gemini' | 'grok' | 'anthropic';
+
+// 圖片生成服務提供商 (因不是所有AI都支持圖片生成)
+export type ImageGenerationProvider = 'openai' | 'gemini' | 'grok';
+
+// OpenAI文字模型
+export type OpenAITextModel = 'gpt-4o' | 'gpt-4o-mini';
+
+// OpenAI圖片模型
+export type OpenAIImageModel = 'dall-e-3' | 'dall-e-2';
+
+// Gemini文字模型
+export type GeminiTextModel = 'gemini-2.5-pro-exp-03-25' | 'gemini-2.0-flash' | 'gemini-2.0-flash-lite';
+
+// Gemini圖片模型
+export type GeminiImageModel = 'gemini-2.0-flash-exp-image-generation';
+
+// Grok文字模型
+export type GrokTextModel = 'grok-3-beta' | 'grok-3-mini-beta';
+
+// Grok圖片模型
+export type GrokImageModel = 'grok-2-image-1212';
+
+// Anthropic模型
+export type AnthropicModel = 'claude-3-opus-20240229' | 'claude-3-7-sonnet-20250219' | 'claude-3-5-sonnet-20241022' | 'claude-3-5-haiku-20241022' | 'claude-3-haiku-20240307';
 
 // 歌曲類型
 export interface Song {
@@ -155,6 +212,12 @@ export interface ElectronAPI {
     success: boolean;
     deletedCount: number;
   }>;
+  // 清除AI服務緩存
+  clearAIServicesCache: () => Promise<{
+    success: boolean;
+    error?: string;
+  }>;
+  
   // 檢查關聯資源
   checkRelatedImage: (songId: number) => Promise<RelatedImageResult>;
   checkRelatedSlide: (songId: number) => Promise<RelatedSlideResult>;

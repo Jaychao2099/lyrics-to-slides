@@ -60,6 +60,9 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ settings, onSave, onCance
   const [formData, setFormData] = useState<Settings>({ ...settings });
   const [showGoogleApiKey, setShowGoogleApiKey] = useState(false);
   const [showOpenaiApiKey, setShowOpenaiApiKey] = useState(false);
+  const [showGeminiApiKey, setShowGeminiApiKey] = useState(false);
+  const [showGrokApiKey, setShowGrokApiKey] = useState(false);
+  const [showAnthropicApiKey, setShowAnthropicApiKey] = useState(false);
   
   // 快取管理狀態
   const [cacheInfo, setCacheInfo] = useState<any>(null);
@@ -235,7 +238,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ settings, onSave, onCance
   
   // 當切換到快取管理選項卡時加載快取信息
   useEffect(() => {
-    if (tabIndex === 3) {
+    if (tabIndex === 4) {
       fetchCacheInfo();
     }
   }, [tabIndex]);
@@ -246,21 +249,16 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ settings, onSave, onCance
       const defaults = await window.electronAPI.getDefaultSettings();
       setDefaultSettings(defaults);
     } catch (err) {
-      console.error('獲取默認設定失敗:', err);
-      setSnackbarMessage('獲取默認設定失敗');
-      setSnackbarSeverity('error');
-      setSnackbarOpen(true);
+      console.error('獲取默認設定失敗', err);
     }
   };
   
-  // 初始化時獲取默認設定
   useEffect(() => {
     fetchDefaultSettings();
   }, []);
   
-  // 處理表單變更
   const handleChange = (field: keyof Settings, value: any) => {
-    setFormData((prev) => ({ ...prev, [field]: value }));
+    setFormData(prev => ({ ...prev, [field]: value }));
   };
   
   // 處理選擇輸出目錄
@@ -288,36 +286,32 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ settings, onSave, onCance
     setTabIndex(newValue);
   };
   
-  // 恢復基本設定默認值
+  // 恢復默認基本設定
   const handleResetBasicSettings = () => {
     if (!defaultSettings) return;
     
-    setFormData(prevData => ({
-      ...prevData,
-      theme: defaultSettings.theme,
-      language: defaultSettings.language,
-      defaultExportFormat: defaultSettings.defaultExportFormat,
-      defaultOutputDirectory: defaultSettings.defaultOutputDirectory,
-    }));
+    const newFormData = { ...formData };
     
-    setSnackbarMessage('已恢復基本設定預設值');
-    setSnackbarSeverity('success');
-    setSnackbarOpen(true);
+    // 恢復基本設定
+    newFormData.defaultOutputDirectory = defaultSettings.defaultOutputDirectory;
+    newFormData.defaultExportFormat = defaultSettings.defaultExportFormat;
+    newFormData.language = defaultSettings.language;
+    newFormData.theme = defaultSettings.theme;
+    
+    setFormData(newFormData);
   };
   
-  // 恢復文件模板默認值
+  // 恢復默認提示詞模板
   const handleResetPromptTemplates = () => {
     if (!defaultSettings) return;
     
-    setFormData(prevData => ({
-      ...prevData,
-      imagePromptTemplate: defaultSettings.imagePromptTemplate,
-      customMarpHeader: defaultSettings.customMarpHeader,
-    }));
+    const newFormData = { ...formData };
     
-    setSnackbarMessage('已恢復文件模板預設值');
-    setSnackbarSeverity('success');
-    setSnackbarOpen(true);
+    // 恢復模板設定
+    newFormData.imagePromptTemplate = defaultSettings.imagePromptTemplate;
+    newFormData.customMarpHeader = defaultSettings.customMarpHeader;
+    
+    setFormData(newFormData);
   };
   
   return (
@@ -337,9 +331,10 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ settings, onSave, onCance
       </Snackbar>
       
       <Box sx={{ borderBottom: 1, borderColor: 'divider' }}>
-        <Tabs value={tabIndex} onChange={handleTabChange} aria-label="settings tabs">
+        <Tabs value={tabIndex} onChange={handleTabChange} aria-label="設定選項卡">
           <Tab label="基本設定" />
-          <Tab label="API 金鑰" />
+          <Tab label="API金鑰" />
+          <Tab label="AI功能設定" />
           <Tab label="文件模板" />
           <Tab label="快取管理" />
         </Tabs>
@@ -428,12 +423,12 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ settings, onSave, onCance
         </Box>
       </TabPanel>
       
-      {/* API 金鑰選項卡 */}
+      {/* API金鑰選項卡 */}
       <TabPanel value={tabIndex} index={1}>
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
           <Box>
             <Typography variant="h6" gutterBottom>
-              Google API 設定
+              Google搜索設定
             </Typography>
             <TextField
               fullWidth
@@ -457,12 +452,14 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ settings, onSave, onCance
             />
             <TextField
               fullWidth
-              label="Google 自訂搜尋引擎 ID"
+              label="Google 搜索引擎 ID"
               value={formData.googleSearchEngineId}
               onChange={(e) => handleChange('googleSearchEngineId', e.target.value)}
               margin="normal"
-              helperText="需在 Google Custom Search 控制台創建自訂搜尋引擎"
             />
+            <FormHelperText>
+              請設置 Google API 金鑰和搜索引擎 ID 以使用歌詞搜索功能
+            </FormHelperText>
           </Box>
           
           <Box>
@@ -491,14 +488,436 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ settings, onSave, onCance
               }}
             />
             <FormHelperText>
-              請從 OpenAI 官網獲取 API 金鑰以啟用圖片生成功能
+              請從 OpenAI 官網獲取 API 金鑰以啟用 GPT 和 DALL-E 功能
+            </FormHelperText>
+          </Box>
+          
+          <Box>
+            <Divider sx={{ my: 2 }} />
+            <Typography variant="h6" gutterBottom>
+              Google Gemini API 設定
+            </Typography>
+            <TextField
+              fullWidth
+              label="Google Gemini API 金鑰"
+              value={formData.geminiApiKey}
+              onChange={(e) => handleChange('geminiApiKey', e.target.value)}
+              margin="normal"
+              type={showGeminiApiKey ? 'text' : 'password'}
+              InputProps={{
+                endAdornment: (
+                  <InputAdornment position="end">
+                    <IconButton
+                      onClick={() => setShowGeminiApiKey(!showGeminiApiKey)}
+                      edge="end"
+                    >
+                      {showGeminiApiKey ? <VisibilityOff /> : <Visibility />}
+                    </IconButton>
+                  </InputAdornment>
+                ),
+              }}
+            />
+            <FormHelperText>
+              請從 Google AI Studio 獲取 API 金鑰以啟用 Gemini 功能
+            </FormHelperText>
+          </Box>
+          
+          <Box>
+            <Divider sx={{ my: 2 }} />
+            <Typography variant="h6" gutterBottom>
+              xAI Grok API 設定
+            </Typography>
+            <TextField
+              fullWidth
+              label="Grok API 金鑰"
+              value={formData.grokApiKey}
+              onChange={(e) => handleChange('grokApiKey', e.target.value)}
+              margin="normal"
+              type={showGrokApiKey ? 'text' : 'password'}
+              InputProps={{
+                endAdornment: (
+                  <InputAdornment position="end">
+                    <IconButton
+                      onClick={() => setShowGrokApiKey(!showGrokApiKey)}
+                      edge="end"
+                    >
+                      {showGrokApiKey ? <VisibilityOff /> : <Visibility />}
+                    </IconButton>
+                  </InputAdornment>
+                ),
+              }}
+            />
+            <FormHelperText>
+              請從 Grok 官網獲取 API 金鑰以啟用 Grok 功能
+            </FormHelperText>
+          </Box>
+          
+          <Box>
+            <Divider sx={{ my: 2 }} />
+            <Typography variant="h6" gutterBottom>
+              Anthropic Claude API 設定
+            </Typography>
+            <TextField
+              fullWidth
+              label="Anthropic API 金鑰"
+              value={formData.anthropicApiKey}
+              onChange={(e) => handleChange('anthropicApiKey', e.target.value)}
+              margin="normal"
+              type={showAnthropicApiKey ? 'text' : 'password'}
+              InputProps={{
+                endAdornment: (
+                  <InputAdornment position="end">
+                    <IconButton
+                      onClick={() => setShowAnthropicApiKey(!showAnthropicApiKey)}
+                      edge="end"
+                    >
+                      {showAnthropicApiKey ? <VisibilityOff /> : <Visibility />}
+                    </IconButton>
+                  </InputAdornment>
+                ),
+              }}
+            />
+            <FormHelperText>
+              請從 Anthropic 官網獲取 API 金鑰以啟用 Claude 功能
             </FormHelperText>
           </Box>
         </Box>
       </TabPanel>
       
-      {/* 文件模板選項卡 */}
+      {/* AI功能設定選項卡 */}
       <TabPanel value={tabIndex} index={2}>
+        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+          <Box>
+            <Typography variant="h6" gutterBottom>
+              歌詞搜尋設定
+            </Typography>
+            
+            <FormControl fullWidth margin="normal">
+              <InputLabel id="lyrics-search-provider-label">歌詞搜尋提供商</InputLabel>
+              <Select
+                labelId="lyrics-search-provider-label"
+                id="lyrics-search-provider"
+                value={formData.lyricsSearchProvider}
+                onChange={(e) => handleChange('lyricsSearchProvider', e.target.value)}
+                label="歌詞搜尋提供商"
+              >
+                <MenuItem value="none">不使用 AI (僅使用 Google 搜尋)</MenuItem>
+                <MenuItem value="openai">OpenAI</MenuItem>
+                <MenuItem value="gemini">Google Gemini</MenuItem>
+                <MenuItem value="grok">xAI Grok</MenuItem>
+                <MenuItem value="anthropic">Anthropic Claude</MenuItem>
+              </Select>
+              <FormHelperText>
+                選擇用於歌詞搜尋的 AI 提供商，或選擇不使用 AI
+              </FormHelperText>
+            </FormControl>
+            
+            {formData.lyricsSearchProvider === 'openai' && (
+              <FormControl fullWidth margin="normal">
+                <InputLabel id="lyrics-search-openai-model-label">OpenAI 模型</InputLabel>
+                <Select
+                  labelId="lyrics-search-openai-model-label"
+                  id="lyrics-search-openai-model"
+                  value={formData.lyricsSearchModel.openai}
+                  onChange={(e) => handleChange('lyricsSearchModel', {
+                    ...formData.lyricsSearchModel,
+                    openai: e.target.value
+                  })}
+                  label="OpenAI 模型"
+                >
+                  <MenuItem value="gpt-4o">GPT-4o</MenuItem>
+                  <MenuItem value="gpt-4o-mini">GPT-4o Mini</MenuItem>
+                </Select>
+                <FormHelperText>
+                  選擇用於歌詞搜尋的 OpenAI 模型
+                </FormHelperText>
+              </FormControl>
+            )}
+            
+            {formData.lyricsSearchProvider === 'gemini' && (
+              <FormControl fullWidth margin="normal">
+                <InputLabel id="lyrics-search-gemini-model-label">Gemini 模型</InputLabel>
+                <Select
+                  labelId="lyrics-search-gemini-model-label"
+                  id="lyrics-search-gemini-model"
+                  value={formData.lyricsSearchModel.gemini}
+                  onChange={(e) => handleChange('lyricsSearchModel', {
+                    ...formData.lyricsSearchModel,
+                    gemini: e.target.value
+                  })}
+                  label="Gemini 模型"
+                >
+                  <MenuItem value="gemini-2.5-pro-exp-03-25">Gemini 2.5 Pro (實驗版)</MenuItem>
+                  <MenuItem value="gemini-2.0-flash">Gemini 2.0 Flash (提供免費額度)</MenuItem>
+                  <MenuItem value="gemini-2.0-flash-lite">Gemini 2.0 Flash Lite (提供免費額度)</MenuItem>
+                </Select>
+                <FormHelperText>
+                  選擇用於歌詞搜尋的 Gemini 模型
+                </FormHelperText>
+              </FormControl>
+            )}
+            
+            {formData.lyricsSearchProvider === 'grok' && (
+              <FormControl fullWidth margin="normal">
+                <InputLabel id="lyrics-search-grok-model-label">Grok 模型</InputLabel>
+                <Select
+                  labelId="lyrics-search-grok-model-label"
+                  id="lyrics-search-grok-model"
+                  value={formData.lyricsSearchModel.grok}
+                  onChange={(e) => handleChange('lyricsSearchModel', {
+                    ...formData.lyricsSearchModel,
+                    grok: e.target.value
+                  })}
+                  label="Grok 模型"
+                >
+                  <MenuItem value="grok-3-beta">Grok-3-Beta</MenuItem>
+                  <MenuItem value="grok-3-mini-beta">Grok-3-Mini-Beta</MenuItem>
+                </Select>
+                <FormHelperText>
+                  選擇用於歌詞搜尋的 Grok 模型
+                </FormHelperText>
+              </FormControl>
+            )}
+            
+            {formData.lyricsSearchProvider === 'anthropic' && (
+              <FormControl fullWidth margin="normal">
+                <InputLabel id="lyrics-search-anthropic-model-label">Claude 模型</InputLabel>
+                <Select
+                  labelId="lyrics-search-anthropic-model-label"
+                  id="lyrics-search-anthropic-model"
+                  value={formData.lyricsSearchModel.anthropic}
+                  onChange={(e) => handleChange('lyricsSearchModel', {
+                    ...formData.lyricsSearchModel,
+                    anthropic: e.target.value
+                  })}
+                  label="Claude 模型"
+                >
+                  <MenuItem value="claude-3-opus-20240229">Claude 3 Opus</MenuItem>
+                  <MenuItem value="claude-3-7-sonnet-20250219">Claude 3.7 Sonnet</MenuItem>
+                  <MenuItem value="claude-3-5-sonnet-20241022">Claude 3.5 Sonnet</MenuItem>
+                  <MenuItem value="claude-3-5-haiku-20241022">Claude 3.5 Haiku</MenuItem>
+                  <MenuItem value="claude-3-haiku-20240307">Claude 3 Haiku</MenuItem>
+                </Select>
+                <FormHelperText>
+                  選擇用於歌詞搜尋的 Claude 模型
+                </FormHelperText>
+              </FormControl>
+            )}
+          </Box>
+          
+          <Box>
+            <Divider sx={{ my: 2 }} />
+            <Typography variant="h6" gutterBottom>
+              提示詞生成設定
+            </Typography>
+            
+            <FormControl fullWidth margin="normal">
+              <InputLabel id="prompt-generation-provider-label">提示詞生成提供商</InputLabel>
+              <Select
+                labelId="prompt-generation-provider-label"
+                id="prompt-generation-provider"
+                value={formData.promptGenerationProvider}
+                onChange={(e) => handleChange('promptGenerationProvider', e.target.value)}
+                label="提示詞生成提供商"
+              >
+                <MenuItem value="none">不使用 AI (僅使用模板)</MenuItem>
+                <MenuItem value="openai">OpenAI</MenuItem>
+                <MenuItem value="gemini">Google Gemini</MenuItem>
+                <MenuItem value="grok">xAI Grok</MenuItem>
+                <MenuItem value="anthropic">Anthropic Claude</MenuItem>
+              </Select>
+              <FormHelperText>
+                選擇用於生成圖片提示詞的 AI 提供商，或選擇不使用 AI
+              </FormHelperText>
+            </FormControl>
+            
+            {formData.promptGenerationProvider === 'openai' && (
+              <FormControl fullWidth margin="normal">
+                <InputLabel id="prompt-generation-openai-model-label">OpenAI 模型</InputLabel>
+                <Select
+                  labelId="prompt-generation-openai-model-label"
+                  id="prompt-generation-openai-model"
+                  value={formData.promptGenerationModel.openai}
+                  onChange={(e) => handleChange('promptGenerationModel', {
+                    ...formData.promptGenerationModel,
+                    openai: e.target.value
+                  })}
+                  label="OpenAI 模型"
+                >
+                  <MenuItem value="gpt-4o">GPT-4o</MenuItem>
+                  <MenuItem value="gpt-4o-mini">GPT-4o Mini</MenuItem>
+                </Select>
+                <FormHelperText>
+                  選擇用於提示詞生成的 OpenAI 模型
+                </FormHelperText>
+              </FormControl>
+            )}
+            
+            {formData.promptGenerationProvider === 'gemini' && (
+              <FormControl fullWidth margin="normal">
+                <InputLabel id="prompt-generation-gemini-model-label">Gemini 模型</InputLabel>
+                <Select
+                  labelId="prompt-generation-gemini-model-label"
+                  id="prompt-generation-gemini-model"
+                  value={formData.promptGenerationModel.gemini}
+                  onChange={(e) => handleChange('promptGenerationModel', {
+                    ...formData.promptGenerationModel,
+                    gemini: e.target.value
+                  })}
+                  label="Gemini 模型"
+                >
+                  <MenuItem value="gemini-2.5-pro-exp-03-25">Gemini 2.5 Pro (實驗版)</MenuItem>
+                  <MenuItem value="gemini-2.0-flash">Gemini 2.0 Flash (提供免費額度)</MenuItem>
+                  <MenuItem value="gemini-2.0-flash-lite">Gemini 2.0 Flash Lite (提供免費額度)</MenuItem>
+                </Select>
+                <FormHelperText>
+                  選擇用於提示詞生成的 Gemini 模型
+                </FormHelperText>
+              </FormControl>
+            )}
+            
+            {formData.promptGenerationProvider === 'grok' && (
+              <FormControl fullWidth margin="normal">
+                <InputLabel id="prompt-generation-grok-model-label">Grok 模型</InputLabel>
+                <Select
+                  labelId="prompt-generation-grok-model-label"
+                  id="prompt-generation-grok-model"
+                  value={formData.promptGenerationModel.grok}
+                  onChange={(e) => handleChange('promptGenerationModel', {
+                    ...formData.promptGenerationModel,
+                    grok: e.target.value
+                  })}
+                  label="Grok 模型"
+                >
+                  <MenuItem value="grok-3-beta">Grok-3-Beta</MenuItem>
+                  <MenuItem value="grok-3-mini-beta">Grok-3-Mini-Beta</MenuItem>
+                </Select>
+                <FormHelperText>
+                  選擇用於提示詞生成的 Grok 模型
+                </FormHelperText>
+              </FormControl>
+            )}
+            
+            {formData.promptGenerationProvider === 'anthropic' && (
+              <FormControl fullWidth margin="normal">
+                <InputLabel id="prompt-generation-anthropic-model-label">Claude 模型</InputLabel>
+                <Select
+                  labelId="prompt-generation-anthropic-model-label"
+                  id="prompt-generation-anthropic-model"
+                  value={formData.promptGenerationModel.anthropic}
+                  onChange={(e) => handleChange('promptGenerationModel', {
+                    ...formData.promptGenerationModel,
+                    anthropic: e.target.value
+                  })}
+                  label="Claude 模型"
+                >
+                  <MenuItem value="claude-3-opus-20240229">Claude 3 Opus</MenuItem>
+                  <MenuItem value="claude-3-7-sonnet-20250219">Claude 3.7 Sonnet</MenuItem>
+                  <MenuItem value="claude-3-5-sonnet-20241022">Claude 3.5 Sonnet</MenuItem>
+                  <MenuItem value="claude-3-5-haiku-20241022">Claude 3.5 Haiku</MenuItem>
+                  <MenuItem value="claude-3-haiku-20240307">Claude 3 Haiku</MenuItem>
+                </Select>
+                <FormHelperText>
+                  選擇用於提示詞生成的 Claude 模型
+                </FormHelperText>
+              </FormControl>
+            )}
+          </Box>
+          
+          <Box>
+            <Divider sx={{ my: 2 }} />
+            <Typography variant="h6" gutterBottom>
+              圖片生成設定
+            </Typography>
+            
+            <FormControl fullWidth margin="normal">
+              <InputLabel id="image-generation-provider-label">圖片生成提供商</InputLabel>
+              <Select
+                labelId="image-generation-provider-label"
+                id="image-generation-provider"
+                value={formData.imageGenerationProvider}
+                onChange={(e) => handleChange('imageGenerationProvider', e.target.value)}
+                label="圖片生成提供商"
+              >
+                <MenuItem value="none">不使用 AI (僅使用本地圖片)</MenuItem>
+                <MenuItem value="openai">OpenAI DALL-E</MenuItem>
+                <MenuItem value="gemini">Google Gemini</MenuItem>
+                <MenuItem value="grok">xAI Grok</MenuItem>
+              </Select>
+              <FormHelperText>
+                選擇用於生成圖片的 AI 提供商，或選擇不使用 AI
+              </FormHelperText>
+            </FormControl>
+            
+            {formData.imageGenerationProvider === 'openai' && (
+              <FormControl fullWidth margin="normal">
+                <InputLabel id="image-generation-openai-model-label">OpenAI 模型</InputLabel>
+                <Select
+                  labelId="image-generation-openai-model-label"
+                  id="image-generation-openai-model"
+                  value={formData.imageGenerationModel.openai}
+                  onChange={(e) => handleChange('imageGenerationModel', {
+                    ...formData.imageGenerationModel,
+                    openai: e.target.value
+                  })}
+                  label="OpenAI 模型"
+                >
+                  <MenuItem value="dall-e-3">DALL-E 3</MenuItem>
+                  <MenuItem value="dall-e-2">DALL-E 2</MenuItem>
+                </Select>
+                <FormHelperText>
+                  選擇用於圖片生成的 OpenAI 模型
+                </FormHelperText>
+              </FormControl>
+            )}
+            
+            {formData.imageGenerationProvider === 'gemini' && (
+              <FormControl fullWidth margin="normal">
+                <InputLabel id="image-generation-gemini-model-label">Gemini 模型</InputLabel>
+                <Select
+                  labelId="image-generation-gemini-model-label"
+                  id="image-generation-gemini-model"
+                  value={formData.imageGenerationModel.gemini}
+                  onChange={(e) => handleChange('imageGenerationModel', {
+                    ...formData.imageGenerationModel,
+                    gemini: e.target.value
+                  })}
+                  label="Gemini 模型"
+                >
+                  <MenuItem value="gemini-2.0-flash-exp-image-generation">Gemini 2.0 Flash (圖片生成) (實驗版)</MenuItem>
+                </Select>
+                <FormHelperText>
+                  選擇用於圖片生成的 Gemini 模型
+                </FormHelperText>
+              </FormControl>
+            )}
+            
+            {formData.imageGenerationProvider === 'grok' && (
+              <FormControl fullWidth margin="normal">
+                <InputLabel id="image-generation-grok-model-label">Grok 模型</InputLabel>
+                <Select
+                  labelId="image-generation-grok-model-label"
+                  id="image-generation-grok-model"
+                  value={formData.imageGenerationModel.grok}
+                  onChange={(e) => handleChange('imageGenerationModel', {
+                    ...formData.imageGenerationModel,
+                    grok: e.target.value
+                  })}
+                  label="Grok 模型"
+                >
+                  <MenuItem value="grok-2-image-1212">grok-2-image-1212</MenuItem>
+                </Select>
+                <FormHelperText>
+                  選擇用於圖片生成的 Grok 模型
+                </FormHelperText>
+              </FormControl>
+            )}
+          </Box>
+        </Box>
+      </TabPanel>
+      
+      {/* 文件模板選項卡 */}
+      <TabPanel value={tabIndex} index={3}>
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
           <Box>
             <Typography variant="h6" gutterBottom>
@@ -528,25 +947,26 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ settings, onSave, onCance
               margin="normal"
               multiline
               rows={8}
-              helperText="自定義Marp投影片格式的標頭文本，影響全域投影片樣式"
+              helperText="自定義 Marp 投影片標頭樣式，支持 Markdown 和 HTML"
             />
           </Box>
           
-          <Box sx={{ display: 'flex', justifyContent: 'flex-end', mt: 2 }}>
-            <Button
-              variant="outlined"
+          <Box sx={{ mt: 2, display: 'flex', justifyContent: 'flex-end' }}>
+            <Button 
+              variant="outlined" 
+              color="error" 
               startIcon={<RestartAlt />}
               onClick={handleResetPromptTemplates}
-              disabled={!defaultSettings}
+              sx={{ mr: 2 }}
             >
-              恢復預設值
+              恢復默認模板
             </Button>
           </Box>
         </Box>
       </TabPanel>
       
       {/* 快取管理選項卡 */}
-      <TabPanel value={tabIndex} index={3}>
+      <TabPanel value={tabIndex} index={4}>
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
           <Typography variant="h6" gutterBottom>
             快取管理

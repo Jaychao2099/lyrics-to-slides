@@ -11,6 +11,7 @@ import { LoggerService } from './logger';
 import * as path from 'path';
 import * as fs from 'fs/promises';
 import * as iconv from 'iconv-lite';
+import { AIServiceFactory } from './aiService';
 
 /**
  * 歌詞搜尋服務
@@ -254,43 +255,76 @@ export class LyricsSearchService {
       
       // 如果沒有找到快取結果，或者指定了歌手，則嘗試API搜尋
       if (results.length === 0 || artist) {
-        console.log(`[LyricsSearch] 沒有快取結果，嘗試API搜尋`);
+        console.log(`[LyricsSearch] 沒有快取結果，嘗試搜尋`);
         
-        try {
-          // 使用 searchLyricsUrl 方法獲取歌詞頁面 URL
-          const lyricsUrl = await this.searchLyricsUrl(songTitle, artist || '');
-
-          if (lyricsUrl) {
-            console.log(`[LyricsSearch] 找到歌詞URL: ${lyricsUrl}`);
-            
-            // 獲取歌詞
-            const lyrics = await this.scrapeLyrics(lyricsUrl);
-            
+        // 檢查是否要使用AI搜尋歌詞
+        const lyricsSearchProvider = SettingsService.getSetting('lyricsSearchProvider');
+        if (lyricsSearchProvider !== 'none') {
+          try {
+            // 使用AI搜尋歌詞
+            const lyrics = await this.searchLyricsWithAI(songTitle, artist || '');
             if (lyrics) {
               // 創建搜尋結果
-              const apiResult: LyricsSearchResult = {
+              const aiResult: LyricsSearchResult = {
                 title: songTitle,
                 artist: artist || '',
                 lyrics,
-                source: lyricsUrl,
+                source: `AI (${lyricsSearchProvider})`,
                 fromApi: true
               };
               
-              // 將 API 搜尋結果添加到結果陣列的最前面
-              results.unshift(apiResult);
+              // 將AI搜尋結果添加到結果陣列的最前面
+              results.unshift(aiResult);
+              console.log(`[LyricsSearch] 使用AI(${lyricsSearchProvider})成功搜尋到歌詞，歌詞長度: ${lyrics.length}`);
             } else {
-              console.log('[LyricsSearch] 無法解析歌詞內容');
+              // AI搜尋失敗，回退到網頁搜尋
+              console.log('[LyricsSearch] AI搜尋失敗，嘗試使用網頁搜尋');
             }
-          } else {
-            console.log('[LyricsSearch] 找不到歌詞URL');
+          } catch (err) {
+            console.error('[LyricsSearch] AI搜尋失敗:', err);
+            // AI搜尋失敗，回退到網頁搜尋
+            console.log('[LyricsSearch] AI搜尋出錯，回退到網頁搜尋');
           }
-        } catch (err) {
-          console.error('[LyricsSearch] API搜尋失敗:', err);
-          // 如果API搜尋失敗但有快取結果，仍然返回快取結果
-          if (results.length > 0) {
-            console.log('[LyricsSearch] API搜尋失敗，但返回快取結果');
-          } else {
-            throw new Error('歌詞搜尋失敗');
+        }
+        
+        // 如果AI搜尋未成功或選擇不使用AI，則使用網頁搜尋
+        if (results.length === 0 || (results.length > 0 && results[0].fromCache)) {
+          try {
+            // 使用 searchLyricsUrl 方法獲取歌詞頁面 URL
+            const lyricsUrl = await this.searchLyricsUrl(songTitle, artist || '');
+
+            if (lyricsUrl) {
+              console.log(`[LyricsSearch] 找到歌詞URL: ${lyricsUrl}`);
+              
+              // 獲取歌詞
+              const lyrics = await this.scrapeLyrics(lyricsUrl);
+              
+              if (lyrics) {
+                // 創建搜尋結果
+                const apiResult: LyricsSearchResult = {
+                  title: songTitle,
+                  artist: artist || '',
+                  lyrics,
+                  source: lyricsUrl,
+                  fromApi: true
+                };
+                
+                // 將網頁搜尋結果添加到結果陣列的最前面
+                results.unshift(apiResult);
+              } else {
+                console.log('[LyricsSearch] 無法解析歌詞內容');
+              }
+            } else {
+              console.log('[LyricsSearch] 找不到歌詞URL');
+            }
+          } catch (err) {
+            console.error('[LyricsSearch] 網頁搜尋失敗:', err);
+            // 如果網頁搜尋失敗但有快取結果，仍然返回快取結果
+            if (results.length > 0) {
+              console.log('[LyricsSearch] 網頁搜尋失敗，但返回快取結果');
+            } else {
+              throw new Error('歌詞搜尋失敗');
+            }
           }
         }
       }
@@ -310,6 +344,43 @@ export class LyricsSearchService {
   }
 
   /**
+   * 使用AI搜尋歌詞
+   * @param songTitle 歌曲名稱
+   * @param artist 歌手/樂團名稱
+   * @returns 歌詞內容
+   */
+  private static async searchLyricsWithAI(songTitle: string, artist: string): Promise<string | null> {
+    try {
+      // 獲取AI服務
+      const aiService = await AIServiceFactory.getServiceForFunction('lyricsSearch');
+      if (!aiService) {
+        this.log('未找到有效的AI服務，請檢查API設定', 'error');
+        return null;
+      }
+
+      // 構建搜尋提示詞
+      let prompt = `請搜尋並返回歌曲"${songTitle}"`;
+      if (artist) {
+        prompt += `，歌手是"${artist}"`;
+      }
+      prompt += `的完整歌詞。我只需要歌詞，不需要解釋、介紹或其他任何內容。請直接用原始歌詞文本回答，不要加入任何額外的標記或說明。`;
+
+      // 使用AI服務生成歌詞
+      const lyrics = await aiService.generateText(prompt);
+      
+      if (!lyrics || lyrics.trim().length < 20) {
+        this.log('AI返回的內容過短，可能不是有效歌詞', 'warn');
+        return null;
+      }
+
+      return lyrics;
+    } catch (error) {
+      this.log(`使用AI搜尋歌詞時發生錯誤: ${error}`, 'error');
+      return null;
+    }
+  }
+
+  /**
    * 搜尋歌詞URL
    * @param songTitle 歌曲名稱
    * @param artist 歌手/樂團名稱
@@ -325,7 +396,7 @@ export class LyricsSearchService {
     }
 
     // 構建查詢
-    let query = `${songTitle}`;
+    let query = `"${songTitle}"`;
     if (artist) {
       query += ` ${artist}`;
     }

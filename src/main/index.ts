@@ -15,7 +15,7 @@ import fs from 'fs';
 import { promises as fsPromises } from 'fs';
 import { SlideFormatter } from './services/slideFormatter';
 import { BatchSlideService } from './services/batchSlideService';
-import { Song } from '../common/types';
+import { Song, Settings } from '../common/types';
 import { spawn } from 'child_process';
 
 // 開發模式標誌
@@ -256,7 +256,7 @@ function setupIpcHandlers() {
   
   // 獲取設定
   ipcMain.handle('get-settings', () => {
-    return SettingsService.getSettings();
+    return getSettings();
   });
   
   // 獲取默認設定
@@ -325,10 +325,16 @@ function setupIpcHandlers() {
   ipcMain.handle('generate-image', async (_event, songTitle, lyrics, songId = -1) => {
     const startTime = LoggerService.apiStart('IPC', 'generate-image', { songTitle, lyricsLength: lyrics?.length, songId });
     try {
+      // 檢查是否選擇了不使用AI
+      const imageProvider = SettingsService.getSetting('imageGenerationProvider');
+      if (imageProvider === 'none') {
+        throw new Error('您已選擇不使用AI生成圖片，請使用本地圖片');
+      }
+      
       mainWindow?.webContents.send('progress-update', 10, '正在生成背景圖片...');
       
       // 記錄請求參數
-      await LoggerService.info(`生成圖片請求: 標題=${songTitle}, 歌詞長度=${lyrics?.length || 0}, songId=${songId}`);
+      await LoggerService.info(`生成圖片請求: 標題=${songTitle}, 歌詞長度=${lyrics?.length || 0}, songId=${songId}, 提供商=${imageProvider}`);
       
       const result = await ImageGenerationService.generateImage(songId, songTitle, lyrics);
       
@@ -346,12 +352,12 @@ function setupIpcHandlers() {
       mainWindow?.webContents.send('progress-update', 100, '背景圖片生成完成');
       
       const response = { songId, imagePath: result };
-      await LoggerService.apiSuccess('IPC', 'generate-image', { songTitle }, response, startTime);
+      await LoggerService.apiSuccess('IPC', 'generate-image', { songTitle, provider: imageProvider }, response, startTime);
       
       return response;
-    } catch (error) {
+    } catch (error: any) {
       console.error('生成背景圖片失敗:', error);
-      mainWindow?.webContents.send('progress-update', 0, '生成背景圖片失敗');
+      mainWindow?.webContents.send('progress-update', 0, `生成背景圖片失敗: ${error.message || '未知錯誤'}`);
       await LoggerService.apiError('IPC', 'generate-image', { songTitle, lyricsLength: lyrics?.length }, error, startTime);
       throw error;
     }
@@ -1453,6 +1459,23 @@ function setupIpcHandlers() {
   //     return { success: false, error: String(error) };
   //   }
   // });
+
+  // 清除AI服務緩存
+  ipcMain.handle('clear-ai-services-cache', async () => {
+    try {
+      // 引入AIServiceFactory
+      const { AIServiceFactory } = require('./services/aiService');
+      
+      // 清除服務緩存
+      AIServiceFactory.clearServices();
+      
+      console.log('AI服務緩存已清除');
+      return { success: true };
+    } catch (error) {
+      console.error('清除AI服務緩存失敗:', error);
+      return { success: false, error: (error as Error).message };
+    }
+  });
 }
 
 // 初始化應用所需的所有目錄結構
@@ -1501,6 +1524,47 @@ async function initAppDirectories() {
     console.error('記錄初始化完成訊息失敗:', error);
   }
 }
+
+// 匯入舊設定時，確保轉換為新格式
+const getSettings = (): Settings => {
+  const settings = SettingsService.getSettings();
+  
+  // 如果是舊格式的設定，轉換為新格式
+  if (!settings.lyricsSearchModel || !settings.promptGenerationModel || !settings.imageGenerationModel) {
+    const newSettings: Settings = {
+      ...settings,
+      lyricsSearchModel: {
+        openai: (settings as any).openaiModel || 'gpt-4o',
+        gemini: (settings as any).geminiModel || 'gemini-2.5-pro-exp-03-25',
+        grok: (settings as any).grokModel || 'grok-3-beta',
+        anthropic: (settings as any).anthropicModel || 'claude-3-7-sonnet-20250219'
+      },
+      promptGenerationModel: {
+        openai: (settings as any).openaiModel || 'gpt-4o',
+        gemini: (settings as any).geminiModel || 'gemini-2.5-pro-exp-03-25',
+        grok: (settings as any).grokModel || 'grok-3-beta',
+        anthropic: (settings as any).anthropicModel || 'claude-3-7-sonnet-20250219'
+      },
+      imageGenerationModel: {
+        openai: (settings as any).openaiModel || 'dall-e-3',
+        gemini: 'gemini-2.0-flash-exp-image-generation',
+        grok: 'grok-2-image-1212'
+      }
+    };
+    
+    // 刪除舊的設定項
+    delete (newSettings as any).openaiModel;
+    delete (newSettings as any).geminiModel;
+    delete (newSettings as any).grokModel;
+    delete (newSettings as any).anthropicModel;
+    
+    // 儲存新格式的設定
+    SettingsService.saveSettings(newSettings);
+    return newSettings;
+  }
+  
+  return settings;
+};
 
 // 在這裡可以添加 IPC 事件監聽器，用於主進程與渲染進程通信
 // 例如:

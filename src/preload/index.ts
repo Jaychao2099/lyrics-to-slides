@@ -51,6 +51,7 @@ interface ElectronAPI {
   }) => Promise<{success: boolean}>;
   getSongById: (songId: number) => Promise<any>;
   getTempPath: () => Promise<string>;
+  clearAIServicesCache: () => Promise<any>;
 }
 
 // 定義返回類型
@@ -117,6 +118,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   
   // 儲存設定
   saveSettings: (settings: any) => ipcRenderer.invoke('save-settings', settings),
+  
+  // 清除AI服務緩存 (用於設定變更後重新初始化AI服務)
+  clearAIServicesCache: () => ipcRenderer.invoke('clear-ai-services-cache'),
   
   // 選擇目錄
   selectDirectory: () => ipcRenderer.invoke('select-directory'),

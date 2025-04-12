@@ -9,6 +9,9 @@ import fetch from 'node-fetch';
 import { SettingsService } from './settings';
 import { DatabaseService } from './database';
 import { LoggerService } from './logger';
+import { AIServiceFactory } from './aiService';
+import { ImageGenerationProvider } from '../../common/types';
+import { PromptGenerationService } from './promptGeneration';
 
 /**
  * 圖片生成服務
@@ -17,7 +20,7 @@ import { LoggerService } from './logger';
 export class ImageGenerationService {
   // 快取目錄
   private static imageCacheDir = path.join(app.getPath('userData'), 'app_cache', 'images');
-  // OpenAI 實例
+  // OpenAI 實例 (保留向後兼容)
   private static openai: OpenAI | null = null;
 
   /**
@@ -41,7 +44,7 @@ export class ImageGenerationService {
   }
 
   /**
-   * 初始化 OpenAI API
+   * 初始化 OpenAI API (保留向後兼容)
    */
   private static async initOpenAI(): Promise<void> {
     try {
@@ -109,64 +112,32 @@ export class ImageGenerationService {
       // 確保快取目錄存在
       await this.initCacheDir();
 
-      // 檢查快取中是否已有此歌曲的圖片
-      // const cachedImage = await this.getImageFromCache(songId);
-      // if (cachedImage) {
-      //   await LoggerService.info(`使用快取的圖片: ${cachedImage}`);
-      //   await LoggerService.apiSuccess('ImageGenerationService', 'generateImage', { songId, songTitle }, { imagePath: cachedImage }, startTime);
-      //   return cachedImage;
-      // }
-
-      // 初始化 OpenAI API
-      if (!this.openai) {
-        await this.initOpenAI();
+      // 獲取用戶選擇的圖片生成提供商
+      const imageProvider = SettingsService.getSetting('imageGenerationProvider') as ImageGenerationProvider | 'none';
+      
+      // 如果選擇不使用AI，則拋出錯誤
+      if (imageProvider === 'none') {
+        throw new Error('用戶選擇不使用AI生成圖片，請使用本地圖片');
       }
-
+      
       // 獲取圖片生成提示詞模板
       const promptTemplate = SettingsService.getSetting('imagePromptTemplate') || 
         'Positive Prompt: "minimalist design, abstract shapes, monochrome illustration: slide background image inspired by the atmosphere of the song " {{songTitle}}", designed for church worship slides. Low contrast:1.2, can have normal church elements or some elements of the lyrics: " {{lyrics}}". "\nNegative Prompt: "no text:2, no letters:2, no People:2, no faces:2, no human figures:2, no silhouettes:2, no body parts:2, no hands:2, no eyes:2, no symbols, no icons, no complex patterns, no intricate details, no cluttered compositions, no surreal elements, no excessive textures, no multiple colors, no harsh gradients, low sharpness."';
 
-      // 替換提示詞中的變數
-      // 取歌詞的前300個字符，避免提示詞過長
-      const lyricsExcerpt = lyrics?.substring(0, 300) || '';
-      const finalPrompt = promptTemplate
-        .replace('{{lyrics}}', lyricsExcerpt)
-        .replace('{{songTitle}}', songTitle);
+      // 使用提示詞生成服務生成最終提示詞
+      const finalPrompt = await PromptGenerationService.generatePrompt(songTitle, lyrics, promptTemplate);
       
       await LoggerService.info(`生成圖片的提示詞: ${finalPrompt.substring(0, 100)}...`);
 
-      // 生成圖片
-      if (!this.openai) {
-        throw new Error('OpenAI API未初始化');
+      // 使用AIServiceFactory獲取對應的服務
+      const imageGenerationService = await AIServiceFactory.getServiceForFunction('imageGeneration');
+      
+      if (!imageGenerationService) {
+        throw new Error('未找到有效的圖片生成服務，請檢查API設定');
       }
       
-      // 記錄 OpenAI API 請求
-      const openaiStartTime = LoggerService.apiStart('OpenAI', 'images.generate', { prompt: finalPrompt.substring(0, 100) + '...' });
-      
-      let imageResponse;
-      try {
-        imageResponse = await this.openai.images.generate({
-          model: "dall-e-3", // "dall-e-3", "dall-e-2", "4o"
-          prompt: finalPrompt,
-          n: 1,
-          size: "1024x1024",
-        });
-        
-        await LoggerService.apiSuccess('OpenAI', 'images.generate', 
-          { promptLength: finalPrompt.length }, 
-          { url: imageResponse?.data?.[0]?.url ? '有URL' : '無URL' }, 
-          openaiStartTime
-        );
-      } catch (apiError) {
-        await LoggerService.apiError('OpenAI', 'images.generate', 
-          { promptLength: finalPrompt.length }, 
-          apiError, 
-          openaiStartTime
-        );
-        throw apiError;
-      }
-
-      const imageUrl = imageResponse.data[0].url;
+      // 使用所選AI服務生成圖片
+      const imageUrl = await imageGenerationService.generateImage(finalPrompt);
       
       if (!imageUrl) {
         throw new Error('圖片生成失敗');
@@ -177,7 +148,7 @@ export class ImageGenerationService {
       
       // 記錄成功
       await LoggerService.apiSuccess('ImageGenerationService', 'generateImage', 
-        { songId, songTitle, lyricsLength: lyrics?.length }, 
+        { songId, songTitle, lyricsLength: lyrics?.length, provider: imageGenerationService.getProviderName() }, 
         { imagePath: localImagePath }, 
         startTime
       );
