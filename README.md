@@ -113,8 +113,8 @@
 - 在編輯頁面的「源代碼與設置」分頁可直接修改 Markdown 內容調整排版，並設定文字大小與顏色、邊框大小與顏色。
 - 支援上傳自定義背景圖片替代 AI 生成圖片。
 - 在「設定」頁面的「文件模板」分頁可以自定義 Marp 標頭內容，進一步控制樣式。
-:::spoiler Marp 簡易使用教學
-
+<details>
+  <summary>Marp 簡易使用教學</summary>
 ## 一、啟用 Marp 模式
 
 ```markdown
@@ -236,7 +236,7 @@ section.song耶穌對我真好 h1 {
 
 📌 **補充建議：**
 使用 VS Code 並搭配 Marp for VS Code 擴充套件，即時預覽編輯效果，會更方便。
-:::
+</details> 
 
 ## 資料與隱私
 
