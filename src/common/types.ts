@@ -163,6 +163,7 @@ export interface ElectronAPI {
   addNewSong: (title: string, artist: string, lyrics: string, source: string) => Promise<number>;
   openFile: (filePath: string) => Promise<boolean>;
   openDirectory: (filePath: string) => Promise<boolean>;
+  openExternalUrl: (url: string) => Promise<boolean>;
   onProgressUpdate: (callback: (progress: number, status: string) => void) => () => void;
   getLogs: (logType?: string) => Promise<string>;
   onMainProcessLog: (callback: (log: {source: string, message: string, level: string}) => void) => () => void;

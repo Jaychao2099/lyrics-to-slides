@@ -44,7 +44,41 @@ function createWindow() {
       nodeIntegration: false,
       contextIsolation: true,
       preload: path.join(__dirname, '../preload/index.js'),
+      spellcheck: false
     },
+  });
+
+  // 設置標準右鍵選單
+  mainWindow.webContents.on('context-menu', (event, params) => {
+    // 創建標準的上下文選單
+    const { Menu } = require('electron');
+    const menu = Menu.buildFromTemplate([
+      { role: 'copy', label: '複製' },
+      { role: 'paste', label: '貼上' },
+      { type: 'separator' },
+      { role: 'selectAll', label: '全選' },
+      { type: 'separator' },
+      { 
+        label: '複製連結地址',
+        visible: params.linkURL && params.linkURL.length > 0,
+        click: () => {
+          if (params.linkURL) {
+            const { clipboard } = require('electron');
+            clipboard.writeText(params.linkURL);
+          }
+        }
+      },
+      { 
+        label: '在瀏覽器中開啟連結',
+        visible: params.linkURL && params.linkURL.length > 0,
+        click: () => {
+          if (params.linkURL) {
+            shell.openExternal(params.linkURL);
+          }
+        }
+      }
+    ]);
+    menu.popup();
   });
 
   // 載入應用主頁面
@@ -560,6 +594,17 @@ function setupIpcHandlers() {
       return true;
     } catch (error) {
       console.error('打開目錄失敗:', error);
+      throw error;
+    }
+  });
+  
+  // 打開外部網址
+  ipcMain.handle('open-external-url', async (_event, url) => {
+    try {
+      await shell.openExternal(url);
+      return true;
+    } catch (error) {
+      console.error('打開外部網址失敗:', error);
       throw error;
     }
   });

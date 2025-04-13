@@ -17,7 +17,8 @@ import {
   Divider,
   LinearProgress,
   Snackbar,
-  Alert
+  Alert,
+  Link
 } from '@mui/material';
 import { Visibility, VisibilityOff, FolderOpen, Delete, Refresh, RestartAlt } from '@mui/icons-material';
 import { Settings } from '../../common/types';
@@ -314,6 +315,15 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ settings, onSave, onCance
     setFormData(newFormData);
   };
   
+  // 處理超連結點擊事件
+  const handleLinkClick = (event: React.MouseEvent<HTMLAnchorElement>, url: string) => {
+    // 僅做左鍵點擊時的處理，不阻止右鍵選單
+    if (event.button === 0) {  // 0表示滑鼠左鍵
+      event.preventDefault();
+      window.electronAPI.openExternalUrl(url);
+    }
+  };
+  
   return (
     <Paper elevation={3} sx={{ p: 2 }}>
       <Typography variant="h5" gutterBottom>
@@ -458,7 +468,27 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ settings, onSave, onCance
               margin="normal"
             />
             <FormHelperText>
-              請設置 Google API 金鑰和搜索引擎 ID 以使用歌詞搜索功能
+              請從{' '}
+              <Link 
+                href="https://developers.google.com/custom-search/v1/overview" 
+                target="_blank" 
+                rel="noopener" 
+                onClick={(e) => handleLinkClick(e, 'https://developers.google.com/custom-search/v1/overview')}
+                sx={{ cursor: 'pointer' }}
+              >
+                Google Programmable Search Engine
+              </Link>{' '}
+              獲取 Google API 金鑰，並從{' '}
+              <Link 
+                href="https://programmablesearchengine.google.com/controlpanel/all" 
+                target="_blank" 
+                rel="noopener" 
+                onClick={(e) => handleLinkClick(e, 'https://programmablesearchengine.google.com/controlpanel/all')}
+                sx={{ cursor: 'pointer' }}
+              >
+                Google 程式化搜尋引擎
+              </Link>{' '}
+              獲取搜索引擎 ID
             </FormHelperText>
           </Box>
           
@@ -488,7 +518,17 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ settings, onSave, onCance
               }}
             />
             <FormHelperText>
-              請從 OpenAI 官網獲取 API 金鑰以啟用 GPT 和 DALL-E 功能
+              請從{' '}
+              <Link 
+                href="https://platform.openai.com/settings/profile/user" 
+                target="_blank" 
+                rel="noopener"
+                onClick={(e) => handleLinkClick(e, 'https://platform.openai.com/settings/profile/user')}
+                sx={{ cursor: 'pointer' }}
+              >
+                OpenAI 官網
+              </Link>{' '}
+              獲取 API 金鑰以啟用 GPT 和 DALL-E 功能
             </FormHelperText>
           </Box>
           
@@ -518,7 +558,17 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ settings, onSave, onCance
               }}
             />
             <FormHelperText>
-              請從 Google AI Studio 獲取 API 金鑰以啟用 Gemini 功能
+              請從{' '}
+              <Link 
+                href="https://aistudio.google.com/app/apikey" 
+                target="_blank" 
+                rel="noopener"
+                onClick={(e) => handleLinkClick(e, 'https://aistudio.google.com/app/apikey')}
+                sx={{ cursor: 'pointer' }}
+              >
+                Google AI Studio
+              </Link>{' '}
+              獲取 API 金鑰以啟用 Gemini 功能
             </FormHelperText>
           </Box>
           
@@ -548,7 +598,17 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ settings, onSave, onCance
               }}
             />
             <FormHelperText>
-              請從 Grok 官網獲取 API 金鑰以啟用 Grok 功能
+              請從{' '}
+              <Link 
+                href="https://console.x.ai/" 
+                target="_blank" 
+                rel="noopener"
+                onClick={(e) => handleLinkClick(e, 'https://console.x.ai/')}
+                sx={{ cursor: 'pointer' }}
+              >
+                Grok 官網
+              </Link>{' '}
+              獲取 API 金鑰以啟用 Grok 功能
             </FormHelperText>
           </Box>
           
@@ -578,7 +638,17 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ settings, onSave, onCance
               }}
             />
             <FormHelperText>
-              請從 Anthropic 官網獲取 API 金鑰以啟用 Claude 功能
+              請從{' '}
+              <Link 
+                href="https://console.anthropic.com/settings/keys" 
+                target="_blank" 
+                rel="noopener"
+                onClick={(e) => handleLinkClick(e, 'https://console.anthropic.com/settings/keys')}
+                sx={{ cursor: 'pointer' }}
+              >
+                Anthropic 官網
+              </Link>{' '}
+              獲取 API 金鑰以啟用 Claude 功能
             </FormHelperText>
           </Box>
         </Box>
