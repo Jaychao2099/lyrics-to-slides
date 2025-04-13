@@ -23,6 +23,7 @@ interface ElectronAPI {
   getSongs: () => Promise<any[]>;
   openFile: (filePath: string) => Promise<boolean>;
   openDirectory: (filePath: string) => Promise<boolean>;
+  openExternalUrl: (url: string) => Promise<boolean>;
   onProgressUpdate: (callback: (progress: number, status: string) => void) => (() => void);
   getLogs: (logType?: string) => Promise<string>;
   onMainProcessLog: (callback: (log: {source: string, message: string, level: string}) => void) => (() => void);
@@ -51,6 +52,7 @@ interface ElectronAPI {
   }) => Promise<{success: boolean}>;
   getSongById: (songId: number) => Promise<any>;
   getTempPath: () => Promise<string>;
+  clearAIServicesCache: () => Promise<any>;
 }
 
 // 定義返回類型
@@ -118,6 +120,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // 儲存設定
   saveSettings: (settings: any) => ipcRenderer.invoke('save-settings', settings),
   
+  // 清除AI服務緩存 (用於設定變更後重新初始化AI服務)
+  clearAIServicesCache: () => ipcRenderer.invoke('clear-ai-services-cache'),
+  
   // 選擇目錄
   selectDirectory: () => ipcRenderer.invoke('select-directory'),
   
@@ -140,6 +145,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
   
   // 打開目錄
   openDirectory: (filePath: string) => ipcRenderer.invoke('open-directory', filePath),
+  
+  // 打開外部網址
+  openExternalUrl: (url: string) => 
+    ipcRenderer.invoke('open-external-url', url),
   
   // 選擇本地圖片
   selectLocalImage: () => ipcRenderer.invoke('select-local-image'),
@@ -180,11 +189,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   
   // 監聽進度更新
   onProgressUpdate: (callback: (progress: number, status: string) => void) => {
-    const listener = (_event: any, progress: number, status: string) => callback(progress, status);
-    ipcRenderer.on('progress-update', listener);
-    return () => {
-      ipcRenderer.removeListener('progress-update', listener);
-    };
+    const handler = (_event: any, progress: number, status: string) => callback(progress, status);
+    ipcRenderer.on('progress-update', handler);
+    return () => ipcRenderer.removeListener('progress-update', handler);
   },
   
   // 取得日誌
