@@ -51,23 +51,19 @@ export class PromptGenerationService {
       }
 
       // 獲取基本提示詞模板
-      const promptTemplate = basePrompt || SettingsService.getSetting('imagePromptTemplate');
       const lyricsExcerpt = lyrics?.substring(0, 300) || '';
-      const basePromptText = promptTemplate
-        .replace('{{lyrics}}', lyricsExcerpt)
-        .replace('{{songTitle}}', songTitle);
       
       // 構建增強提示詞的請求
       const enhancementPrompt = `**生成圖片描述**：根據歌詞分析結果，構思一個最能配合這首歌意境的背景圖片，最好能單一色調、色差柔和、細節少，減少觀看者因為背景圖片而從歌詞分心的機會。請提供詳細的「圖片描述」（英文尤佳，方便後續給圖像生成模型使用），例如："A lone figure walking on a rainy street at night under a single yellow streetlight, evoking feelings of melancholy and solitude."。
 歌詞如下：${lyricsExcerpt}
 
-請直接返回完整的圖片描述，無需解釋或添加額外文字。`;
+請直接返回"一段"完整的圖片描述，無需解釋或添加額外文字。`;
 
       // 使用AI服務增強提示詞
       const enhancedPrompt = await aiService.generateText(enhancementPrompt);
       
       // 處理AI返回的內容
-      const finalPrompt = enhancedPrompt?.trim() || basePromptText;
+      const finalPrompt = enhancedPrompt?.trim();
       
       await LoggerService.apiSuccess('PromptGenerationService', 'generatePrompt', 
         { songTitle, lyricsLength: lyrics?.length, provider: aiService.getProviderName() }, 

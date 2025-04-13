@@ -52,7 +52,7 @@ export class SettingsService {
     defaultExportFormat: 'pdf',
     
     // 文件模板
-    imagePromptTemplate: '根據歌曲"{{songTitle}}"的歌詞"{{lyrics}}"創建一個唯美、抽象的背景圖，可以包含歌詞中提到的元素，但不要包含任何文字或人物。請使用溫暖的顏色和流暢的線條',
+    imagePromptTemplate: 'minimalist design, abstract shapes, monochrome illustration: slide background image inspired by the atmosphere of the song " {{songTitle}}", designed for church worship slides. Low contrast, can have normal church elements or some elements of the lyrics: " {{lyrics}} " . No text, no letters, no People, no faces, no human figures, no silhouettes, no body parts, no hands, no eyes, no symbols, no icons, no complex patterns, no intricate details, no cluttered compositions, no surreal elements, no excessive textures, no multiple colors, no harsh gradients, low sharpness.',
     customMarpHeader: `---
 marp: true
 

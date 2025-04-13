@@ -122,12 +122,12 @@ export class ImageGenerationService {
       
       // 獲取圖片生成提示詞模板
       const promptTemplate = SettingsService.getSetting('imagePromptTemplate') || 
-        'Positive Prompt: "minimalist design, abstract shapes, monochrome illustration: slide background image inspired by the atmosphere of the song " {{songTitle}}", designed for church worship slides. Low contrast:1.2, can have normal church elements or some elements of the lyrics: " {{lyrics}}". "\nNegative Prompt: "no text:2, no letters:2, no People:2, no faces:2, no human figures:2, no silhouettes:2, no body parts:2, no hands:2, no eyes:2, no symbols, no icons, no complex patterns, no intricate details, no cluttered compositions, no surreal elements, no excessive textures, no multiple colors, no harsh gradients, low sharpness."';
+        'minimalist design, abstract shapes, monochrome illustration: slide background image inspired by the atmosphere of the song " {{songTitle}}", designed for church worship slides. Low contrast, can have normal church elements or some elements of the lyrics: " {{lyrics}} " . No text, no letters, no People, no faces, no human figures, no silhouettes, no body parts, no hands, no eyes, no symbols, no icons, no complex patterns, no intricate details, no cluttered compositions, no surreal elements, no excessive textures, no multiple colors, no harsh gradients, low sharpness.';
 
       // 使用提示詞生成服務生成最終提示詞
       const finalPrompt = await PromptGenerationService.generatePrompt(songTitle, lyrics, promptTemplate);
       
-      await LoggerService.info(`生成圖片的提示詞: ${finalPrompt.substring(0, 100)}...`);
+      await LoggerService.info(`生成圖片的提示詞: ${finalPrompt.substring(0, 300)}...`);
 
       // 使用AIServiceFactory獲取對應的服務
       const imageGenerationService = await AIServiceFactory.getServiceForFunction('imageGeneration');
@@ -168,7 +168,7 @@ export class ImageGenerationService {
   /**
    * 儲存圖片到快取目錄
    * @param songId 歌曲ID
-   * @param imageUrl 圖片URL
+   * @param imageUrl 圖片URL或Base64數據
    * @param prompt 生成提示詞
    * @returns 儲存後的本地圖片路徑
    */
@@ -182,10 +182,18 @@ export class ImageGenerationService {
       const fileName = `${songId}_${timestamp}.png`;
       const localImagePath = path.join(this.imageCacheDir, fileName);
       
-      // 下載圖片
-      const imageResponse = await fetch(imageUrl);
-      const arrayBuffer = await imageResponse.arrayBuffer();
-      const buffer = Buffer.from(arrayBuffer);
+      let buffer: Buffer;
+      
+      // 判斷是URL還是Base64數據
+      if (imageUrl.startsWith('data:') || imageUrl.startsWith('http://') || imageUrl.startsWith('https://')) {
+        // 這是一個URL或data URI
+        const imageResponse = await fetch(imageUrl);
+        const arrayBuffer = await imageResponse.arrayBuffer();
+        buffer = Buffer.from(arrayBuffer);
+      } else {
+        // 這是一個Base64字符串（沒有data URI前綴）
+        buffer = Buffer.from(imageUrl, 'base64');
+      }
       
       // 儲存到本地
       await fs.writeFile(localImagePath, buffer);

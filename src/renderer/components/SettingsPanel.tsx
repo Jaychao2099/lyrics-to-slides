@@ -647,7 +647,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ settings, onSave, onCance
                   })}
                   label="Gemini 模型"
                 >
-                  <MenuItem value="gemini-2.5-pro-exp-03-25">Gemini 2.5 Pro (實驗版)</MenuItem>
+                  <MenuItem value="gemini-2.5-pro-exp-03-25">Gemini 2.5 Pro (實驗版) (提供免費額度)</MenuItem>
                   <MenuItem value="gemini-2.0-flash">Gemini 2.0 Flash (提供免費額度)</MenuItem>
                   <MenuItem value="gemini-2.0-flash-lite">Gemini 2.0 Flash Lite (提供免費額度)</MenuItem>
                 </Select>
@@ -766,7 +766,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ settings, onSave, onCance
                   })}
                   label="Gemini 模型"
                 >
-                  <MenuItem value="gemini-2.5-pro-exp-03-25">Gemini 2.5 Pro (實驗版)</MenuItem>
+                  <MenuItem value="gemini-2.5-pro-exp-03-25">Gemini 2.5 Pro (實驗版) (提供免費額度)</MenuItem>
                   <MenuItem value="gemini-2.0-flash">Gemini 2.0 Flash (提供免費額度)</MenuItem>
                   <MenuItem value="gemini-2.0-flash-lite">Gemini 2.0 Flash Lite (提供免費額度)</MenuItem>
                 </Select>
@@ -884,7 +884,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ settings, onSave, onCance
                   })}
                   label="Gemini 模型"
                 >
-                  <MenuItem value="gemini-2.0-flash-exp-image-generation">Gemini 2.0 Flash (圖片生成) (實驗版)</MenuItem>
+                  <MenuItem value="gemini-2.0-flash-exp-image-generation">Gemini 2.0 Flash (圖片生成) (實驗版) (提供免費額度)</MenuItem>
                 </Select>
                 <FormHelperText>
                   選擇用於圖片生成的 Gemini 模型

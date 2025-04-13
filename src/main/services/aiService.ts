@@ -249,9 +249,9 @@ export class GeminiService implements AIService {
       const text = response.text || '';
 
       // 記錄 Google Search 結果（如果有）
-      if (response.candidates?.[0]?.groundingMetadata?.searchEntryPoint?.renderedContent) {
-        LoggerService.info(`Google Search結果: ${response.candidates[0].groundingMetadata.searchEntryPoint.renderedContent}`);
-      }
+    //   if (response.candidates?.[0]?.groundingMetadata?.searchEntryPoint?.renderedContent) {
+    //     LoggerService.info(`Google Search結果: ${response.candidates[0].groundingMetadata.searchEntryPoint.renderedContent}`);
+    //   }
 
       await LoggerService.apiSuccess('GeminiService', 'generateText', 
         { model: this.model, promptLength: prompt.length }, 
