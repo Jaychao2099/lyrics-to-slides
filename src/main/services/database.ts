@@ -287,7 +287,7 @@ export const DatabaseService = {
     }
   },
 
-  // 搜索歌曲
+  // 搜尋歌曲
   searchSongs(query: string): Song[] {
     // 確保數據庫已初始化
     if (!db) {
@@ -311,12 +311,12 @@ export const DatabaseService = {
       `);
       return stmt.all(`%${query}%`, `%${query}%`) as Song[];
     } catch (error) {
-      console.error('搜索歌曲失敗:', error);
+      console.error('搜尋歌曲失敗:', error);
       return [];
     }
   },
 
-  // 按確切標題搜索歌曲 - 用於找出所有同名歌曲
+  // 按確切標題搜尋歌曲 - 用於找出所有同名歌曲
   searchSongsByExactTitle(title: string): Song[] {
     // 確保數據庫已初始化
     if (!db) {
@@ -340,7 +340,7 @@ export const DatabaseService = {
       `);
       return stmt.all(title) as Song[];
     } catch (error) {
-      console.error('按確切標題搜索歌曲失敗:', error);
+      console.error('按確切標題搜尋歌曲失敗:', error);
       return [];
     }
   },

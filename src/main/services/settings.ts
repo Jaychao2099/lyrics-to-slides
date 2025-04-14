@@ -15,7 +15,6 @@ export class SettingsService {
   private static readonly defaultSettings: Settings = {
     // API 金鑰
     googleApiKey: '',
-    googleSearchEngineId: '',
     openaiApiKey: '',
     geminiApiKey: '',
     grokApiKey: '',

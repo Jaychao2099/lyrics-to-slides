@@ -11,7 +11,7 @@ import SlideExport from './components/SlideExport';
 import BatchSlidesManager from './pages/BatchSlidesManager';
 import { LyricsSearchResult } from '../common/types';
 
-// 創建一個搜索頁面組件，用於包裝 LyricsSearch 組件
+// 創建一個搜尋頁面組件，用於包裝 LyricsSearch 組件
 const SearchLyricsPage: React.FC = () => {
   const navigate = useNavigate();
   

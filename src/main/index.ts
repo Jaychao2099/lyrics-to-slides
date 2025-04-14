@@ -585,7 +585,7 @@ function setupIpcHandlers() {
   // 預覽投影片
   ipcMain.handle('preview-slides', async (_event, marpContent) => {
     try {
-      mainWindow?.webContents.send('progress-update', 10, '正在預覽投影片...');
+      mainWindow?.webContents.send('progress-update', 10, '正在準備預覽...');
       
       // 檢查是否有正在運行的預覽視窗
       const existingPreview = BrowserWindow.getAllWindows().find(win => 
@@ -593,74 +593,28 @@ function setupIpcHandlers() {
       );
       
       if (existingPreview) {
-        // 如果已有預覽視窗，則激活它而不是創建新的
-        if (existingPreview.isMinimized()) existingPreview.restore();
-        existingPreview.focus();
-        
-        // 更新現有視窗的內容 (可選)
-        mainWindow?.webContents.send('progress-update', 100, '更新現有預覽視窗內容');
+        // ... (激活現有視窗) ...
+        mainWindow?.webContents.send('progress-update', 100, '預覽視窗已存在');
         return { success: true };
       }
       
-      // 使用臨時文件實現預覽
+      // 準備臨時文件路徑
       const tempDir = path.join(app.getPath('temp'), 'lyrics-slides-preview');
       await fs.promises.mkdir(tempDir, { recursive: true });
-      const tempFile = path.join(tempDir, 'preview.md');
-      const tempHtmlFile = path.join(tempDir, 'preview.html');
+      // 定義 HTML 輸出的基本路徑 (無副檔名)
+      const tempHtmlBasePath = path.join(tempDir, 'preview'); 
       
       // 修復投影片內容中的圖片路徑
       const fixedMarpContent = SlideGenerationService.fixImagePathsInSlides(marpContent);
       
-      // 將 Marp 內容寫入臨時檔案
-      await fs.promises.writeFile(tempFile, fixedMarpContent, 'utf-8');
+      // 使用 SlideExportService 生成 HTML (利用其穩定的執行邏輯)
+      mainWindow?.webContents.send('progress-update', 30, '正在生成預覽 HTML...');
+      console.log(`[Preview] 調用 SlideExportService.exportToFormat 生成 HTML: ${tempHtmlBasePath}.html`);
+      const generatedHtmlPath = await SlideExportService.exportToFormat(fixedMarpContent, tempHtmlBasePath, 'html');
+      console.log(`[Preview] HTML 生成成功: ${generatedHtmlPath}`);
       
-      // 使用 Marp CLI 將 Markdown 轉換為 HTML
-      const marpExecutable = getMarpCliExecutablePath();
-      
-      // 檢查執行檔是否存在
-      try {
-        await fs.promises.access(marpExecutable);
-      } catch (err) {
-        console.error(`Marp CLI 執行檔未找到: ${marpExecutable}`, err);
-        throw new Error(`Marp CLI 執行檔未找到: ${marpExecutable}`);
-      }
-      
-      // 準備 Marp CLI 參數 (Ensure temp paths are absolute or relative to a known dir)
-      const marpArgs = [
-        tempFile, // Use absolute path
-        '--html',
-        '--allow-local-files',
-        '--output',
-        tempHtmlFile, // Use absolute path
-        '--theme-set',
-        'default',
-        '--no-stdin'
-      ];
-      
-      // 執行 Marp CLI 轉換 - 直接執行獨立執行檔
-      // const childProcess = spawn('node', [marpExecutable, ...marpArgs], { stdio: 'pipe' }); // OLD EXECUTION
-      const childProcess = spawn(marpExecutable, marpArgs, { stdio: 'pipe' }); // NEW EXECUTION
-        
-      let stderrOutput = '';
-      childProcess.stderr.on('data', (data) => {
-        stderrOutput += data.toString();
-      });
+      // --- 移除直接 spawn Marp 的邏輯 --- 
 
-      await new Promise((resolve, reject) => {
-        childProcess.on('close', (code) => {
-          if (code === 0) {
-            resolve(null);
-          } else {
-            console.error(`Marp CLI 錯誤輸出: ${stderrOutput}`);
-            reject(new Error(`Marp CLI 退出碼: ${code}\n${stderrOutput}`));
-          }
-        });
-        childProcess.on('error', (err) => {
-          console.error(`執行 Marp CLI 時發生錯誤: ${err.message}`);
-          reject(err);
-        });
-      });
-      
       mainWindow?.webContents.send('progress-update', 100, '投影片預覽準備完成');
       
       // 獲取主窗口（如果不存在則創建）
@@ -670,7 +624,7 @@ function setupIpcHandlers() {
         return { success: false, error: '找不到主窗口' };
       }
       
-      // 創建預覽窗口
+      // 創建預覽窗口 (恢復宣告)
       const previewWindow = new BrowserWindow({
         width: 1024,
         height: 768,
@@ -684,12 +638,11 @@ function setupIpcHandlers() {
       
       // 設置關閉時的行為
       previewWindow.on('closed', () => {
-        // 釋放引用
-        // 由於這是一個局部變數，GC 會自動處理
+        // 釋放引用 (GC 會處理)
       });
       
       // 載入生成的HTML文件
-      await previewWindow.loadFile(tempHtmlFile);
+      await previewWindow.loadFile(generatedHtmlPath); // <--- 使用返回的路徑
       
       // 如果在開發模式中，打開開發者工具
       if (isDev) {
@@ -698,6 +651,7 @@ function setupIpcHandlers() {
       
       // 返回成功狀態
       return { success: true };
+
     } catch (error) {
       console.error('預覽投影片失敗:', error);
       mainWindow?.webContents.send('progress-update', 0, '預覽投影片失敗');
@@ -767,7 +721,8 @@ function setupIpcHandlers() {
         properties: ['openFile'],
         filters: [
           { name: '圖片檔案', extensions: ['jpg', 'jpeg', 'png', 'gif', 'webp'] }
-        ]
+        ],
+        defaultPath: ImageGenerationService.imageCacheDir // 設定預設路徑
       });
       
       if (result.canceled) {
@@ -1324,9 +1279,6 @@ function setupIpcHandlers() {
       // 將 Marp 內容寫入臨時檔案
       await fsPromises.writeFile(tempFile, fixedMarpContent, 'utf-8');
       
-      // 使用 Marp CLI 將 Markdown 轉換為 HTML
-      const marpExecutable = getMarpCliExecutablePath();
-      
       // 準備 Marp CLI 參數
       const marpArgs = [
         tempFile,
@@ -1339,13 +1291,45 @@ function setupIpcHandlers() {
         '--no-stdin'
       ];
       
-      // 執行 Marp CLI 轉換 - 使用 node 執行 JS 文件
-      const childProcess = spawn('node', [marpExecutable, ...marpArgs], { stdio: 'pipe' });
-        
+      // 執行 Marp CLI 轉換
+      let command: string;
+      let spawnArgs: string[];
+      const spawnOptions: import('child_process').SpawnOptions = {
+        stdio: 'pipe'
+      };
+
+      if (app.isPackaged) {
+        // 生產環境：使用獨立執行檔
+        const marpExecutable = getMarpCliExecutablePath();
+        try {
+          await fsPromises.access(marpExecutable);
+        } catch (err) {
+          console.error(`Marp CLI 執行檔未找到: ${marpExecutable}`, err);
+          throw new Error(`Marp CLI 執行檔未找到: ${marpExecutable}`);
+        }
+        command = marpExecutable;
+        spawnArgs = marpArgs;
+        spawnOptions.shell = process.platform === 'win32'; // 需要 shell 來執行 exe
+      } else {
+        // 開發環境：使用 npx marp (與 SlideExportService 保持一致)
+        command = 'npx';
+        spawnArgs = ['marp', ...marpArgs];
+        spawnOptions.shell = process.platform === 'win32'; // Use shell on Windows for npx
+        // 移除 cwd 設定: spawnOptions.cwd = app.getAppPath();
+      }
+      
+      console.log(`[Batch Preview] 執行 Marp: ${command} ${spawnArgs.join(' ')} (isPackaged: ${app.isPackaged}, options: ${JSON.stringify(spawnOptions)})`);
+      const childProcess = spawn(command, spawnArgs, spawnOptions);
+
       let stderrOutput = '';
-      childProcess.stderr.on('data', (data) => {
-        stderrOutput += data.toString();
-      });
+      // 增加 null 檢查以修復 linter 錯誤
+      if (childProcess.stderr) {
+        childProcess.stderr.on('data', (data) => {
+          stderrOutput += data.toString();
+        });
+      } else {
+        console.warn('[Batch Preview] Marp CLI 的 stderr 為 null，無法監聽錯誤輸出。');
+      }
 
       await new Promise((resolve, reject) => {
         childProcess.on('close', (code) => {
@@ -1370,7 +1354,7 @@ function setupIpcHandlers() {
         return;
       }
       
-      // 創建預覽窗口
+      // 創建預覽窗口 (恢復宣告)
       const previewWindow = new BrowserWindow({
         width: 1024,
         height: 768,
@@ -1384,12 +1368,11 @@ function setupIpcHandlers() {
       
       // 設置關閉時的行為
       previewWindow.on('closed', () => {
-        // 釋放引用
-        // 由於這是一個局部變數，GC 會自動處理
+        // 釋放引用 (GC 會處理)
       });
       
       // 載入生成的HTML文件
-      await previewWindow.loadFile(tempHtmlFile);
+      await previewWindow.loadFile(tempHtmlFile); // <--- 使用返回的路徑
       
       // 如果在開發模式中，打開開發者工具
       if (isDev) {
@@ -1399,6 +1382,7 @@ function setupIpcHandlers() {
       return;
     } catch (error) {
       console.error('預覽批次投影片失敗:', error);
+      mainWindow?.webContents.send('progress-update', 0, '預覽批次投影片失敗');
       throw error;
     }
   });
