@@ -8,6 +8,7 @@ import { exec } from 'child_process';
 import { promisify } from 'util';
 import { SettingsService } from './settings';
 import { spawn } from 'child_process';
+import { promises as fsPromises } from 'fs'; // Import fs promises
 
 // 將 exec 轉換為 Promise 版本
 const execAsync = promisify(exec);
@@ -125,54 +126,97 @@ export class SlideExportService {
    * @returns Promise<void>
    */
   private static execMarpCli(args: string[]): Promise<void> {
-    return new Promise((resolve, reject) => {
-      this.log(`準備執行 Marp CLI: ${args.join(' ')}`);
-      
-      const isWin = process.platform === 'win32';
-      const marpCliPath = path.join(process.cwd(), 'node_modules', '.bin', isWin ? 'marp.cmd' : 'marp');
-      
-      this.log(`Marp CLI 路徑: ${marpCliPath}`);
-      
-      // 在 Windows 上使用 cmd.exe 執行
-      const childProcess = isWin
-        ? spawn('cmd.exe', ['/c', marpCliPath, ...args], { stdio: 'pipe' })
-        : spawn(marpCliPath, args, { stdio: 'pipe' });
-      
-      let stdoutData = '';
-      let stderrData = '';
-      
+    return new Promise(async (resolve, reject) => {
+      const marpExecutable = getMarpCliExecutablePath();
+      this.log(`嘗試執行 Marp CLI: ${marpExecutable} ${args.join(' ')}`);
+
+      try {
+        // 檢查執行檔是否存在
+        await fsPromises.access(marpExecutable);
+      } catch (err) {
+        this.log(`Marp CLI 執行檔未找到: ${marpExecutable}`, 'error');
+        return reject(new Error(`Marp CLI 執行檔未找到: ${marpExecutable}`));
+      }
+
+      const childProcess = spawn(marpExecutable, args, { stdio: 'pipe' });
+
+      let stdoutOutput = '';
+      let stderrOutput = '';
+
       childProcess.stdout.on('data', (data) => {
-        stdoutData += data.toString();
-        this.log(`Marp CLI 輸出: ${data.toString()}`);
+        stdoutOutput += data.toString();
+        this.log(`Marp stdout: ${data.toString().trim()}`);
       });
-      
+
       childProcess.stderr.on('data', (data) => {
-        stderrData += data.toString();
-        this.log(`Marp CLI 錯誤: ${data.toString()}`, 'error');
+        stderrOutput += data.toString();
+        this.log(`Marp stderr: ${data.toString().trim()}`, 'warn'); // Log stderr as warning
       });
-      
+
       childProcess.on('close', (code) => {
-        this.log(`Marp CLI 進程結束，退出碼: ${code}`);
-        
         if (code === 0) {
+          this.log(`Marp CLI 執行成功 (退出碼 ${code})`);
           resolve();
         } else {
-          reject(new Error(`匯出失敗，退出碼: ${code}, 錯誤信息: ${stderrData}`));
+          this.log(`Marp CLI 執行失敗 (退出碼 ${code})`, 'error');
+          this.log(`Marp stderr: ${stderrOutput}`, 'error');
+          reject(new Error(`Marp CLI 退出碼: ${code}\n${stderrOutput}`));
         }
       });
-      
+
       childProcess.on('error', (err) => {
-        this.log(`Marp CLI 執行錯誤: ${err}`, 'error');
+        this.log(`執行 Marp CLI 時發生錯誤: ${err.message}`, 'error');
         reject(err);
       });
     });
   }
   
   /**
+   * 嘗試使用 Node 執行 Marp CLI
+   */
+  /* // REMOVE THIS METHOD
+  private static tryExecNodeWithMarpCli(
+    args: string[], 
+    resolve: () => void, 
+    reject: (error: Error) => void
+  ): void {
+    // ... implementation ...
+  }
+  */
+
+  /**
+   * 按順序嘗試多個路徑
+   */
+  /* // REMOVE THIS METHOD
+  private static async tryPathsSequentially(
+    paths: string[],
+    index: number,
+    args: string[],
+    resolve: () => void,
+    reject: (error: Error) => void
+  ): Promise<void> {
+    // ... implementation ...
+  }
+  */
+
+  /**
+   * 嘗試執行全域 marp 命令
+   */
+  /* // REMOVE THIS METHOD
+  private static tryGlobalMarpCommand(
+    args: string[], 
+    resolve: () => void, 
+    reject: (error: Error) => void
+  ): void {
+    // ... implementation ...
+  }
+  */
+
+  /**
    * 匯出為指定格式
    * @param marpContent Marp格式的投影片內容
    * @param outputPath 輸出路徑
-   * @param format 輸出格式 ('pdf', 'pptx', 'html')
+   * @param format 格式 ('pdf', 'pptx', 'html')
    * @returns 完整輸出路徑
    */
   private static async exportToFormat(
@@ -180,65 +224,64 @@ export class SlideExportService {
     outputPath: string, 
     format: string
   ): Promise<string> {
+    await this.initTempDir();
+    const tempInputFile = path.join(this.tempDir, `export_input_${Date.now()}.md`);
+    const finalOutputPath = `${outputPath}.${format}`;
+
     try {
-      this.log(`開始匯出為 ${format} 格式...`);
-      
-      // 初始化臨時目錄
-      await this.initTempDir();
-      
-      // 生成臨時檔案名稱和路徑
-      const timestamp = Date.now();
-      const tempFilePath = path.join(this.tempDir, `temp_slide_${timestamp}.md`);
-      
-      this.log(`臨時檔案路徑: ${tempFilePath}`);
-      
-      // 將 Marp 內容寫入臨時檔案
-      await fs.writeFile(tempFilePath, marpContent, 'utf-8');
-      
-      // 確保輸出目錄存在
-      const outputDir = path.dirname(outputPath);
-      await fs.mkdir(outputDir, { recursive: true });
-      
-      // 根據格式決定輸出檔案名稱和命令參數
-      const outputFileName = path.basename(outputPath, path.extname(outputPath));
-      const finalOutputPath = path.join(outputDir, `${outputFileName}.${format}`);
-      
-      this.log(`最終輸出路徑: ${finalOutputPath}`);
-      
+      // 寫入臨時 Markdown 文件
+      await fs.writeFile(tempInputFile, marpContent, 'utf-8');
+      this.log(`臨時 Markdown 文件已創建: ${tempInputFile}`);
+
       // 準備 Marp CLI 參數
       const marpArgs = [
-        tempFilePath,
+        tempInputFile,
         `--${format}`,
         '--allow-local-files',
         '--output',
         finalOutputPath,
+        '--theme-set',
+        'default', // 確保使用默認主題
         '--no-stdin'
       ];
-      
+
       // 執行 Marp CLI
       await this.execMarpCli(marpArgs);
-      
-      // 檢查輸出檔案是否存在
-      try {
-        await fs.access(finalOutputPath);
-        this.log(`成功確認輸出檔案存在: ${finalOutputPath}`);
-      } catch (error) {
-        this.log(`輸出檔案不存在: ${finalOutputPath}`, 'error');
-        throw new Error(`匯出文件不存在: ${finalOutputPath}`);
-      }
-      
-      // 清理臨時檔案
-      try {
-        await fs.unlink(tempFilePath);
-        this.log(`已清理臨時檔案: ${tempFilePath}`);
-      } catch (e) {
-        this.log(`清理臨時檔案失敗: ${tempFilePath}`, 'warn');
-      }
-      
+
+      // 檢查輸出文件是否存在
+      await fs.access(finalOutputPath);
+      this.log(`匯出成功: ${finalOutputPath}`);
+
       return finalOutputPath;
     } catch (error) {
-      this.log(`匯出為 ${format} 失敗: ${error}`, 'error');
+      this.log(`匯出 ${format.toUpperCase()} 失敗: ${error}`, 'error');
       throw error;
+    } finally {
+      // 清理臨時文件
+      try {
+        await fs.unlink(tempInputFile);
+        this.log(`臨時文件已刪除: ${tempInputFile}`);
+      } catch (cleanupError) {
+        this.log(`刪除臨時文件失敗: ${cleanupError}`, 'warn');
+      }
     }
+  }
+}
+
+// Helper function to get Marp CLI path (copied from main/index.ts)
+function getMarpCliExecutablePath(): string {
+  const platform = process.platform;
+  // Standalone executable name (assuming you placed marp.exe in 'executables')
+  const exeName = platform === 'win32' ? 'marp.exe'
+                 : platform === 'darwin' ? 'marp-cli-macos' // Adjust if you downloaded macOS binary
+                 : 'marp-cli-linux';   // Adjust if you downloaded Linux binary
+
+  if (app.isPackaged) {
+    // In packaged app, point to the path defined in extraResources (to: 'bin')
+    const exeDir = path.join(process.resourcesPath, 'bin');
+    return path.join(exeDir, exeName);
+  } else {
+    // In development, point to the executable in the 'executables' directory
+    return path.join(app.getAppPath(), 'executables', exeName);
   }
 } 
