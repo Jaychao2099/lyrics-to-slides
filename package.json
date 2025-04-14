@@ -1,7 +1,7 @@
 {
   "name": "lyrics-to-slides",
-  "version": "1.1.0",
-  "description": "將歌曲名稱轉換為精美投影片的桌面應用程式",
+  "version": "1.1.1",
+  "description": "將歌曲名稱轉換為簡易投影片的桌面應用程式",
   "main": "dist/main/index.js",
   "scripts": {
     "start": "electron .",
@@ -88,6 +88,18 @@
       "dist/**/*",
       "package.json"
     ],
+    "extraResources": [
+      {
+        "from": "executables",
+        "to": "bin",
+        "filter": [
+          "**/*"
+        ]
+      }
+    ],
+    "asar": {
+      "smartUnpack": true
+    },
     "win": {
       "target": [
         "nsis",

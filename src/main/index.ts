@@ -35,6 +35,26 @@ function sendLogToRenderer(type: string, message: string, level: 'info' | 'error
   }
 }
 
+// Helper function to get Marp CLI path
+function getMarpCliExecutablePath(): string {
+  const platform = process.platform;
+  // Standalone executable name (assuming you placed marp.exe in 'executables')
+  const exeName = platform === 'win32' ? 'marp.exe'
+                 : platform === 'darwin' ? 'marp-cli-macos' // Adjust if you downloaded macOS binary
+                 : 'marp-cli-linux';   // Adjust if you downloaded Linux binary
+
+  if (app.isPackaged) {
+    // In packaged app, point to the path defined in extraResources (to: 'bin')
+    const exeDir = path.join(process.resourcesPath, 'bin');
+    return path.join(exeDir, exeName);
+  } else {
+    // In development, still point to the executable in the 'executables' directory
+    // Or optionally, you could point to the globally installed marp or the node_modules version for dev ease
+    // For consistency, let's point to the local executable copy
+    return path.join(app.getAppPath(), 'executables', exeName);
+  }
+}
+
 // 創建主窗口
 function createWindow() {
   mainWindow = new BrowserWindow({
@@ -135,43 +155,6 @@ function createWindow() {
   });
 }
 
-// 清理現有歌詞數據
-// async function cleanAllExistingLyrics() {
-//   try {
-//     console.log('開始清理所有現有歌詞數據...');
-    
-//     // 獲取所有歌曲
-//     const songs = DatabaseService.getSongs();
-    
-//     // 對每首歌曲的歌詞進行清理
-//     let updatedCount = 0;
-    
-//     for (const song of songs) {
-//       if (song.lyrics) {
-//         // 清理歌詞
-//         const cleanedLyrics = LyricsSearchService.cleanLyrics(song.lyrics);
-        
-//         // 如果清理後的歌詞與原歌詞不同，則更新數據庫
-//         if (cleanedLyrics !== song.lyrics) {
-//           const updated = DatabaseService.updateSong(song.id, {
-//             lyrics: cleanedLyrics
-//           });
-          
-//           if (updated) {
-//             updatedCount++;
-//           }
-//         }
-//       }
-//     }
-    
-//     console.log(`完成歌詞清理，已更新 ${updatedCount} 首歌曲的歌詞`);
-//     await LoggerService.info(`完成歌詞清理，已更新 ${updatedCount} 首歌曲的歌詞`);
-//   } catch (error) {
-//     console.error('清理歌詞數據時發生錯誤:', error);
-//     await LoggerService.error('清理歌詞數據失敗', error);
-//   }
-// }
-
 // 應用程序準備就緒時創建窗口
 app.whenReady().then(async () => {
   try {
@@ -203,16 +186,6 @@ app.whenReady().then(async () => {
     // 創建主窗口
     createWindow();
     await LoggerService.info('主窗口創建完成');
-    
-    // 不再每次應用啟動時清理所有歌詞
-    // 如果有必要，可以通過設置一個標記，只在應用更新或用戶主動要求時執行
-    // 或者改為只在添加新歌詞時進行清理
-    // try {
-    //   await cleanAllExistingLyrics();
-    // } catch (error: any) {
-    //   console.error('清理歌詞數據失敗:', error);
-    //   await LoggerService.error('清理歌詞數據失敗', error);
-    // }
 
     // 在 macOS 中，當點擊 dock 圖標且沒有其他窗口打開時，通常會重新創建一個窗口
     app.on('activate', () => {
@@ -642,35 +615,50 @@ function setupIpcHandlers() {
       await fs.promises.writeFile(tempFile, fixedMarpContent, 'utf-8');
       
       // 使用 Marp CLI 將 Markdown 轉換為 HTML
-      const isWin = process.platform === 'win32';
-      const marpCliPath = path.join(process.cwd(), 'node_modules', '.bin', isWin ? 'marp.cmd' : 'marp');
+      const marpExecutable = getMarpCliExecutablePath();
       
-      // 準備 Marp CLI 參數
+      // 檢查執行檔是否存在
+      try {
+        await fs.promises.access(marpExecutable);
+      } catch (err) {
+        console.error(`Marp CLI 執行檔未找到: ${marpExecutable}`, err);
+        throw new Error(`Marp CLI 執行檔未找到: ${marpExecutable}`);
+      }
+      
+      // 準備 Marp CLI 參數 (Ensure temp paths are absolute or relative to a known dir)
       const marpArgs = [
-        tempFile,
+        tempFile, // Use absolute path
         '--html',
         '--allow-local-files',
         '--output',
-        tempHtmlFile,
+        tempHtmlFile, // Use absolute path
         '--theme-set',
         'default',
         '--no-stdin'
       ];
       
-      // 執行 Marp CLI 轉換
-      const childProcess = isWin
-        ? spawn('cmd.exe', ['/c', marpCliPath, ...marpArgs], { stdio: 'pipe' })
-        : spawn(marpCliPath, marpArgs, { stdio: 'pipe' });
+      // 執行 Marp CLI 轉換 - 直接執行獨立執行檔
+      // const childProcess = spawn('node', [marpExecutable, ...marpArgs], { stdio: 'pipe' }); // OLD EXECUTION
+      const childProcess = spawn(marpExecutable, marpArgs, { stdio: 'pipe' }); // NEW EXECUTION
         
+      let stderrOutput = '';
+      childProcess.stderr.on('data', (data) => {
+        stderrOutput += data.toString();
+      });
+
       await new Promise((resolve, reject) => {
         childProcess.on('close', (code) => {
           if (code === 0) {
             resolve(null);
           } else {
-            reject(new Error(`Marp CLI 退出碼: ${code}`));
+            console.error(`Marp CLI 錯誤輸出: ${stderrOutput}`);
+            reject(new Error(`Marp CLI 退出碼: ${code}\n${stderrOutput}`));
           }
         });
-        childProcess.on('error', reject);
+        childProcess.on('error', (err) => {
+          console.error(`執行 Marp CLI 時發生錯誤: ${err.message}`);
+          reject(err);
+        });
       });
       
       mainWindow?.webContents.send('progress-update', 100, '投影片預覽準備完成');
@@ -1337,8 +1325,7 @@ function setupIpcHandlers() {
       await fsPromises.writeFile(tempFile, fixedMarpContent, 'utf-8');
       
       // 使用 Marp CLI 將 Markdown 轉換為 HTML
-      const isWin = process.platform === 'win32';
-      const marpCliPath = path.join(process.cwd(), 'node_modules', '.bin', isWin ? 'marp.cmd' : 'marp');
+      const marpExecutable = getMarpCliExecutablePath();
       
       // 準備 Marp CLI 參數
       const marpArgs = [
@@ -1352,20 +1339,27 @@ function setupIpcHandlers() {
         '--no-stdin'
       ];
       
-      // 執行 Marp CLI 轉換
-      const childProcess = isWin
-        ? spawn('cmd.exe', ['/c', marpCliPath, ...marpArgs], { stdio: 'pipe' })
-        : spawn(marpCliPath, marpArgs, { stdio: 'pipe' });
+      // 執行 Marp CLI 轉換 - 使用 node 執行 JS 文件
+      const childProcess = spawn('node', [marpExecutable, ...marpArgs], { stdio: 'pipe' });
         
+      let stderrOutput = '';
+      childProcess.stderr.on('data', (data) => {
+        stderrOutput += data.toString();
+      });
+
       await new Promise((resolve, reject) => {
         childProcess.on('close', (code) => {
           if (code === 0) {
             resolve(null);
           } else {
-            reject(new Error(`Marp CLI 退出碼: ${code}`));
+            console.error(`Marp CLI 錯誤輸出: ${stderrOutput}`);
+            reject(new Error(`Marp CLI 退出碼: ${code}\n${stderrOutput}`));
           }
         });
-        childProcess.on('error', reject);
+        childProcess.on('error', (err) => {
+          console.error(`執行 Marp CLI 時發生錯誤: ${err.message}`);
+          reject(err);
+        });
       });
       
       // 獲取主窗口（如果不存在則創建）
