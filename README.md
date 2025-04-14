@@ -19,14 +19,14 @@
 
 ### Windows 系統
 
-1. 從[發布頁面](https://github.com/Jaychao2099/lyrics-to-slides/releases)下載最新的 `lyrics-to-slides-setup-1.1.0.exe` 安裝檔 或 `Lyrics to Slides-1.1.0.exe` 免安裝執行檔（可跳過2. 3.）。
+1. 從[發布頁面](https://github.com/Jaychao2099/lyrics-to-slides/releases)下載最新的 `lyrics-to-slides-setup-1.1.1.exe` 安裝檔 或 `Lyrics to Slides-1.1.1.exe` 免安裝執行檔（可跳過2. 3.）。
 2. 執行安裝檔，依照指示完成安裝。
 3. 從開始選單或桌面快捷方式啟動應用程式。
 
 ### macOS 系統 (尚未支援)
 
 *(注意：macOS 版本理論上可透過 `electron-builder` 建置，但可能未經完整測試)*
-1. 從[發布頁面](https://github.com/Jaychao2099/lyrics-to-slides/releases)下載最新的 `lyrics-to-slides-1.1.0.dmg` 鏡像檔。
+1. 從[發布頁面](https://github.com/Jaychao2099/lyrics-to-slides/releases)下載最新的 `lyrics-to-slides-1.1.1.dmg` 鏡像檔。
 2. 開啟下載的鏡像檔。
 3. 將應用程式拖曳至應用程式資料夾。
 4. 在應用程式資料夾中啟動軟體。
