@@ -438,7 +438,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ settings, onSave, onCance
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
           <Box>
             <Typography variant="h6" gutterBottom>
-              Google搜索設定
+              Google搜尋設定
             </Typography>
             <TextField
               fullWidth
@@ -460,13 +460,6 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ settings, onSave, onCance
                 ),
               }}
             />
-            <TextField
-              fullWidth
-              label="Google 搜索引擎 ID"
-              value={formData.googleSearchEngineId}
-              onChange={(e) => handleChange('googleSearchEngineId', e.target.value)}
-              margin="normal"
-            />
             <FormHelperText>
               請從{' '}
               <Link 
@@ -478,17 +471,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ settings, onSave, onCance
               >
                 Google Programmable Search Engine
               </Link>{' '}
-              獲取 Google API 金鑰，並從{' '}
-              <Link 
-                href="https://programmablesearchengine.google.com/controlpanel/all" 
-                target="_blank" 
-                rel="noopener" 
-                onClick={(e) => handleLinkClick(e, 'https://programmablesearchengine.google.com/controlpanel/all')}
-                sx={{ cursor: 'pointer' }}
-              >
-                Google 程式化搜尋引擎
-              </Link>{' '}
-              獲取搜索引擎 ID
+              獲取 Google API 金鑰
             </FormHelperText>
           </Box>
           
@@ -991,11 +974,11 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ settings, onSave, onCance
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
           <Box>
             <Typography variant="h6" gutterBottom>
-              圖片生成提示詞
+              預設圖片生成提示詞
             </Typography>
             <TextField
               fullWidth
-              label="圖片生成提示詞"
+              label="預設圖片生成提示詞"
               value={formData.imagePromptTemplate}
               onChange={(e) => handleChange('imagePromptTemplate', e.target.value)}
               margin="normal"
@@ -1153,7 +1136,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ settings, onSave, onCance
               
               <Box sx={{ mt: 2 }}>
                 <Typography variant="body2" color="text.secondary">
-                  快取包含生成的背景圖片、投影片內容和搜尋的歌詞。清除快取將刪除這些檔案，並完全刪除所有歌詞資料，這意味著您必須重新搜索歌詞。
+                  快取包含生成的背景圖片、投影片內容和搜尋的歌詞。清除快取將刪除這些檔案，並完全刪除所有歌詞資料，這意味著您必須重新搜尋歌詞。
                 </Typography>
               </Box>
             </Box>

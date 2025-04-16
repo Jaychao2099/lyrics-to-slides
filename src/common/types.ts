@@ -2,7 +2,6 @@
 export interface Settings {
   // API 金鑰
   googleApiKey: string;
-  googleSearchEngineId: string;
   openaiApiKey: string;
   geminiApiKey: string;
   grokApiKey: string;

@@ -127,18 +127,25 @@ export class SlideExportService {
    */
   private static execMarpCli(args: string[]): Promise<void> {
     return new Promise(async (resolve, reject) => {
-      const marpExecutable = getMarpCliExecutablePath();
-      this.log(`嘗試執行 Marp CLI: ${marpExecutable} ${args.join(' ')}`);
+      const marpExecutablePath = getMarpCliExecutablePath(); // Path for packaged app
+      const command = app.isPackaged ? marpExecutablePath : 'npx';
+      const spawnArgs = app.isPackaged ? args : ['marp', ...args];
 
-      try {
-        // 檢查執行檔是否存在
-        await fsPromises.access(marpExecutable);
-      } catch (err) {
-        this.log(`Marp CLI 執行檔未找到: ${marpExecutable}`, 'error');
-        return reject(new Error(`Marp CLI 執行檔未找到: ${marpExecutable}`));
+      this.log(`執行 Marp: ${command} ${spawnArgs.join(' ')} (isPackaged: ${app.isPackaged})`);
+
+      if (app.isPackaged) {
+        try {
+          // 檢查獨立執行檔是否存在 (僅在生產環境)
+          await fsPromises.access(marpExecutablePath);
+        } catch (err) {
+          this.log(`Marp CLI 執行檔未找到: ${marpExecutablePath}`, 'error');
+          return reject(new Error(`Marp CLI 執行檔未找到: ${marpExecutablePath}`));
+        }
       }
+      // 對於 'npx marp'，我們假設它在開發環境中是可用的
 
-      const childProcess = spawn(marpExecutable, args, { stdio: 'pipe' });
+      // 使用判斷後的 command 和 spawnArgs
+      const childProcess = spawn(command, spawnArgs, { stdio: 'pipe', shell: process.platform === 'win32' }); // Use shell on Windows for npx
 
       let stdoutOutput = '';
       let stderrOutput = '';
@@ -215,13 +222,13 @@ export class SlideExportService {
   /**
    * 匯出為指定格式
    * @param marpContent Marp格式的投影片內容
-   * @param outputPath 輸出路徑
+   * @param outputPath 輸出路徑 (基本路徑，不含副檔名)
    * @param format 格式 ('pdf', 'pptx', 'html')
    * @returns 完整輸出路徑
    */
-  private static async exportToFormat(
+  public static async exportToFormat(
     marpContent: string, 
-    outputPath: string, 
+    outputPath: string, // Changed comment: this is the base path without extension
     format: string
   ): Promise<string> {
     await this.initTempDir();

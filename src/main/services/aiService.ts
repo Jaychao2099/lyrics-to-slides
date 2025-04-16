@@ -5,8 +5,9 @@ import { SettingsService } from './settings';
 import { LoggerService } from './logger';
 import OpenAI from 'openai';
 import { AIProvider, OpenAITextModel, OpenAIImageModel, GeminiTextModel, GeminiImageModel, GrokTextModel, GrokImageModel, AnthropicModel } from '../../common/types';
-import fetch from 'node-fetch';
 import { GoogleGenAI, DynamicRetrievalConfigMode } from '@google/genai';
+import { ChatCompletionMessageParam, ChatCompletionTool } from 'openai/resources/chat/completions';
+import Anthropic from '@anthropic-ai/sdk';
 
 /**
  * AI服務接口
@@ -94,26 +95,48 @@ export class OpenAIService implements AIService {
       throw new Error('OpenAI API未初始化');
     }
 
-    const startTime = LoggerService.apiStart('OpenAIService', 'generateText', { promptLength: prompt.length });
+    const startTime = LoggerService.apiStart('OpenAIService', 'generateText', { model: this.model, promptLength: prompt.length });
 
     try {
+      const messages: ChatCompletionMessageParam[] = [{ role: 'user', content: prompt }];
+
+      // Define the search tool using type assertion
+      const searchTool: ChatCompletionTool = { type: "web_search_preview" } as any;
+
+      // Single API call with the search tool enabled
       const response = await this.client.chat.completions.create({
         model: this.isImageModel(this.model) ? 'gpt-4o' : this.model,
-        messages: [{ role: 'user', content: prompt }],
+        messages: messages,
         temperature: 0.7,
+        tools: [searchTool],
       });
 
-      const text = response.choices[0]?.message?.content || '';
-      await LoggerService.apiSuccess('OpenAIService', 'generateText', 
-        { promptLength: prompt.length }, 
-        { responseLength: text.length }, 
+      const message = response.choices[0]?.message;
+
+      // Directly extract content from the first response
+      const text = message?.content || '';
+
+      // Optional: Log if tool calls were present, indicating search was used
+      if (message?.tool_calls?.some(tool => (tool as any).type === 'web_search_preview')) {
+        await LoggerService.info('OpenAI model used web search (single call flow).');
+      }
+
+      // Handle cases where content is null/empty even after potential search
+      if (!text) {
+        await LoggerService.warn('OpenAI generateText returned empty content even with search tool enabled.');
+        throw new Error('OpenAI generateText did not return content.');
+      }
+
+      await LoggerService.apiSuccess('OpenAIService', 'generateText',
+        { model: this.model, promptLength: prompt.length },
+        { responseLength: text.length },
         startTime
       );
       return text;
     } catch (error) {
-      await LoggerService.apiError('OpenAIService', 'generateText', 
-        { promptLength: prompt.length }, 
-        error, 
+      await LoggerService.apiError('OpenAIService', 'generateText',
+        { model: this.model, promptLength: prompt.length },
+        error,
         startTime
       );
       throw error;
@@ -473,7 +496,7 @@ export class GrokService implements AIService {
  * Anthropic Claude服務實現
  */
 export class AnthropicService implements AIService {
-  private apiKey: string | null = null;
+  private client: Anthropic | null = null;
   private model: AnthropicModel;
 
   constructor(model?: AnthropicModel) {
@@ -498,7 +521,9 @@ export class AnthropicService implements AIService {
       if (!apiKey) {
         throw new Error('未設定Anthropic API金鑰');
       }
-      this.apiKey = apiKey;
+      this.client = new Anthropic({
+        apiKey: apiKey as string,
+      });
       return true;
     } catch (error) {
       console.error('初始化Anthropic API失敗:', error);
@@ -508,38 +533,32 @@ export class AnthropicService implements AIService {
   }
 
   async generateText(prompt: string): Promise<string> {
-    if (!this.apiKey) {
+    if (!this.client) {
       await this.initialize();
     }
 
-    if (!this.apiKey) {
+    if (!this.client) {
       throw new Error('Anthropic API未初始化');
     }
 
     const startTime = LoggerService.apiStart('AnthropicService', 'generateText', { model: this.model, promptLength: prompt.length });
 
     try {
-      const response = await fetch('https://api.anthropic.com/v1/messages', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-api-key': this.apiKey,
-          'anthropic-version': '2023-06-01',
-        },
-        body: JSON.stringify({
-          model: this.model,
-          messages: [
-            {
-              role: 'user',
-              content: prompt
-            }
-          ],
-          max_tokens: 1024,
-        }),
+      const response = await this.client.messages.create({
+        model: this.model,
+        max_tokens: 1024,
+        messages: [
+          {
+            role: 'user',
+            content: prompt
+          }
+        ],
       });
 
-      const data = await response.json();
-      const text = data.content?.[0]?.text || '';
+      // 根據 Anthropic SDK 的類型定義，正確獲取文本內容
+      const text = response.content[0]?.type === 'text' 
+        ? response.content[0].text 
+        : '';
 
       await LoggerService.apiSuccess('AnthropicService', 'generateText', 
         { model: this.model, promptLength: prompt.length }, 

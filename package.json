@@ -1,6 +1,6 @@
 {
   "name": "lyrics-to-slides",
-  "version": "1.1.1",
+  "version": "1.1.2",
   "description": "將歌曲名稱轉換為簡易投影片的桌面應用程式",
   "main": "dist/main/index.js",
   "scripts": {
@@ -36,7 +36,6 @@
     "@emotion/styled": "^11.14.0",
     "@google/genai": "^0.8.0",
     "@google/generative-ai": "^0.2.1",
-    "@marp-team/marp-cli": "^4.1.2",
     "@marp-team/marp-core": "^4.0.1",
     "@mui/icons-material": "^7.0.1",
     "@mui/material": "^7.0.1",
@@ -59,6 +58,7 @@
     "typescript": "*"
   },
   "devDependencies": {
+    "@marp-team/marp-cli": "^4.1.2",
     "@types/better-sqlite3": "*",
     "@types/cheerio": "*",
     "@types/node": "*",
@@ -105,7 +105,7 @@
         "nsis",
         "portable"
       ],
-      "icon": "assets/icon.ico"
+      "icon": "assets/icon-2.ico"
     },
     "mac": {
       "category": "public.app-category.productivity",

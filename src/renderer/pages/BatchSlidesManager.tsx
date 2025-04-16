@@ -502,7 +502,7 @@ const BatchSlidesManager: React.FC = () => {
     }
   };
 
-  // 過濾搜索結果
+  // 過濾搜尋結果
   const filteredSongs = availableSongs.filter(song => 
     song.title.toLowerCase().includes(searchQuery.toLowerCase()) || 
     (song.artist && song.artist.toLowerCase().includes(searchQuery.toLowerCase()))
@@ -729,7 +729,7 @@ const BatchSlidesManager: React.FC = () => {
           <DialogContent>
             <TextField
               margin="dense"
-              label="搜索歌曲"
+              label="搜尋歌曲"
               fullWidth
               variant="outlined"
               value={searchQuery}

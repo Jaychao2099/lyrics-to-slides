@@ -19,7 +19,7 @@ import { PromptGenerationService } from './promptGeneration';
  */
 export class ImageGenerationService {
   // 快取目錄
-  private static imageCacheDir = path.join(app.getPath('userData'), 'app_cache', 'images');
+  public static imageCacheDir = path.join(app.getPath('userData'), 'app_cache', 'images');
   // OpenAI 實例 (保留向後兼容)
   private static openai: OpenAI | null = null;
 

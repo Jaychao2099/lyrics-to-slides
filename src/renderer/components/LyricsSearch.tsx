@@ -183,7 +183,7 @@ const LyricsSearch: React.FC<LyricsSearchProps> = ({ onSearchComplete }) => {
         // 更新界面狀態
         setSelectedResult(updatedResult);
         
-        // 更新搜索結果列表中的對應項
+        // 更新搜尋結果列表中的對應項
         setSearchResults(prevResults => {
           return prevResults.map(result => 
             result === selectedResult ? updatedResult : result

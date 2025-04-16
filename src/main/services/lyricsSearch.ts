@@ -388,11 +388,12 @@ export class LyricsSearchService {
    */
   private static async searchLyricsUrl(songTitle: string, artist: string): Promise<string | null> {
     const googleApiKey = SettingsService.getSetting('googleApiKey');
-    const searchEngineId = SettingsService.getSetting('googleSearchEngineId');
+    // 使用硬編碼的搜尋引擎 ID
+    const searchEngineId = "a548d24d49d4840e0";
 
-    if (!googleApiKey || !searchEngineId) {
-      this.log('Google API配置缺失，請在設定中配置', 'error');
-      throw new Error('Google API配置缺失，請在設定中配置');
+    if (!googleApiKey) {
+      this.log('Google API金鑰缺失，請在設定中配置', 'error');
+      throw new Error('Google API金鑰缺失，請在設定中配置');
     }
 
     // 構建查詢
